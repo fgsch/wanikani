@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         WaniKani Stroke Order
 // @namespace    wk-stroke-order
-// @version      0.1.0
+// @version      0.2.0
 // @author       Federico G. Schwindt <fgsch@lodoss.net>
-// @description  Adds animated KanjiVG stroke order, radicals, and component groups to WaniKani kanji pages.
+// @description  Adds animated KanjiVG stroke order, radicals, and component groups to WaniKani kanji pages and lessons.
 // @license      MIT
 // @homepageURL  https://github.com/fgsch/wanikani
 // @updateURL    https://raw.githubusercontent.com/fgsch/wanikani/main/wk-stroke-order.js
@@ -25,12 +25,35 @@
   let isRunning = false;
   const processedPaths = new Set();
 
-  function isKanjiPage() {
+  function isKanjiSubjectPage() {
     return /^\/kanji\/[^/]+\/?$/.test(location.pathname);
   }
 
-  function getKanjiFromUrl() {
-    if (!isKanjiPage()) return null;
+  function isSubjectLessonPage() {
+    return /^\/subject-lessons\/[\d-]+\/\d+\/?$/.test(location.pathname);
+  }
+
+  function isKanjiLessonPage() {
+    return (
+      isSubjectLessonPage() &&
+      Boolean(document.querySelector('.character-header.character-header--kanji'))
+    );
+  }
+
+  function isKanjiPage() {
+    return isKanjiSubjectPage() || isKanjiLessonPage();
+  }
+
+  function getKanji() {
+    if (isKanjiLessonPage()) {
+      const characters = document.querySelector(
+        '.character-header--kanji .character-header__characters'
+      );
+
+      return Array.from(characters?.textContent.trim() || '')[0] || null;
+    }
+
+    if (!isKanjiSubjectPage()) return null;
 
     const slug = decodeURIComponent(location.pathname.split('/').filter(Boolean).pop() || '');
     return Array.from(slug)[0] || null;
@@ -432,8 +455,8 @@
   function createReplayControl(onClick) {
     const navTemplate =
       document.querySelector('a.wk-nav__item') ||
-      findGoToLink('Meaning') ||
-      findGoToLink('Stroke Order');
+      (!isKanjiLessonPage() &&
+        (findGoToLink('Meaning') || findGoToLink('Stroke Order')));
 
     let control;
 
@@ -490,16 +513,7 @@
     }
   }
 
-  function insertStrokeOrderSection(svg, kanji) {
-    const radicalHeading = findHeading('Radical Combination');
-    const meaningHeading = findHeading('Meaning');
-
-    if (!radicalHeading || !meaningHeading) return false;
-
-    const strokeHeading = radicalHeading.cloneNode(false);
-    strokeHeading.id = SECTION_ID;
-    strokeHeading.textContent = 'Stroke Order';
-
+  function createStrokeOrderContent(svg, kanji) {
     const content = document.createElement('div');
     content.id = CONTENT_ID;
 
@@ -529,6 +543,20 @@
     mainColumn.append(svg, replayControl);
     content.append(mainColumn, createSidePanel(svg), credit);
 
+    return content;
+  }
+
+  function insertStrokeOrderSection(svg, kanji) {
+    const radicalHeading = findHeading('Radical Combination');
+    const meaningHeading = findHeading('Meaning');
+
+    if (!radicalHeading || !meaningHeading) return false;
+
+    const strokeHeading = radicalHeading.cloneNode(false);
+    strokeHeading.id = SECTION_ID;
+    strokeHeading.textContent = 'Stroke Order';
+    const content = createStrokeOrderContent(svg, kanji);
+
     meaningHeading.insertAdjacentElement('beforebegin', content);
     content.insertAdjacentElement('beforebegin', strokeHeading);
 
@@ -537,21 +565,112 @@
     return true;
   }
 
+  function insertStrokeOrderLessonTab(svg, kanji) {
+    const radicalLink = document.querySelector(
+      '.subject-slides__navigation-link[href="#composition"]'
+    );
+    const meaningLink = document.querySelector(
+      '.subject-slides__navigation-link[href="#meaning"]'
+    );
+    const compositionSlide = document.querySelector('#composition.subject-slide');
+    const meaningSlide = document.querySelector('#meaning.subject-slide');
+    const radicalSection = compositionSlide?.querySelector(
+      '.subject-section[title="Radical Composition"]'
+    );
+    const compositionNext = compositionSlide?.querySelector(
+      '.subject-slide__navigation[aria-label="next slide"]'
+    );
+    const meaningPrevious = meaningSlide?.querySelector(
+      '.subject-slide__navigation[aria-label="previous slide"]'
+    );
+
+    if (
+      !radicalLink ||
+      !meaningLink ||
+      !compositionSlide ||
+      !meaningSlide ||
+      !radicalSection ||
+      !compositionNext ||
+      !meaningPrevious
+    ) {
+      return false;
+    }
+
+    const navigationItem = radicalLink.closest('li').cloneNode(true);
+    const strokeLink = navigationItem.querySelector('a');
+
+    strokeLink.href = `#${SECTION_ID}`;
+    strokeLink.setAttribute('aria-controls', SECTION_ID);
+    strokeLink.setAttribute('aria-selected', 'false');
+    strokeLink.textContent = 'Stroke Order';
+    radicalLink.closest('li').insertAdjacentElement('afterend', navigationItem);
+
+    const strokeSlide = compositionSlide.cloneNode(false);
+    const previousNavigation = meaningPrevious.cloneNode(true);
+    const nextNavigation = compositionNext.cloneNode(true);
+    const slideContent = document.createElement('div');
+    const slideSections = document.createElement('div');
+    const section = document.createElement('section');
+    const sectionHeading = radicalSection.querySelector('h2').cloneNode(true);
+    const sectionContent = document.createElement('section');
+
+    strokeSlide.id = SECTION_ID;
+    strokeSlide.hidden = true;
+    previousNavigation.href = '#composition';
+    nextNavigation.href = '#meaning';
+    slideContent.className = 'subject-slide__content';
+    slideSections.className = 'subject-slide__sections';
+    section.className = 'subject-section';
+    section.title = 'Stroke Order';
+    sectionHeading.querySelector('.subject-section__title-text').textContent = 'Stroke Order';
+    sectionContent.className = 'subject-section__content';
+    sectionContent.appendChild(createStrokeOrderContent(svg, kanji));
+    section.append(sectionHeading, sectionContent);
+    slideSections.appendChild(section);
+    slideContent.appendChild(slideSections);
+    strokeSlide.append(previousNavigation, slideContent, nextNavigation);
+
+    compositionNext.href = `#${SECTION_ID}`;
+    meaningPrevious.href = `#${SECTION_ID}`;
+    compositionSlide.insertAdjacentElement('afterend', strokeSlide);
+
+    animateSvg(svg);
+
+    return true;
+  }
+
+  function pageIsReady() {
+    if (isKanjiLessonPage()) {
+      return Boolean(
+        document.querySelector('.subject-slides__navigation-link[href="#composition"]') &&
+        document.querySelector('.subject-slides__navigation-link[href="#meaning"]') &&
+        document.querySelector(
+          '#composition.subject-slide .subject-section[title="Radical Composition"]'
+        ) &&
+        document.querySelector(
+          '#composition.subject-slide .subject-slide__navigation[aria-label="next slide"]'
+        ) &&
+        document.querySelector(
+          '#meaning.subject-slide .subject-slide__navigation[aria-label="previous slide"]'
+        )
+      );
+    }
+
+    return Boolean(findHeading('Radical Combination') && findHeading('Meaning'));
+  }
+
   async function run() {
     if (isRunning) return;
     if (!isKanjiPage()) return;
     if (document.getElementById(CONTENT_ID)) return;
     if (processedPaths.has(location.pathname)) return;
 
-    const radicalHeading = findHeading('Radical Combination');
-    const meaningHeading = findHeading('Meaning');
-
-    if (!radicalHeading || !meaningHeading) return;
+    if (!pageIsReady()) return;
 
     isRunning = true;
 
     try {
-      const kanji = getKanjiFromUrl();
+      const kanji = getKanji();
       if (!kanji) return;
 
       processedPaths.add(location.pathname);
@@ -576,7 +695,17 @@
       sanitizeSvg(svg);
       injectStyles();
 
-      if (insertStrokeOrderSection(svg, kanji)) {
+      let inserted;
+
+      if (isKanjiLessonPage()) {
+        inserted = insertStrokeOrderLessonTab(svg, kanji);
+      } else {
+        inserted = insertStrokeOrderSection(svg, kanji);
+      }
+
+      processedPaths.delete(location.pathname);
+
+      if (inserted && !isKanjiLessonPage()) {
         addGoToNavigationItem();
       }
     } finally {

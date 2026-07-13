@@ -239,6 +239,174 @@ test('stroke order inserts a KanjiVG section and navigation link on kanji pages'
   assert.equal(document.querySelector('.wk-kanjivg-credit a')?.href, 'https://kanjivg.tagaini.net/');
 });
 
+test('stroke order inserts a lesson tab after Radicals on kanji lessons', async () => {
+  const svgText = `
+    <svg xmlns="http://www.w3.org/2000/svg" xmlns:kvg="http://kanjivg.tagaini.net" viewBox="0 0 109 109">
+      <g id="kvg:kanji_5148" kvg:element="先" kvg:radical="general">
+        <path id="kvg:5148-s1" d="M10 50 L90 50"></path>
+        <text x="12" y="45">1</text>
+      </g>
+    </svg>
+  `;
+  const dom = createDom(
+    `
+      <div class="lesson-container">
+        <div class="character-header character-header--kanji">
+          <div class="character-header__characters" lang="ja">先</div>
+        </div>
+        <div class="subject-slides">
+          <ul class="subject-slides__navigation-items" role="tablist">
+            <li class="subject-slides__navigation-item" role="presentation">
+              <a class="subject-slides__navigation-link" data-subject-slides-target="navigationItem" data-action="subject-slides#switchSlide" aria-controls="composition" aria-selected="true" role="tab" href="#composition">Radicals</a>
+            </li>
+            <li class="subject-slides__navigation-item" role="presentation">
+              <a class="subject-slides__navigation-link" data-subject-slides-target="navigationItem" data-action="subject-slides#switchSlide" aria-controls="meaning" aria-selected="false" role="tab" href="#meaning">Meaning</a>
+            </li>
+          </ul>
+          <div class="subject-slides__slides">
+            <div class="subject-slide" id="composition" data-subject-slides-target="slide" role="tabpanel">
+              <div class="subject-slide__content">
+                <div class="subject-slide__sections">
+                  <section class="subject-section" title="Radical Composition">
+                    <h2 class="subject-section__title"><span class="subject-section__title-text">Radical Composition</span></h2>
+                    <section class="subject-section__content">Radicals</section>
+                  </section>
+                </div>
+              </div>
+              <a class="subject-slide__navigation" data-action="subject-slides#switchSlide" data-subject-slides-target="nextButton" aria-label="next slide" href="#meaning">Next</a>
+            </div>
+            <div class="subject-slide" id="meaning" data-subject-slides-target="slide" role="tabpanel" hidden="hidden">
+              <a class="subject-slide__navigation" data-action="subject-slides#switchSlide" data-subject-slides-target="prevButton" aria-label="previous slide" href="#composition">Previous</a>
+              <div class="subject-slide__content"><div class="subject-slide__sections"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `,
+    'https://www.wanikani.com/subject-lessons/-4190889689937224551/543'
+  );
+  let fetchedUrl = null;
+
+  dom.window.SVGElement.prototype.getTotalLength = () => 100;
+
+  await loadUserscript(dom, 'wk-stroke-order.js', {
+    GM: {
+      xmlHttpRequest({ url, onload }) {
+        fetchedUrl = url;
+        onload({ status: 200, responseText: svgText });
+      }
+    }
+  });
+
+  const document = dom.window.document;
+
+  await waitFor(() => {
+    assert.ok(document.querySelector('#stroke-order #wk-kanjivg-stroke-order'));
+  });
+
+  const tabs = [...document.querySelectorAll('.subject-slides__navigation-link')];
+  const slides = [...document.querySelectorAll('.subject-slide')];
+
+  assert.equal(fetchedUrl, 'https://raw.githubusercontent.com/KanjiVG/kanjivg/master/kanji/05148.svg');
+  assert.deepEqual(tabs.map(tab => tab.textContent.trim()), ['Radicals', 'Stroke Order', 'Meaning']);
+  assert.deepEqual(slides.map(slide => slide.id), ['composition', 'stroke-order', 'meaning']);
+  assert.equal(document.querySelector('#composition [aria-label="next slide"]')?.getAttribute('href'), '#stroke-order');
+  assert.equal(document.querySelector('#meaning [aria-label="previous slide"]')?.getAttribute('href'), '#stroke-order');
+  assert.equal(document.querySelector('#stroke-order .wk-kanjivg-replay')?.hasAttribute('data-action'), false);
+});
+
+test('stroke order reinserts after a same-path lesson render', async () => {
+  const lessonHtml = `
+    <div class="lesson-container">
+      <div class="character-header character-header--kanji">
+        <div class="character-header__characters">先</div>
+      </div>
+      <div class="subject-slides">
+        <ul class="subject-slides__navigation-items">
+          <li><a class="subject-slides__navigation-link" href="#composition">Radicals</a></li>
+          <li><a class="subject-slides__navigation-link" href="#meaning">Meaning</a></li>
+        </ul>
+        <div class="subject-slide" id="composition">
+          <div class="subject-slide__content">
+            <div class="subject-slide__sections">
+              <section class="subject-section" title="Radical Composition">
+                <h2><span class="subject-section__title-text">Radical Composition</span></h2>
+              </section>
+            </div>
+          </div>
+          <a class="subject-slide__navigation" aria-label="next slide" href="#meaning">Next</a>
+        </div>
+        <div class="subject-slide" id="meaning" hidden>
+          <a class="subject-slide__navigation" aria-label="previous slide" href="#composition">Previous</a>
+        </div>
+      </div>
+    </div>
+  `;
+  const svgText = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 109 109">
+      <path d="M10 50 L90 50"></path>
+    </svg>
+  `;
+  const dom = createDom(
+    lessonHtml,
+    'https://www.wanikani.com/subject-lessons/-4190889689937224551/543'
+  );
+  let fetchCount = 0;
+
+  dom.window.SVGElement.prototype.getTotalLength = () => 100;
+
+  await loadUserscript(dom, 'wk-stroke-order.js', {
+    GM: {
+      xmlHttpRequest({ onload }) {
+        fetchCount += 1;
+        onload({ status: 200, responseText: svgText });
+      }
+    }
+  });
+
+  await waitFor(() => {
+    assert.ok(dom.window.document.querySelector('#stroke-order #wk-kanjivg-stroke-order'));
+  });
+
+  dom.window.document.body.innerHTML = lessonHtml;
+
+  await waitFor(() => {
+    assert.ok(dom.window.document.querySelector('#stroke-order #wk-kanjivg-stroke-order'));
+  });
+
+  assert.equal(fetchCount, 2);
+});
+
+for (const subjectType of ['radical', 'vocabulary']) {
+  test(`stroke order does not run on ${subjectType} lessons`, async () => {
+    const dom = createDom(
+      `
+        <div class="lesson-container">
+          <div class="character-header character-header--${subjectType}">
+            <div class="character-header__characters" lang="ja">先</div>
+          </div>
+          <div class="subject-slide" id="composition"></div>
+        </div>
+      `,
+      'https://www.wanikani.com/subject-lessons/-4190889689937224551/543'
+    );
+    let fetchCount = 0;
+
+    await loadUserscript(dom, 'wk-stroke-order.js', {
+      GM: {
+        xmlHttpRequest() {
+          fetchCount += 1;
+        }
+      }
+    });
+
+    await flushMutationObservers();
+
+    assert.equal(fetchCount, 0);
+    assert.equal(dom.window.document.querySelector('#stroke-order'), null);
+  });
+}
+
 test('stroke order sanitizes fetched SVG before insertion', async () => {
   const svgText = `
     <svg xmlns="http://www.w3.org/2000/svg" xmlns:kvg="http://kanjivg.tagaini.net" viewBox="0 0 109 109" onload="alert(1)">
