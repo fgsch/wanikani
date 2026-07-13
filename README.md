@@ -4,6 +4,13 @@ Small userscripts for improving WaniKani study and review pages.
 
 ## Scripts
 
+### WaniKani Dark Theme
+
+Adds a neutral near-black theme across WaniKani while preserving the existing radical, kanji, vocabulary, and quiz-state colors. It follows the system color scheme by default; use the control in the lower-left corner to cycle through **System**, **Dark**, and **Light** modes.
+
+Install:
+<https://raw.githubusercontent.com/fgsch/wanikani/main/wk-dark-theme.js>
+
 ### WaniKani Redo Answer
 
 Adds a **Redo** control to WaniKani review and extra study quizzes so you can reset the current quiz input when you realize you made a mistake.

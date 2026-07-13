@@ -605,3 +605,217 @@ test('stroke order does not repeatedly fetch a failed KanjiVG file', async () =>
 
   assert.equal(fetchCount, 1);
 });
+
+test('dark theme follows a dark system preference by default', async () => {
+  const dom = createDom('<main>Dashboard</main>', 'https://www.wanikani.com/');
+
+  await loadUserscript(dom, 'wk-dark-theme.js', {
+    matchMedia() {
+      return {
+        matches: true,
+        addEventListener() {}
+      };
+    }
+  });
+
+  const toggle = dom.window.document.querySelector('#wk-dark-theme-toggle');
+
+  assert.equal(dom.window.document.documentElement.dataset.wkDarkTheme, 'dark');
+  assert.equal(dom.window.document.documentElement.dataset.wkDarkThemeMode, 'system');
+  assert.equal(toggle?.textContent.trim(), 'System');
+  assert.equal(toggle?.getAttribute('aria-label'), 'Theme: System. Click for Dark.');
+});
+
+test('dark theme toggle stays in the lower-left corner in light mode', async () => {
+  const dom = createDom('<main>Dashboard</main>', 'https://www.wanikani.com/');
+
+  await loadUserscript(dom, 'wk-dark-theme.js', {
+    matchMedia() {
+      return {
+        matches: false,
+        addEventListener() {}
+      };
+    }
+  });
+
+  const toggle = dom.window.document.querySelector('#wk-dark-theme-toggle');
+  const toggleStyle = dom.window.getComputedStyle(toggle);
+
+  assert.equal(toggleStyle.bottom, '16px');
+  assert.equal(toggleStyle.left, '16px');
+  assert.equal(toggleStyle.right, 'auto');
+});
+
+test('dark theme toggle cycles through and persists manual overrides', async () => {
+  const dom = createDom('<main>Dashboard</main>', 'https://www.wanikani.com/');
+
+  await loadUserscript(dom, 'wk-dark-theme.js', {
+    matchMedia() {
+      return {
+        matches: false,
+        addEventListener() {}
+      };
+    }
+  });
+
+  const root = dom.window.document.documentElement;
+  const toggle = dom.window.document.querySelector('#wk-dark-theme-toggle');
+
+  toggle.click();
+  assert.equal(root.dataset.wkDarkThemeMode, 'dark');
+  assert.equal(root.dataset.wkDarkTheme, 'dark');
+  assert.equal(toggle.textContent.trim(), 'Dark');
+  assert.equal(dom.window.localStorage.getItem('wk-dark-theme-mode'), 'dark');
+
+  toggle.click();
+  assert.equal(root.dataset.wkDarkThemeMode, 'light');
+  assert.equal(root.dataset.wkDarkTheme, 'light');
+  assert.equal(toggle.textContent.trim(), 'Light');
+  assert.equal(dom.window.localStorage.getItem('wk-dark-theme-mode'), 'light');
+
+  toggle.click();
+  assert.equal(root.dataset.wkDarkThemeMode, 'system');
+  assert.equal(root.dataset.wkDarkTheme, 'light');
+  assert.equal(toggle.textContent.trim(), 'System');
+  assert.equal(dom.window.localStorage.getItem('wk-dark-theme-mode'), 'system');
+});
+
+test('dark theme restores a saved override instead of the system preference', async () => {
+  const dom = createDom('<main>Dashboard</main>', 'https://www.wanikani.com/');
+  dom.window.localStorage.setItem('wk-dark-theme-mode', 'light');
+
+  await loadUserscript(dom, 'wk-dark-theme.js', {
+    matchMedia() {
+      return {
+        matches: true,
+        addEventListener() {}
+      };
+    }
+  });
+
+  const root = dom.window.document.documentElement;
+  const toggle = dom.window.document.querySelector('#wk-dark-theme-toggle');
+
+  assert.equal(root.dataset.wkDarkThemeMode, 'light');
+  assert.equal(root.dataset.wkDarkTheme, 'light');
+  assert.equal(toggle.textContent.trim(), 'Light');
+});
+
+test('dark theme restores its control after Turbo replaces the page body', async () => {
+  const dom = createDom('<main>Dashboard</main>', 'https://www.wanikani.com/');
+
+  await loadUserscript(dom, 'wk-dark-theme.js', {
+    matchMedia() {
+      return {
+        matches: true,
+        addEventListener() {}
+      };
+    }
+  });
+
+  dom.window.document.body.innerHTML = '<main>Kanji</main>';
+  dom.window.document.dispatchEvent(new dom.window.Event('turbo:load'));
+
+  assert.equal(dom.window.document.querySelectorAll('#wk-dark-theme-toggle').length, 1);
+  assert.equal(dom.window.document.querySelectorAll('#wk-dark-theme-styles').length, 1);
+  assert.equal(dom.window.document.documentElement.dataset.wkDarkTheme, 'dark');
+});
+
+test('dark theme applies at document start and adds its control when the body arrives', async () => {
+  const dom = createDom('<main>Dashboard</main>', 'https://www.wanikani.com/');
+  dom.window.document.body.remove();
+
+  await loadUserscript(dom, 'wk-dark-theme.js', {
+    matchMedia() {
+      return {
+        matches: true,
+        addEventListener() {}
+      };
+    }
+  });
+
+  assert.equal(dom.window.document.documentElement.dataset.wkDarkTheme, 'dark');
+  assert.equal(dom.window.document.querySelector('#wk-dark-theme-toggle'), null);
+
+  dom.window.document.documentElement.append(dom.window.document.createElement('body'));
+  dom.window.document.dispatchEvent(new dom.window.Event('DOMContentLoaded'));
+
+  assert.ok(dom.window.document.querySelector('#wk-dark-theme-toggle'));
+});
+
+test('dark theme uses a lighter neutral surface palette', async () => {
+  const dom = createDom('<main>Dashboard</main>', 'https://www.wanikani.com/');
+
+  await loadUserscript(dom, 'wk-dark-theme.js', {
+    matchMedia() {
+      return {
+        matches: true,
+        addEventListener() {}
+      };
+    }
+  });
+
+  const styles = dom.window.getComputedStyle(dom.window.document.documentElement);
+
+  assert.equal(styles.getPropertyValue('--wk-dark-background').trim(), '#17191f');
+  assert.equal(styles.getPropertyValue('--wk-dark-surface').trim(), '#20232b');
+  assert.equal(styles.getPropertyValue('--wk-dark-surface-raised').trim(), '#292d37');
+  assert.equal(styles.getPropertyValue('--wk-dark-surface-hover').trim(), '#333844');
+  assert.equal(styles.getPropertyValue('--wk-dark-border').trim(), '#424957');
+});
+
+test('dark theme preserves WaniKani subject and quiz-state colors', async () => {
+  const dom = createDom(
+    `<style>
+      :root {
+        --color-radical: #00aaff;
+        --color-kanji: #ff00aa;
+        --color-vocabulary: #aa00ff;
+        --color-quiz-correct-background: #88cc00;
+        --color-quiz-incorrect-background: #ff0033;
+      }
+    </style>`,
+    'https://www.wanikani.com/'
+  );
+
+  await loadUserscript(dom, 'wk-dark-theme.js', {
+    matchMedia() {
+      return {
+        matches: true,
+        addEventListener() {}
+      };
+    }
+  });
+
+  const rootStyles = dom.window.getComputedStyle(dom.window.document.documentElement);
+
+  assert.equal(rootStyles.getPropertyValue('--color-radical').trim(), '#00aaff');
+  assert.equal(rootStyles.getPropertyValue('--color-kanji').trim(), '#ff00aa');
+  assert.equal(rootStyles.getPropertyValue('--color-vocabulary').trim(), '#aa00ff');
+  assert.equal(rootStyles.getPropertyValue('--color-quiz-correct-background').trim(), '#88cc00');
+  assert.equal(rootStyles.getPropertyValue('--color-quiz-incorrect-background').trim(), '#ff0033');
+});
+
+test('dark theme responds when the system preference changes', async () => {
+  const dom = createDom('<main>Dashboard</main>', 'https://www.wanikani.com/');
+  let preferenceChanged;
+  const preference = {
+    matches: false,
+    addEventListener(_event, listener) {
+      preferenceChanged = listener;
+    }
+  };
+
+  await loadUserscript(dom, 'wk-dark-theme.js', {
+    matchMedia() {
+      return preference;
+    }
+  });
+
+  assert.equal(dom.window.document.documentElement.dataset.wkDarkTheme, 'light');
+
+  preference.matches = true;
+  preferenceChanged();
+
+  assert.equal(dom.window.document.documentElement.dataset.wkDarkTheme, 'dark');
+});

@@ -3,6 +3,7 @@
 check: node_modules check-syntax test
 
 check-syntax:
+	node --check wk-dark-theme.js
 	node --check wk-redo-answer.js
 	node --check wk-stroke-order.js
 
