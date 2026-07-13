@@ -2255,6 +2255,36 @@ test('dark theme uses a lighter neutral surface palette', async () => {
   assert.equal(styles.getPropertyValue('--wk-dark-border').trim(), '#424957');
 });
 
+test('dark theme disables text shadows globally', async () => {
+  const dom = createDom(
+    `<style>
+      .subject-readings-with-audio { text-shadow: 0 1px 0 #fff !important; }
+    </style>
+    <div class="subject-readings-with-audio">Kyoko (Tokyo accent, female)</div>`,
+    'https://www.wanikani.com/vocabulary/%E9%A3%9F%E3%81%B9%E3%82%8B'
+  );
+
+  await loadUserscript(dom, 'wk-dark-theme.js', {
+    matchMedia() {
+      return {
+        matches: true,
+        addEventListener() {}
+      };
+    }
+  });
+
+  const audioDetails = dom.window.document.querySelector(
+    '.subject-readings-with-audio'
+  );
+  assert.equal(
+    dom.window.getComputedStyle(audioDetails).textShadow,
+    'rgba(0, 0, 0, 0)'
+  );
+
+  dom.window.document.documentElement.dataset.wkDarkTheme = 'light';
+  assert.equal(dom.window.getComputedStyle(audioDetails).textShadow, '0 1px 0 #fff');
+});
+
 test('dark theme preserves WaniKani subject and quiz-state colors', async () => {
   const dom = createDom(
     `<style>
