@@ -969,6 +969,636 @@ test('stroke order does not repeatedly fetch a failed KanjiVG file', async () =>
   assert.equal(fetchCount, 1);
 });
 
+test('pitch accent inserts an exact OJAD result inside Reading', async () => {
+  const ojadHtml = `
+    <table id="word_table"><tbody><tr>
+      <td class="midashi"><p class="midashi_word">食べる・食べます</p></td>
+      <td class="katsuyo katsuyo_jisho_js">
+        <span class="accented_word">
+          <span class="mola_-3"><span class="char">た</span></span>
+          <span class="accent_top mola_-2"><span class="char">べ</span></span>
+          <span class="mola_-1"><span class="char">る</span></span>
+        </span>
+      </td>
+    </tr></tbody></table>
+  `;
+  const dom = createDom(
+    `
+      <style>
+        .subject-readings-with-audio { height: 60px; }
+        .subject-readings-with-audio__item { height: 44px; margin: 8px 0; }
+      </style>
+      <header><span class="subject-character subject-character--vocabulary" title="たべる">
+        <span class="subject-character__characters-text">食べる</span>
+      </span></header>
+      <nav><ul class="wk-nav__items">
+        <li class="wk-nav__item"><a class="wk-nav__item-link" href="#reading"><div class="wk-nav__item-text">Reading</div></a></li>
+        <li class="wk-nav__item"><a class="wk-nav__item-link" href="#context"><div class="wk-nav__item-text">Context</div></a></li>
+      </ul></nav>
+      <main>
+        <section class="subject-section subject-section--reading">
+          <a id="reading"></a><h2>Reading</h2>
+          <section class="subject-section__content">
+            <section class="subject-section__subsection subject-section__subsection--reading">
+              <div class="subject-readings-with-audio">
+                <div class="subject-readings-with-audio__item">
+                  <div class="reading-with-audio">
+                    <span class="reading-with-audio__reading">たべる</span>
+                    <button class="reading-with-audio__audio">Play audio</button>
+                  </div>
+                </div>
+              </div>
+            </section>
+            <section class="subject-section__subsection subject-section__subsection--explanation">
+              Reading explanation
+            </section>
+          </section>
+        </section>
+        <section class="subject-section subject-section--context" data-controller="toggle">
+          <a class="wk-nav__anchor" id="context"></a>
+          <h2 class="subject-section__title">
+            <a class="subject-section__toggle" aria-controls="section-context">
+              <span class="subject-section__title-text">Context</span>
+            </a>
+          </h2>
+          <section id="section-context" class="subject-section__content" data-toggle-target="content"></section>
+        </section>
+      </main>
+    `,
+    'https://www.wanikani.com/vocabulary/%E9%A3%9F%E3%81%B9%E3%82%8B'
+  );
+  let fetchedUrl;
+
+  await loadUserscript(dom, 'wk-pitch-accent.js', {
+    GM: {
+      xmlHttpRequest({ url, onload }) {
+        fetchedUrl = url;
+        onload({ status: 200, responseText: ojadHtml });
+      }
+    }
+  });
+
+  await waitFor(() => {
+    assert.ok(dom.window.document.querySelector('#wk-pitch-accent svg'));
+  });
+
+  const sections = [...dom.window.document.querySelectorAll('main > .subject-section')];
+  assert.deepEqual(sections.map(section => section.classList[1]), [
+    'subject-section--reading',
+    'subject-section--context'
+  ]);
+  assert.equal(fetchedUrl, 'https://www.gavo.t.u-tokyo.ac.jp/ojad/search/index/word:%E9%A3%9F%E3%81%B9%E3%82%8B');
+  assert.ok(dom.window.document.querySelector('.subject-section--reading #wk-pitch-accent'));
+  assert.equal(dom.window.document.querySelector('#wk-pitch-accent figcaption')?.textContent, 'Nakadaka');
+  assert.equal(dom.window.document.querySelector('.wk-pitch-accent-heading'), null);
+  const originalReading = dom.window.document.querySelector(
+    '.wk-pitch-accent-reading-hidden .reading-with-audio__reading'
+  );
+  const audioControl = dom.window.document.querySelector(
+    '.wk-pitch-accent-reading-hidden .reading-with-audio__audio'
+  );
+  assert.equal(dom.window.getComputedStyle(originalReading).display, 'none');
+  assert.notEqual(dom.window.getComputedStyle(audioControl).display, 'none');
+  assert.equal(
+    dom.window.getComputedStyle(
+      dom.window.document.querySelector('.wk-pitch-accent-visual')
+    ).paddingBottom,
+    '8px'
+  );
+  assert.equal(
+    dom.window.getComputedStyle(
+      dom.window.document.querySelector('.subject-readings-with-audio')
+    ).height,
+    'auto'
+  );
+  assert.equal(
+    dom.window.getComputedStyle(
+      dom.window.document.querySelector('.subject-readings-with-audio__item')
+    ).display,
+    'contents'
+  );
+  assert.equal(
+    dom.window.getComputedStyle(
+      dom.window.document.querySelector('.wk-pitch-accent-reading-group')
+    ).gap,
+    '12px'
+  );
+  assert.equal(
+    dom.window.getComputedStyle(
+      dom.window.document.querySelector('.wk-pitch-accent-credit')
+    ).marginTop,
+    '0px'
+  );
+  assert.equal(dom.window.document.querySelector('a[href="#pitch-accent"]'), null);
+  assert.deepEqual(
+    [...dom.window.document.querySelectorAll('#wk-pitch-accent svg text')]
+      .map(node => node.textContent),
+    ['た', 'べ', 'る', '2']
+  );
+  assert.equal(
+    dom.window.document.querySelector('#wk-pitch-accent svg')?.getAttribute('viewBox'),
+    '0 0 100 33'
+  );
+  assert.equal(
+    dom.window.document.querySelector('#wk-pitch-accent svg polyline')?.getAttribute('points'),
+    '2,30 24,30 24,3 48,3 48,30 70,30'
+  );
+  assert.equal(dom.window.document.querySelectorAll('#wk-pitch-accent svg ellipse').length, 1);
+  assert.deepEqual(
+    [...dom.window.document.querySelectorAll('.subject-section--reading > .subject-section__content > .subject-section__subsection')]
+      .map(section => section.classList[1]),
+    [
+      'subject-section__subsection--reading',
+      'subject-section__subsection--explanation'
+    ]
+  );
+  assert.deepEqual(
+    [...dom.window.document.querySelector('.subject-section__subsection--reading').children]
+      .map(element => element.className),
+    [
+      'wk-pitch-accent wk-pitch-accent-visual',
+      'wk-pitch-accent-reading-group'
+    ]
+  );
+  assert.deepEqual(
+    [...dom.window.document.querySelector('.wk-pitch-accent-reading-group').children]
+      .map(element => element.className),
+    [
+      'subject-readings-with-audio wk-pitch-accent-reading-hidden',
+      'wk-pitch-accent wk-pitch-accent-details'
+    ]
+  );
+});
+
+test('pitch accent shows all exact variants and rejects other headwords and readings', async () => {
+  const accent = (word, reading, accentClasses) => `
+    <tr>
+      <td class="midashi"><p class="midashi_word">${word}</p></td>
+      <td class="katsuyo_jisho_js"><span class="accented_word">
+        ${[...reading].map((character, index) => `
+          <span class="${accentClasses[index] || ''}"><span class="char">${character}</span></span>
+        `).join('')}
+      </span></td>
+    </tr>
+  `;
+  const ojadHtml = `<table id="word_table"><tbody>
+    ${accent('上がる・上がります', 'あがる', ['', 'accent_plain', 'accent_plain'])}
+    ${accent('上げる・上げます', 'あげる', ['accent_top'])}
+    ${accent('上げる・上げます', 'うえげる', ['accent_top'])}
+    ${accent('上げる・上げます', 'あげる', ['', 'accent_plain', 'accent_plain'])}
+  </tbody></table>`;
+  const dom = createDom(
+    `
+      <span class="subject-character subject-character--vocabulary" title="あげる"></span>
+      <nav><ul><li><a href="#context"><span class="wk-nav__item-text">Context</span></a></li></ul></nav>
+      <main>
+        <section class="subject-section subject-section--reading"><section class="subject-section__content">
+          <div class="reading-with-audio">あげる</div>
+        </section></section>
+        <section class="subject-section subject-section--context"></section>
+      </main>
+    `,
+    'https://www.wanikani.com/vocabulary/%E4%B8%8A%E3%81%92%E3%82%8B'
+  );
+
+  await loadUserscript(dom, 'wk-pitch-accent.js', {
+    GM: {
+      xmlHttpRequest({ onload }) {
+        onload({ status: 200, responseText: ojadHtml });
+      }
+    }
+  });
+
+  await waitFor(() => {
+    assert.equal(dom.window.document.querySelectorAll('#wk-pitch-accent figure').length, 2);
+  });
+
+  assert.deepEqual(
+    [...dom.window.document.querySelectorAll('#wk-pitch-accent figcaption')].map(node => node.textContent),
+    ['Atamadaka', 'Heiban']
+  );
+  assert.deepEqual(
+    [...dom.window.document.querySelectorAll('#wk-pitch-accent figure')]
+      .map(figure => [...figure.querySelectorAll('text')].map(node => node.textContent)),
+    [
+      ['あ', 'げ', 'る', '1'],
+      ['あ', 'げ', 'る', '0']
+    ]
+  );
+  assert.deepEqual(
+    [...dom.window.document.querySelectorAll('#wk-pitch-accent figure')]
+      .map(figure => figure.className),
+    ['wk-pitch-accent-variant-1', 'wk-pitch-accent-variant-2']
+  );
+  const fallbackReading = dom.window.document.querySelector(
+    '.reading-with-audio .wk-pitch-accent-original-reading'
+  );
+  assert.equal(fallbackReading?.textContent, 'あげる');
+  assert.equal(dom.window.getComputedStyle(fallbackReading).display, 'none');
+  assert.match(
+    dom.window.document.querySelector('#wk-pitch-accent-style')?.textContent || '',
+    /html\[data-wk-dark-theme="dark"\] \.wk-pitch-accent-variant-1/
+  );
+  assert.equal(
+    dom.window.document.querySelectorAll('#wk-pitch-accent polyline')[1]?.getAttribute('points'),
+    '2,30 24,30 24,3 46,3 70,3'
+  );
+});
+
+test('pitch accent inserts inside the vocabulary lesson Reading slide', async () => {
+  const ojadHtml = `<table id="word_table"><tbody><tr>
+    <td class="midashi"><p class="midashi_word">食べる・食べます</p></td>
+    <td class="katsuyo_jisho_js"><span class="accented_word">
+      <span><span class="char">た</span></span>
+      <span class="accent_top"><span class="char">べ</span></span>
+      <span><span class="char">る</span></span>
+    </span></td>
+  </tr></tbody></table>`;
+  const dom = createDom(
+    `
+      <div class="character-header character-header--vocabulary">
+        <div class="character-header__characters" title="たべる">食べる</div>
+      </div>
+      <ul class="subject-slides__navigation-items">
+        <li><a class="subject-slides__navigation-link" href="#meaning">Meaning</a></li>
+        <li><a class="subject-slides__navigation-link" href="#reading">Reading</a></li>
+        <li><a class="subject-slides__navigation-link" href="#context">Context</a></li>
+      </ul>
+      <div class="subject-slides__slides">
+        <div class="subject-slide" id="meaning"></div>
+        <div class="subject-slide" id="reading">
+          <a class="subject-slide__navigation" aria-label="previous slide" href="#meaning">Previous</a>
+          <div class="subject-slide__content"><div class="subject-slide__sections">
+            <section class="subject-section" title="Reading"><section class="subject-section__content">
+              <div class="reading-with-audio">
+                <span class="reading-with-audio__reading">たべる</span>
+                <button class="reading-with-audio__audio">Play audio</button>
+              </div>
+            </section></section>
+          </div></div>
+          <a class="subject-slide__navigation" aria-label="next slide" href="#context">Next</a>
+        </div>
+        <div class="subject-slide" id="context" hidden>
+          <a class="subject-slide__navigation" aria-label="previous slide" href="#reading">Previous</a>
+          <div class="subject-slide__content"><div class="subject-slide__sections"></div></div>
+        </div>
+      </div>
+    `,
+    'https://www.wanikani.com/subject-lessons/-4190889689937224551/544'
+  );
+
+  await loadUserscript(dom, 'wk-pitch-accent.js', {
+    GM: {
+      xmlHttpRequest({ onload }) {
+        onload({ status: 200, responseText: ojadHtml });
+      }
+    }
+  });
+
+  await waitFor(() => {
+    assert.ok(dom.window.document.querySelector('#reading #wk-pitch-accent'));
+  });
+
+  assert.deepEqual(
+    [...dom.window.document.querySelector('#reading .subject-section__content').children]
+      .map(element => element.className),
+    [
+      'wk-pitch-accent wk-pitch-accent-visual',
+      'wk-pitch-accent-reading-group'
+    ]
+  );
+  assert.deepEqual(
+    [...dom.window.document.querySelector('#reading .wk-pitch-accent-reading-group').children]
+      .map(element => element.className),
+    [
+      'reading-with-audio wk-pitch-accent-reading-hidden',
+      'wk-pitch-accent wk-pitch-accent-details'
+    ]
+  );
+  assert.equal(
+    dom.window.getComputedStyle(
+      dom.window.document.querySelector('#reading .wk-pitch-accent-reading-group')
+    ).gap,
+    '12px'
+  );
+  assert.equal(
+    dom.window.getComputedStyle(
+      dom.window.document.querySelector('#reading .reading-with-audio__reading')
+    ).display,
+    'none'
+  );
+  assert.notEqual(
+    dom.window.getComputedStyle(
+      dom.window.document.querySelector('#reading .reading-with-audio__audio')
+    ).display,
+    'none'
+  );
+
+  assert.deepEqual(
+    [...dom.window.document.querySelectorAll('.subject-slides__navigation-link')].map(link => link.textContent.trim()),
+    ['Meaning', 'Reading', 'Context']
+  );
+  assert.deepEqual(
+    [...dom.window.document.querySelectorAll('.subject-slide')].map(slide => slide.id),
+    ['meaning', 'reading', 'context']
+  );
+  assert.equal(dom.window.document.querySelector('#reading [aria-label="next slide"]')?.getAttribute('href'), '#context');
+  assert.equal(dom.window.document.querySelector('#context [aria-label="previous slide"]')?.getAttribute('href'), '#reading');
+});
+
+test('pitch accent waits for a revealed quiz answer and Reading item info', async () => {
+  const ojadHtml = `<table id="word_table"><tbody><tr>
+    <td class="midashi"><p class="midashi_word">食べる・食べます</p></td>
+    <td class="katsuyo_jisho_js"><span class="accented_word">
+      <span><span class="char">た</span></span>
+      <span class="accent_top"><span class="char">べ</span></span>
+      <span><span class="char">る</span></span>
+    </span></td>
+  </tr></tbody></table>`;
+  const dom = createDom(
+    `
+      <div class="quiz-input"><div class="quiz-input__input-container"><input id="user-response"></div></div>
+      <turbo-frame id="subject-info"></turbo-frame>
+      <ul>
+        <li><a class="additional-content__item additional-content__item--item-info"></a></li>
+        <li><a class="additional-content__item additional-content__item--last-items"></a></li>
+      </ul>
+    `,
+    'https://www.wanikani.com/subjects/review'
+  );
+  const controller = {
+    currentSubject: {
+      object: 'vocabulary',
+      characters: '食べる',
+      readings: [{ reading: 'たべる', acceptedAnswer: true }]
+    }
+  };
+  let fetchCount = 0;
+
+  await loadUserscript(dom, 'wk-pitch-accent.js', {
+    Stimulus: {
+      getControllerForElementAndIdentifier() {
+        return controller;
+      }
+    },
+    GM: {
+      xmlHttpRequest({ onload }) {
+        fetchCount += 1;
+        onload({ status: 200, responseText: ojadHtml });
+      }
+    }
+  });
+
+  const inputContainer = dom.window.document.querySelector('.quiz-input__input-container');
+  const frame = dom.window.document.querySelector('#subject-info');
+
+  assert.equal(dom.window.document.querySelector('.additional-content__item--pitch-accent'), null);
+  assert.equal(fetchCount, 0);
+
+  inputContainer.setAttribute('correct', 'true');
+  await flushMutationObservers();
+  assert.equal(fetchCount, 0);
+
+  frame.innerHTML = `
+    <section class="subject-section subject-section--reading">
+      <section class="subject-section__content">
+        <section class="subject-section__subsection subject-section__subsection--reading">
+          <div class="reading-with-audio">
+            <span class="reading-with-audio__reading">たべる</span>
+            <button class="reading-with-audio__audio">Play audio</button>
+          </div>
+        </section>
+      </section>
+    </section>
+  `;
+
+  await waitFor(() => {
+    assert.ok(dom.window.document.querySelector('#subject-info #wk-pitch-accent svg'));
+  });
+
+  assert.equal(fetchCount, 1);
+  assert.deepEqual(
+    [...frame.querySelector('.subject-section__subsection--reading').children]
+      .map(element => element.className),
+    [
+      'wk-pitch-accent wk-pitch-accent-visual',
+      'wk-pitch-accent-reading-group'
+    ]
+  );
+  assert.deepEqual(
+    [...frame.querySelector('.wk-pitch-accent-reading-group').children]
+      .map(element => element.className),
+    [
+      'reading-with-audio wk-pitch-accent-reading-hidden',
+      'wk-pitch-accent wk-pitch-accent-details'
+    ]
+  );
+  assert.equal(
+    dom.window.getComputedStyle(frame.querySelector('.wk-pitch-accent-reading-group')).gap,
+    '12px'
+  );
+  assert.equal(
+    dom.window.getComputedStyle(frame.querySelector('.reading-with-audio__reading')).display,
+    'none'
+  );
+  assert.notEqual(
+    dom.window.getComputedStyle(frame.querySelector('.reading-with-audio__audio')).display,
+    'none'
+  );
+
+  inputContainer.removeAttribute('correct');
+
+  await waitFor(() => {
+    assert.equal(dom.window.document.querySelector('#subject-info #wk-pitch-accent'), null);
+  });
+  assert.equal(frame.querySelector('.wk-pitch-accent-reading-hidden'), null);
+  assert.notEqual(
+    dom.window.getComputedStyle(frame.querySelector('.reading-with-audio__reading')).display,
+    'none'
+  );
+});
+
+test('pitch accent recognizes Reading item info outside review URLs', async () => {
+  const ojadHtml = `<table id="word_table"><tbody><tr>
+    <td class="midashi"><p class="midashi_word">こんにちは</p></td>
+    <td class="katsuyo_jisho_js"><span class="accented_word">
+      <span><span class="char">こ</span></span>
+      <span class="accent_plain"><span class="char">ん</span></span>
+      <span class="accent_plain"><span class="char">に</span></span>
+      <span class="accent_plain"><span class="char">ち</span></span>
+      <span class="accent_plain"><span class="char">は</span></span>
+    </span></td>
+  </tr></tbody></table>`;
+  const dom = createDom(
+    `
+      <div class="quiz-input"><div class="quiz-input__input-container" correct="true"></div></div>
+      <turbo-frame id="subject-info">
+        <section class="subject-section subject-section--reading">
+          <section class="subject-section__content"><div class="reading-with-audio">Reading</div></section>
+        </section>
+      </turbo-frame>
+      <ul><li><a class="additional-content__item additional-content__item--last-items"></a></li></ul>
+    `,
+    'https://www.wanikani.com/subject-lessons/session/quiz'
+  );
+
+  await loadUserscript(dom, 'wk-pitch-accent.js', {
+    Stimulus: {
+      getControllerForElementAndIdentifier() {
+        return {
+          currentSubject: {
+            subject_category: 'KanaVocabulary',
+            characters: 'こんにちは',
+            readings: []
+          }
+        };
+      }
+    },
+    GM: {
+      xmlHttpRequest({ onload }) {
+        onload({ status: 200, responseText: ojadHtml });
+      }
+    }
+  });
+
+  await waitFor(() => {
+    assert.ok(dom.window.document.querySelector('#subject-info #wk-pitch-accent'));
+  });
+});
+
+test('pitch accent does not insert a stale lookup after vocabulary navigation', async () => {
+  const page = reading => `
+    <span class="subject-character subject-character--vocabulary" title="${reading}"></span>
+    <nav><ul><li><a href="#context"><span class="wk-nav__item-text">Context</span></a></li></ul></nav>
+    <main>
+      <section class="subject-section subject-section--reading"><section class="subject-section__content">
+        <div class="reading-with-audio">WaniKani reading</div>
+      </section></section>
+      <section class="subject-section subject-section--context"></section>
+    </main>
+  `;
+  const result = (word, reading) => `<table id="word_table"><tbody><tr>
+    <td class="midashi"><p class="midashi_word">${word}</p></td>
+    <td class="katsuyo_jisho_js"><span class="accented_word">
+      ${[...reading].map(character => `<span><span class="char">${character}</span></span>`).join('')}
+    </span></td>
+  </tr></tbody></table>`;
+  const dom = createDom(
+    page('たべる'),
+    'https://www.wanikani.com/vocabulary/%E9%A3%9F%E3%81%B9%E3%82%8B'
+  );
+  const requests = [];
+
+  await loadUserscript(dom, 'wk-pitch-accent.js', {
+    GM: {
+      xmlHttpRequest(request) {
+        requests.push(request);
+      }
+    }
+  });
+
+  assert.equal(requests.length, 1);
+
+  dom.window.history.pushState({}, '', '/vocabulary/%E9%A3%B2%E3%82%80');
+  dom.window.document.body.innerHTML = page('のむ');
+  requests[0].onload({ status: 200, responseText: result('食べる', 'たべる') });
+
+  await waitFor(() => {
+    assert.equal(requests.length, 2);
+  });
+
+  assert.equal(dom.window.document.querySelector('#wk-pitch-accent'), null);
+
+  requests[1].onload({ status: 200, responseText: result('飲む', 'のむ') });
+
+  await waitFor(() => {
+    assert.equal(dom.window.document.querySelector('#wk-pitch-accent figcaption')?.textContent, 'Heiban');
+  });
+});
+
+test('pitch accent shows an unavailable state without repeatedly requesting OJAD', async () => {
+  const page = `
+    <span class="subject-character subject-character--vocabulary" title="たべる"></span>
+    <main><section class="subject-section subject-section--reading">
+      <section class="subject-section__content"><div class="reading-with-audio">WaniKani reading</div></section>
+    </section></main>
+  `;
+  const dom = createDom(
+    page,
+    'https://www.wanikani.com/vocabulary/%E9%A3%9F%E3%81%B9%E3%82%8B'
+  );
+  let fetchCount = 0;
+  dom.window.console.warn = () => {};
+
+  await loadUserscript(dom, 'wk-pitch-accent.js', {
+    GM: {
+      xmlHttpRequest({ onload }) {
+        fetchCount += 1;
+        onload({ status: 503, responseText: 'Unavailable' });
+      }
+    }
+  });
+
+  await waitFor(() => {
+    assert.equal(
+      dom.window.document.querySelector('.wk-pitch-accent-status')?.textContent,
+      'OJAD pitch accent is currently unavailable.'
+    );
+  });
+
+  dom.window.document.body.innerHTML = page;
+
+  await waitFor(() => {
+    assert.equal(
+      dom.window.document.querySelector('.wk-pitch-accent-status')?.textContent,
+      'OJAD pitch accent is currently unavailable.'
+    );
+  });
+  assert.equal(fetchCount, 1);
+});
+
+test('pitch accent waits for the Reading row before lookup and insertion', async () => {
+  const ojadHtml = `<table id="word_table"><tbody><tr>
+    <td class="midashi"><p class="midashi_word">食べる・食べます</p></td>
+    <td class="katsuyo_jisho_js"><span class="accented_word">
+      <span><span class="char">た</span></span>
+      <span class="accent_top"><span class="char">べ</span></span>
+      <span><span class="char">る</span></span>
+    </span></td>
+  </tr></tbody></table>`;
+  const dom = createDom(
+    `
+      <span class="subject-character subject-character--vocabulary" title="たべる"></span>
+      <section class="subject-section subject-section--reading">
+        <section class="subject-section__content"></section>
+      </section>
+    `,
+    'https://www.wanikani.com/vocabulary/%E9%A3%9F%E3%81%B9%E3%82%8B'
+  );
+  let fetchCount = 0;
+
+  await loadUserscript(dom, 'wk-pitch-accent.js', {
+    GM: {
+      xmlHttpRequest({ onload }) {
+        fetchCount += 1;
+        onload({ status: 200, responseText: ojadHtml });
+      }
+    }
+  });
+
+  assert.equal(fetchCount, 0);
+
+  const reading = dom.window.document.createElement('div');
+  reading.className = 'reading-with-audio';
+  reading.textContent = 'WaniKani reading';
+  dom.window.document.querySelector('.subject-section__content').appendChild(reading);
+
+  await waitFor(() => {
+    assert.equal(fetchCount, 1);
+    assert.ok(dom.window.document.querySelector('#wk-pitch-accent'));
+  });
+});
+
 test('dark theme follows a dark system preference by default', async () => {
   const dom = createDom('<main>Dashboard</main>', 'https://www.wanikani.com/');
 

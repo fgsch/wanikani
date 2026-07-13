@@ -6,6 +6,7 @@ check-syntax:
 	node --check wk-dark-theme.js
 	node --check wk-redo-answer.js
 	node --check wk-stroke-order.js
+	node --check wk-pitch-accent.js
 
 ci:
 	npm ci

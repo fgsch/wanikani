@@ -25,6 +25,13 @@ Adds animated KanjiVG stroke order to WaniKani kanji subject pages and lessons, 
 Install:
 <https://raw.githubusercontent.com/fgsch/wanikani/main/wk-stroke-order.js>
 
+### WaniKani Pitch Accent
+
+Adds compact pitch-pattern diagrams from OJAD to Reading content on WaniKani vocabulary subject pages and lessons, including Item Info during reviews and extra study. Quiz diagrams remain hidden until the current answer has been submitted.
+
+Install:
+<https://raw.githubusercontent.com/fgsch/wanikani/main/wk-pitch-accent.js>
+
 ## Installation
 
 Install a userscript manager such as Tampermonkey or Violentmonkey, then open one of the install links above and accept the script installation prompt.
