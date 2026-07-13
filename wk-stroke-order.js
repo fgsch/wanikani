@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         WaniKani Stroke Order
 // @namespace    wk-stroke-order
-// @version      0.2.0
+// @version      0.3.0
 // @author       Federico G. Schwindt <fgsch@lodoss.net>
-// @description  Adds animated KanjiVG stroke order, radicals, and component groups to WaniKani kanji pages and lessons.
+// @description  Adds animated KanjiVG stroke order, radicals, and component groups to WaniKani kanji pages, lessons, and reviews.
 // @license      MIT
 // @homepageURL  https://github.com/fgsch/wanikani
 // @updateURL    https://raw.githubusercontent.com/fgsch/wanikani/main/wk-stroke-order.js
@@ -22,8 +22,15 @@
   const RADICAL_COLOR = '#c586d7';
   const GROUP_COLOR = '#86a8d7';
 
-  let isRunning = false;
+  let isPageRunning = false;
+  let isQuizRunning = false;
+  let failedQuizSubjectKey = null;
+  let previousQuizSubjectKey = null;
   const processedPaths = new Set();
+
+  function isReviewPage() {
+    return /^\/subjects\/review(?:\/|$)/.test(location.pathname);
+  }
 
   function isKanjiSubjectPage() {
     return /^\/kanji\/[^/]+\/?$/.test(location.pathname);
@@ -57,6 +64,34 @@
 
     const slug = decodeURIComponent(location.pathname.split('/').filter(Boolean).pop() || '');
     return Array.from(slug)[0] || null;
+  }
+
+  function getQuizController() {
+    return window.Stimulus?.getControllerForElementAndIdentifier?.(
+      document.querySelector('.quiz-input'),
+      'quiz-input'
+    );
+  }
+
+  function getQuizKanjiSubject() {
+    const subject = getQuizController()?.currentSubject;
+    if (!subject) return null;
+
+    const type = String(
+      subject.object || subject.type || subject.subject_category || ''
+    )
+      .toLowerCase()
+      .replace(/[_-]/g, '');
+
+    if (type !== 'kanji') return null;
+
+    const kanji = Array.from((subject.characters || '').trim())[0] || null;
+    if (!kanji) return null;
+
+    return {
+      kanji,
+      key: `${subject.id ?? kanji}:${kanji}`
+    };
   }
 
   function kanjiToKanjiVGFilename(kanji) {
@@ -639,6 +674,60 @@
     return true;
   }
 
+  function getQuizMeaningSection() {
+    const frame = document.querySelector(
+      'turbo-frame#subject-info, turbo-frame.subject-info'
+    );
+
+    return (
+      frame?.querySelector('.subject-section--meaning') ||
+      frame?.querySelector('.subject-section[title="Meaning"]') ||
+      [...(frame?.querySelectorAll('.subject-section') || [])].find(section =>
+        section
+          .querySelector('.subject-section__title-text, .subject-section__title, h2')
+          ?.textContent.trim()
+          .toLowerCase()
+          .includes('meaning')
+      ) ||
+      null
+    );
+  }
+
+  function insertStrokeOrderQuizSection(svg, subject) {
+    const meaningSection = getQuizMeaningSection();
+    if (!meaningSection) return false;
+
+    const section = meaningSection.cloneNode(false);
+    const sourceHeading = meaningSection.querySelector(
+      '.subject-section__title, h2'
+    );
+    const sourceContent = meaningSection.querySelector(
+      '.subject-section__content'
+    );
+    const heading = sourceHeading?.cloneNode(true) || document.createElement('h2');
+    const content = sourceContent?.cloneNode(false) || document.createElement('section');
+    const headingText =
+      heading.querySelector('.subject-section__title-text') || heading;
+
+    section.removeAttribute('id');
+    section.classList.remove('subject-section--meaning');
+    section.classList.add('subject-section--stroke-order');
+    section.title = 'Stroke Order';
+    heading.querySelectorAll('[id]').forEach(element => element.removeAttribute('id'));
+    heading.removeAttribute('id');
+    headingText.textContent = 'Stroke Order';
+    content.classList.add('subject-section__content');
+
+    const strokeOrder = createStrokeOrderContent(svg, subject.kanji);
+    strokeOrder.dataset.quizSubjectKey = subject.key;
+    content.appendChild(strokeOrder);
+    section.append(heading, content);
+    meaningSection.before(section);
+    animateSvg(svg);
+
+    return true;
+  }
+
   function pageIsReady() {
     if (isKanjiLessonPage()) {
       return Boolean(
@@ -659,21 +748,99 @@
     return Boolean(findHeading('Radical Combination') && findHeading('Meaning'));
   }
 
-  async function run() {
-    if (isRunning) return;
+  async function runQuiz() {
+    const existingContent = document.getElementById(CONTENT_ID);
+    const existingSection = existingContent?.closest(
+      '.subject-section--stroke-order'
+    );
+    const subject = getQuizKanjiSubject();
+    const subjectKey = subject?.key || null;
+
+    if (subjectKey !== previousQuizSubjectKey) {
+      previousQuizSubjectKey = subjectKey;
+      failedQuizSubjectKey = null;
+    }
+
+    const revealed = Boolean(
+      subject &&
+      document
+        .querySelector('.quiz-input__input-container')
+        ?.hasAttribute('correct')
+    );
+
+    if (!revealed) {
+      existingSection?.remove();
+      return;
+    }
+
+    if (existingContent?.dataset.quizSubjectKey === subject.key) return;
+    existingSection?.remove();
+
+    const meaningSection = getQuizMeaningSection();
+    if (!meaningSection || isQuizRunning || failedQuizSubjectKey === subject.key) return;
+
+    isQuizRunning = true;
+    try {
+      const filename = kanjiToKanjiVGFilename(subject.kanji);
+      const svgUrl = `https://raw.githubusercontent.com/KanjiVG/kanjivg/master/kanji/${filename}`;
+      let svgText;
+
+      try {
+        svgText = await fetchText(svgUrl);
+      } catch (error) {
+        failedQuizSubjectKey = subject.key;
+        console.warn('[KanjiVG] Could not fetch SVG:', error);
+        return;
+      }
+
+      const currentSubject = getQuizKanjiSubject();
+      const stillRevealed = document
+        .querySelector('.quiz-input__input-container')
+        ?.hasAttribute('correct');
+
+      if (
+        !stillRevealed ||
+        currentSubject?.key !== subject.key ||
+        !meaningSection.isConnected ||
+        document.getElementById(CONTENT_ID)
+      ) {
+        return;
+      }
+
+      const doc = new DOMParser().parseFromString(svgText, 'image/svg+xml');
+      const svg = doc.querySelector('svg');
+      if (!svg) {
+        failedQuizSubjectKey = subject.key;
+        console.warn('[KanjiVG] Response did not contain an SVG');
+        return;
+      }
+
+      sanitizeSvg(svg);
+      injectStyles();
+      insertStrokeOrderQuizSection(svg, subject);
+    } finally {
+      isQuizRunning = false;
+      setTimeout(run, 0);
+    }
+  }
+
+  async function runPage() {
+    if (isPageRunning) return;
     if (!isKanjiPage()) return;
     if (document.getElementById(CONTENT_ID)) return;
     if (processedPaths.has(location.pathname)) return;
 
     if (!pageIsReady()) return;
 
-    isRunning = true;
+    isPageRunning = true;
 
     try {
       const kanji = getKanji();
       if (!kanji) return;
 
-      processedPaths.add(location.pathname);
+      const pagePath = location.pathname;
+
+      processedPaths.add(pagePath);
 
       const filename = kanjiToKanjiVGFilename(kanji);
       const svgUrl = `https://raw.githubusercontent.com/KanjiVG/kanjivg/master/kanji/${filename}`;
@@ -684,6 +851,14 @@
         svgText = await fetchText(svgUrl);
       } catch (err) {
         console.warn('[KanjiVG] Could not fetch SVG:', err);
+        return;
+      }
+
+      if (
+        location.pathname !== pagePath ||
+        !isKanjiPage() ||
+        getKanji() !== kanji
+      ) {
         return;
       }
 
@@ -709,8 +884,17 @@
         addGoToNavigationItem();
       }
     } finally {
-      isRunning = false;
+      isPageRunning = false;
     }
+  }
+
+  function run() {
+    if (isReviewPage()) {
+      runQuiz();
+      return;
+    }
+
+    runPage();
   }
 
   function installNavigationWatcher() {
@@ -758,6 +942,8 @@
     });
 
     observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['correct'],
       childList: true,
       subtree: true
     });

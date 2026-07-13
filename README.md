@@ -20,7 +20,7 @@ Install:
 
 ### WaniKani Stroke Order
 
-Adds animated KanjiVG stroke order to WaniKani kanji subject pages and lessons, including radical and component group views.
+Adds animated KanjiVG stroke order to WaniKani kanji subject pages, lessons, and review Item Info, including radical and component group views.
 
 Install:
 <https://raw.githubusercontent.com/fgsch/wanikani/main/wk-stroke-order.js>
