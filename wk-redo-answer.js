@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WaniKani Redo Answer
 // @namespace    wk-redo-answer
-// @version      0.1.0
+// @version      0.2.0
 // @author       Federico G. Schwindt <fgsch@lodoss.net>
 // @description  Adds a Redo button to WaniKani review and extra study quizzes.
 // @license      MIT
@@ -18,6 +18,8 @@
   const REDO_SELECTOR = ".additional-content__item--redo-answer";
   const DISABLED_CLASS = "additional-content__item--disabled";
 
+  let pendingAnswerTransaction = null;
+
   function isQuizPage() {
     return /^\/subjects\/(?:review|extra_study)(?:\/|$)/.test(location.pathname);
   }
@@ -33,13 +35,159 @@
     );
   }
 
+  function pendingAnswerEventDetail(controller, quizQueue, answer, results) {
+    const subject = quizQueue.currentItem ?? controller.currentSubject;
+    const questionType = quizQueue.questionType ?? controller.currentQuestionType;
+
+    if (!subject || !questionType) return null;
+
+    let stats;
+
+    try {
+      stats = JSON.parse(JSON.stringify(quizQueue.stats?.get?.(subject)));
+    } catch {
+      stats = null;
+    }
+
+    stats ??= {
+      meaning: { complete: false, incorrect: 0 },
+      reading: { complete: false, incorrect: 0 },
+    };
+
+    stats[questionType] ??= { complete: false, incorrect: 0 };
+    stats[questionType].complete = results.action === "pass";
+
+    if (results.action === "fail") {
+      stats[questionType].incorrect =
+        (stats[questionType].incorrect ?? 0) + 1;
+    }
+
+    return {
+      subjectWithStats: { subject, stats },
+      questionType,
+      answer,
+      results,
+    };
+  }
+
+  function dispatchPendingAnswerEvent(controller, quizQueue, answer, results) {
+    const detail = pendingAnswerEventDetail(
+      controller,
+      quizQueue,
+      answer,
+      results
+    );
+
+    if (detail) {
+      window.dispatchEvent(new CustomEvent("didAnswerQuestion", { detail }));
+    }
+  }
+
+  function withoutDidAnswerQuestion(callback) {
+    const dispatchEvent = window.dispatchEvent;
+
+    window.dispatchEvent = function (event) {
+      if (event?.type === "didAnswerQuestion") return true;
+      return dispatchEvent.call(this, event);
+    };
+
+    try {
+      return callback();
+    } finally {
+      window.dispatchEvent = dispatchEvent;
+    }
+  }
+
+  function installPendingAnswerTransaction(controller) {
+    if (!controller) return null;
+
+    let quizQueue;
+
+    try {
+      quizQueue = controller.quizQueueOutlet;
+    } catch {
+      return null;
+    }
+
+    if (
+      !quizQueue ||
+      typeof quizQueue.submitAnswer !== "function" ||
+      typeof quizQueue.nextItem !== "function"
+    ) {
+      return null;
+    }
+
+    if (pendingAnswerTransaction?.quizQueue === quizQueue) {
+      pendingAnswerTransaction.controller = controller;
+      return pendingAnswerTransaction;
+    }
+
+    pendingAnswerTransaction?.uninstall();
+
+    const submitAnswer = quizQueue.submitAnswer;
+    const nextItem = quizQueue.nextItem;
+    let pendingAnswer = null;
+    let transaction;
+
+    const wrappedSubmitAnswer = (answer, results) => {
+      pendingAnswer = { answer, results };
+      dispatchPendingAnswerEvent(transaction.controller, quizQueue, answer, results);
+    };
+
+    const wrappedNextItem = (questionType) => {
+      transaction.flush();
+      return nextItem.call(quizQueue, questionType);
+    };
+
+    transaction = {
+      controller,
+      quizQueue,
+      discard() {
+        pendingAnswer = null;
+      },
+      flush() {
+        if (!pendingAnswer) return;
+
+        const { answer, results } = pendingAnswer;
+        pendingAnswer = null;
+        withoutDidAnswerQuestion(() => {
+          submitAnswer.call(quizQueue, answer, results);
+        });
+      },
+      hasPendingAnswer() {
+        return pendingAnswer !== null;
+      },
+      uninstall() {
+        transaction.flush();
+
+        if (quizQueue.submitAnswer === wrappedSubmitAnswer) {
+          quizQueue.submitAnswer = submitAnswer;
+        }
+
+        if (quizQueue.nextItem === wrappedNextItem) {
+          quizQueue.nextItem = nextItem;
+        }
+      },
+    };
+
+    quizQueue.submitAnswer = wrappedSubmitAnswer;
+    quizQueue.nextItem = wrappedNextItem;
+
+    pendingAnswerTransaction = transaction;
+
+    return transaction;
+  }
+
   function updateRedoButtonState() {
     const redoButton = getRedoButton();
     const inputContainer = document.querySelector(".quiz-input__input-container");
 
     if (!redoButton || !inputContainer) return;
 
-    const canRedo = inputContainer.hasAttribute("correct");
+    const transaction = installPendingAnswerTransaction(getQuizInputController());
+    const canRedo =
+      inputContainer.hasAttribute("correct") &&
+      transaction?.hasPendingAnswer();
 
     redoButton.classList.toggle(DISABLED_CLASS, !canRedo);
     redoButton.setAttribute("aria-disabled", String(!canRedo));
@@ -73,8 +221,11 @@
     const controller = getQuizInputController();
     if (!controller) return;
 
+    installPendingAnswerTransaction(controller)?.discard();
+
     controller.lastAnswer = null;
-    controller.inputChars = [];
+    controller.inputChars = "";
+    controller.inputEnabled = true;
 
     document
       .querySelector(".quiz-input__input-container")
@@ -165,6 +316,7 @@
   function run() {
     if (!isQuizPage()) return;
 
+    installPendingAnswerTransaction(getQuizInputController());
     injectRedoButton();
     updateRedoButtonState();
   }
@@ -206,6 +358,14 @@
 
     window.addEventListener("popstate", () => {
       setTimeout(checkPath, 0);
+    });
+
+    window.addEventListener("pagehide", () => {
+      pendingAnswerTransaction?.flush();
+    });
+
+    document.addEventListener("turbo:before-visit", () => {
+      pendingAnswerTransaction?.flush();
     });
   }
 

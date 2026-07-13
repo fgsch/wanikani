@@ -121,14 +121,26 @@ test('redo answer updates when WaniKani marks an answer correct', async () => {
     `,
     'https://www.wanikani.com/subjects/review'
   );
+  const quizQueueController = {
+    submitAnswer() {},
+    nextItem() {}
+  };
+  const controller = { quizQueueOutlet: quizQueueController };
 
-  await loadUserscript(dom, 'wk-redo-answer.js');
+  await loadUserscript(dom, 'wk-redo-answer.js', {
+    Stimulus: {
+      getControllerForElementAndIdentifier() {
+        return controller;
+      }
+    }
+  });
 
   const redoButton = dom.window.document.querySelector('.additional-content__item--redo-answer');
   const inputContainer = dom.window.document.querySelector('.quiz-input__input-container');
 
   assert.equal(redoButton.getAttribute('aria-disabled'), 'true');
 
+  quizQueueController.submitAnswer('answer', { action: 'pass' });
   inputContainer.setAttribute('correct', '');
 
   await waitFor(() => {
@@ -136,11 +148,110 @@ test('redo answer updates when WaniKani marks an answer correct', async () => {
   });
 });
 
+test('redo answer unlocks item info when the answer is submitted', async () => {
+  const dom = createDom(
+    `
+      <div class="quiz-input">
+        <div class="quiz-input__input-container">
+          <input id="user-response">
+        </div>
+      </div>
+      <ul>
+        <li>
+          <a class="additional-content__item additional-content__item--item-info additional-content__item--disabled"></a>
+        </li>
+        <li><a class="additional-content__item additional-content__item--last-items"></a></li>
+      </ul>
+      <turbo-frame id="subject-info"></turbo-frame>
+    `,
+    'https://www.wanikani.com/subjects/review'
+  );
+  const itemInfo = dom.window.document.querySelector(
+    '.additional-content__item--item-info'
+  );
+  const submitCalls = [];
+  let answerEventCount = 0;
+  const quizQueueController = {
+    currentItem: { id: 42 },
+    questionType: 'meaning',
+    stats: {
+      get() {
+        return {
+          meaning: { complete: false, incorrect: 0 },
+          reading: { complete: false, incorrect: 0 }
+        };
+      }
+    },
+    submitAnswer(answer, results) {
+      submitCalls.push([answer, results]);
+      dom.window.dispatchEvent(new dom.window.CustomEvent('didAnswerQuestion'));
+    },
+    nextItem() {}
+  };
+  const controller = { quizQueueOutlet: quizQueueController };
+
+  await loadUserscript(dom, 'wk-redo-answer.js', {
+    Stimulus: {
+      getControllerForElementAndIdentifier() {
+        return controller;
+      }
+    }
+  });
+
+  dom.window.addEventListener('didAnswerQuestion', event => {
+    answerEventCount += 1;
+    const subjectId = event.detail.subjectWithStats.subject.id;
+    itemInfo.classList.remove('additional-content__item--disabled');
+    itemInfo.setAttribute('href', `/subjects/${subjectId}`);
+    dom.window.document.querySelector('#subject-info').textContent = 'Item details';
+  });
+
+  const results = { action: 'pass' };
+  quizQueueController.submitAnswer('answer', results);
+
+  assert.equal(itemInfo.classList.contains('additional-content__item--disabled'), false);
+  assert.equal(itemInfo.getAttribute('href'), '/subjects/42');
+  assert.equal(dom.window.document.querySelector('#subject-info').textContent, 'Item details');
+  assert.deepEqual(submitCalls, []);
+  assert.equal(answerEventCount, 1);
+
+  quizQueueController.nextItem();
+
+  assert.deepEqual(submitCalls, [['answer', results]]);
+  assert.equal(answerEventCount, 1);
+});
+
+test('redo answer stays disabled when the pending-answer interface is unavailable', async () => {
+  const dom = createDom(
+    `
+      <div class="quiz-input">
+        <div class="quiz-input__input-container" correct="false">
+          <input id="user-response">
+        </div>
+      </div>
+      <ul><li><a class="additional-content__item additional-content__item--last-items"></a></li></ul>
+    `,
+    'https://www.wanikani.com/subjects/review'
+  );
+
+  await loadUserscript(dom, 'wk-redo-answer.js', {
+    Stimulus: {
+      getControllerForElementAndIdentifier() {
+        return {};
+      }
+    }
+  });
+
+  const redoButton = dom.window.document.querySelector('.additional-content__item--redo-answer');
+
+  assert.equal(redoButton.getAttribute('aria-disabled'), 'true');
+});
+
 test('redo answer can reset the current quiz input through the WaniKani controller', async () => {
   const dom = createDom(
     `
       <div class="quiz-input">
-        <div class="quiz-input__input-container" correct>
+        <div class="quiz-input__input-container">
           <input id="user-response" value="old answer">
         </div>
       </div>
@@ -160,6 +271,10 @@ test('redo answer can reset the current quiz input through the WaniKani controll
     currentQuestionType: 'meaning',
     lastAnswer: 'old answer',
     inputChars: ['o'],
+    quizQueueOutlet: {
+      submitAnswer() {},
+      nextItem() {}
+    },
     updateQuestionCalls: [],
     updateQuestion(event) {
       this.updateQuestionCalls.push(event.detail);
@@ -175,15 +290,23 @@ test('redo answer can reset the current quiz input through the WaniKani controll
   });
 
   const redoButton = dom.window.document.querySelector('.additional-content__item--redo-answer');
+  const inputContainer = dom.window.document.querySelector('.quiz-input__input-container');
+
+  controller.quizQueueOutlet.submitAnswer('old answer', { action: 'pass' });
+  inputContainer.setAttribute('correct', '');
+
+  await waitFor(() => {
+    assert.equal(redoButton.getAttribute('aria-disabled'), 'false');
+  });
+
   redoButton.click();
 
   await new Promise(resolve => dom.window.requestAnimationFrame(resolve));
 
   const input = dom.window.document.querySelector('#user-response');
-  const inputContainer = dom.window.document.querySelector('.quiz-input__input-container');
-
   assert.equal(controller.lastAnswer, null);
-  assert.deepEqual(Array.from(controller.inputChars), []);
+  assert.equal(controller.inputChars, '');
+  assert.equal(controller.inputEnabled, true);
   assert.equal(controller.updateQuestionCalls.length, 1);
   assert.equal(controller.updateQuestionCalls[0].subject, controller.currentSubject);
   assert.equal(controller.updateQuestionCalls[0].questionType, controller.currentQuestionType);
@@ -192,6 +315,246 @@ test('redo answer can reset the current quiz input through the WaniKani controll
   assert.equal(redoButton.getAttribute('aria-disabled'), 'true');
   assert.equal(dom.window.document.querySelector('.answer-exception').textContent, '');
   assert.equal(dom.window.document.querySelector('turbo-frame#subject-info').innerHTML, '');
+});
+
+test('redo answer commits only the replacement answer when advancing', async () => {
+  const dom = createDom(
+    `
+      <div class="quiz-input">
+        <div class="quiz-input__input-container">
+          <input id="user-response">
+        </div>
+      </div>
+      <ul>
+        <li><a class="additional-content__item additional-content__item--last-items"></a></li>
+      </ul>
+    `,
+    'https://www.wanikani.com/subjects/review'
+  );
+  const calls = [];
+  const quizQueueController = {
+    submitAnswer(answer, results) {
+      calls.push(['submit', answer, results]);
+    },
+    nextItem(questionType) {
+      calls.push(['next', questionType]);
+    }
+  };
+  const controller = {
+    currentSubject: { id: 1 },
+    currentQuestionType: 'meaning',
+    lastAnswer: 'wrong',
+    inputChars: 'wrong',
+    quizQueueOutlet: quizQueueController,
+    updateQuestion() {}
+  };
+
+  await loadUserscript(dom, 'wk-redo-answer.js', {
+    Stimulus: {
+      getControllerForElementAndIdentifier() {
+        return controller;
+      }
+    }
+  });
+
+  const inputContainer = dom.window.document.querySelector('.quiz-input__input-container');
+  const redoButton = dom.window.document.querySelector('.additional-content__item--redo-answer');
+  const firstResults = { action: 'fail' };
+  const replacementResults = { action: 'pass' };
+
+  quizQueueController.submitAnswer('wrong', firstResults);
+  inputContainer.setAttribute('correct', 'false');
+
+  await waitFor(() => {
+    assert.equal(redoButton.getAttribute('aria-disabled'), 'false');
+  });
+
+  redoButton.click();
+  await new Promise(resolve => dom.window.requestAnimationFrame(resolve));
+
+  quizQueueController.submitAnswer('correct', replacementResults);
+  quizQueueController.nextItem('reading');
+
+  assert.deepEqual(calls, [
+    ['submit', 'correct', replacementResults],
+    ['next', 'reading']
+  ]);
+});
+
+test('redo answer commits a pending answer when the page exits', async () => {
+  const dom = createDom(
+    `
+      <div class="quiz-input">
+        <div class="quiz-input__input-container"><input id="user-response"></div>
+      </div>
+      <ul><li><a class="additional-content__item additional-content__item--last-items"></a></li></ul>
+    `,
+    'https://www.wanikani.com/subjects/review'
+  );
+  const calls = [];
+  const quizQueueController = {
+    submitAnswer(answer, results) {
+      calls.push([answer, results]);
+    },
+    nextItem() {}
+  };
+  const controller = {
+    quizQueueOutlet: quizQueueController
+  };
+
+  await loadUserscript(dom, 'wk-redo-answer.js', {
+    Stimulus: {
+      getControllerForElementAndIdentifier() {
+        return controller;
+      }
+    }
+  });
+
+  const results = { action: 'pass' };
+  quizQueueController.submitAnswer('answer', results);
+
+  assert.deepEqual(calls, []);
+
+  dom.window.dispatchEvent(new dom.window.Event('pagehide'));
+  dom.window.dispatchEvent(new dom.window.Event('pagehide'));
+
+  assert.deepEqual(calls, [['answer', results]]);
+});
+
+test('redo answer commits a pending answer before Turbo navigation', async () => {
+  const dom = createDom(
+    `
+      <div class="quiz-input">
+        <div class="quiz-input__input-container"><input id="user-response"></div>
+      </div>
+      <ul><li><a class="additional-content__item additional-content__item--last-items"></a></li></ul>
+    `,
+    'https://www.wanikani.com/subjects/review'
+  );
+  const calls = [];
+  const quizQueueController = {
+    submitAnswer(answer) {
+      calls.push(answer);
+    },
+    nextItem() {}
+  };
+  const controller = { quizQueueOutlet: quizQueueController };
+
+  await loadUserscript(dom, 'wk-redo-answer.js', {
+    Stimulus: {
+      getControllerForElementAndIdentifier() {
+        return controller;
+      }
+    }
+  });
+
+  quizQueueController.submitAnswer('answer', { action: 'pass' });
+  dom.window.document.dispatchEvent(new dom.window.Event('turbo:before-visit'));
+
+  assert.deepEqual(calls, ['answer']);
+});
+
+test('redo answer moves its transaction when the queue outlet changes', async () => {
+  const dom = createDom(
+    `
+      <div class="quiz-input"><div class="quiz-input__input-container"></div></div>
+      <ul><li><a class="additional-content__item additional-content__item--last-items"></a></li></ul>
+    `,
+    'https://www.wanikani.com/subjects/review'
+  );
+  const firstCalls = [];
+  const secondCalls = [];
+  const firstQueue = {
+    submitAnswer(answer) {
+      firstCalls.push(['submit', answer]);
+    },
+    nextItem() {
+      firstCalls.push(['next']);
+    }
+  };
+  const secondQueue = {
+    submitAnswer(answer) {
+      secondCalls.push(['submit', answer]);
+    },
+    nextItem() {
+      secondCalls.push(['next']);
+    }
+  };
+  const controller = { quizQueueOutlet: firstQueue };
+
+  await loadUserscript(dom, 'wk-redo-answer.js', {
+    Stimulus: {
+      getControllerForElementAndIdentifier() {
+        return controller;
+      }
+    }
+  });
+
+  firstQueue.submitAnswer('first', { action: 'pass' });
+  controller.quizQueueOutlet = secondQueue;
+  dom.window.document.body.appendChild(dom.window.document.createElement('div'));
+
+  await waitFor(() => {
+    assert.deepEqual(firstCalls, [['submit', 'first']]);
+  });
+
+  firstQueue.submitAnswer('after uninstall', { action: 'pass' });
+  secondQueue.submitAnswer('second', { action: 'pass' });
+
+  assert.deepEqual(firstCalls, [
+    ['submit', 'first'],
+    ['submit', 'after uninstall']
+  ]);
+  assert.deepEqual(secondCalls, []);
+
+  secondQueue.nextItem();
+
+  assert.deepEqual(secondCalls, [
+    ['submit', 'second'],
+    ['next']
+  ]);
+});
+
+test('redo answer reuses its transaction when the input controller changes', async () => {
+  const dom = createDom(
+    `
+      <div class="quiz-input"><div class="quiz-input__input-container"></div></div>
+      <ul><li><a class="additional-content__item additional-content__item--last-items"></a></li></ul>
+    `,
+    'https://www.wanikani.com/subjects/review'
+  );
+  const calls = [];
+  const quizQueueController = {
+    submitAnswer(answer) {
+      calls.push(['submit', answer]);
+    },
+    nextItem() {
+      calls.push(['next']);
+    }
+  };
+  let controller = { quizQueueOutlet: quizQueueController };
+
+  await loadUserscript(dom, 'wk-redo-answer.js', {
+    Stimulus: {
+      getControllerForElementAndIdentifier() {
+        return controller;
+      }
+    }
+  });
+
+  quizQueueController.submitAnswer('answer', { action: 'pass' });
+  controller = { quizQueueOutlet: quizQueueController };
+  dom.window.document.body.appendChild(dom.window.document.createElement('div'));
+  await flushMutationObservers();
+
+  assert.deepEqual(calls, []);
+
+  quizQueueController.nextItem();
+
+  assert.deepEqual(calls, [
+    ['submit', 'answer'],
+    ['next']
+  ]);
 });
 
 test('stroke order inserts a KanjiVG section and navigation link on kanji pages', async () => {
