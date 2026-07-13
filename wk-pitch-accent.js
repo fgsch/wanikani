@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WaniKani Pitch Accent
 // @namespace    wk-pitch-accent
-// @version      0.1.0
+// @version      0.2.0
 // @author       Federico G. Schwindt <fgsch@lodoss.net>
 // @description  Adds OJAD pitch-accent diagrams to WaniKani vocabulary pages, lessons, and quizzes.
 // @license      MIT
@@ -10,6 +10,7 @@
 // @downloadURL  https://raw.githubusercontent.com/fgsch/wanikani/main/wk-pitch-accent.js
 // @match        https://www.wanikani.com/*
 // @grant        GM.xmlHttpRequest
+// @grant        unsafeWindow
 // @connect      www.gavo.t.u-tokyo.ac.jp
 // ==/UserScript==
 
@@ -21,6 +22,7 @@
   const OJAD_BASE_URL = 'https://www.gavo.t.u-tokyo.ac.jp/ojad';
   const SVG_NS = 'http://www.w3.org/2000/svg';
   const VARIANT_COUNT = 4;
+  const ORIGINAL_READING_NODES = Symbol('originalReadingNodes');
 
   const responseCache = new Map();
   let isRunning = false;
@@ -115,8 +117,15 @@
   }
 
   function getQuizController() {
-    return window.Stimulus?.getControllerForElementAndIdentifier?.(
-      document.querySelector('.quiz-input'),
+    const pageWindow =
+      typeof unsafeWindow === 'undefined' ? window : unsafeWindow;
+    const stimulus = pageWindow.Stimulus || window.Stimulus;
+    const quizInput =
+      pageWindow.document?.querySelector('.quiz-input') ||
+      document.querySelector('.quiz-input');
+
+    return stimulus?.getControllerForElementAndIdentifier?.(
+      quizInput,
       'quiz-input'
     );
   }
@@ -135,10 +144,15 @@
 
     const characters = normalizeJapanese(subject.characters);
     const readings = (subject.readings || [])
-      .filter(reading =>
-        reading.acceptedAnswer ?? reading.accepted_answer ?? reading.primary ?? true
-      )
-      .map(reading => normalizeJapanese(reading.reading))
+      .filter(reading => {
+        const accepted =
+          reading.acceptedAnswer ?? reading.accepted_answer ?? reading.primary;
+        if (accepted !== undefined) return accepted;
+
+        const kind = normalizeJapanese(reading.kind).toLowerCase();
+        return !kind || kind === 'primary' || kind === 'alternative';
+      })
+      .map(reading => normalizeJapanese(reading.reading || reading.text))
       .filter(Boolean);
 
     if (!characters) return null;
@@ -312,15 +326,14 @@
     return svg;
   }
 
-  function createCredit(subject) {
+  function createCredit() {
     const credit = document.createElement('p');
     credit.className = 'wk-pitch-accent-credit';
 
-    const searchUrl = `${OJAD_BASE_URL}/search/index/word:${encodeURIComponent(subject.characters)}`;
     credit.append('Pitch-accent data from ');
 
     const link = document.createElement('a');
-    link.href = searchUrl;
+    link.href = OJAD_BASE_URL;
     link.target = '_blank';
     link.rel = 'noopener noreferrer';
     link.textContent = 'OJAD (Online Japanese Accent Dictionary)';
@@ -329,7 +342,7 @@
     return credit;
   }
 
-  function createPitchContent(subject, variants, error = null) {
+  function createPitchContent(variants, error = null) {
     const visual = document.createElement('div');
     const details = document.createElement('div');
     visual.id = CONTENT_ID;
@@ -343,11 +356,18 @@
       message.textContent = error;
       details.appendChild(message);
     } else {
-      const charts = document.createElement('div');
-
-      charts.className = 'wk-pitch-accent-charts';
+      const chartsByReading = new Map();
 
       variants.forEach((variant, index) => {
+        let charts = chartsByReading.get(variant.reading);
+        if (!charts) {
+          charts = document.createElement('span');
+          charts.className = 'wk-pitch-accent wk-pitch-accent-charts';
+          charts.dataset.reading = variant.reading;
+          chartsByReading.set(variant.reading, charts);
+          visual.appendChild(charts);
+        }
+
         const variantClass = `wk-pitch-accent-variant-${index % VARIANT_COUNT + 1}`;
         const figure = document.createElement('figure');
         const caption = document.createElement('figcaption');
@@ -357,11 +377,9 @@
         figure.append(createPitchSvg(variant), caption);
         charts.appendChild(figure);
       });
-
-      visual.appendChild(charts);
     }
 
-    details.appendChild(createCredit(subject));
+    if (!error) details.appendChild(createCredit());
     return { visual, details, replacesReading: !error };
   }
 
@@ -376,39 +394,19 @@
       }
 
       .wk-pitch-accent-details {
-        padding: 4px 0;
-      }
-
-      .wk-pitch-accent-reading-group {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-      }
-
-      .wk-pitch-accent-reading-group
-        > .wk-pitch-accent-reading-hidden.subject-readings-with-audio
-      {
-        display: flex !important;
-        flex-direction: column;
-        gap: 12px;
-        height: auto !important;
-      }
-
-      .wk-pitch-accent-reading-group
-        > .wk-pitch-accent-reading-hidden.subject-readings-with-audio
-        > .subject-readings-with-audio__item {
-        display: contents !important;
-      }
-
-      .wk-pitch-accent-reading-group .wk-pitch-accent-details {
         padding: 0 0 4px;
       }
 
-      .wk-pitch-accent .wk-pitch-accent-charts {
+      .subject-readings-with-audio + .wk-pitch-accent-details {
+        margin-top: -26px;
+      }
+
+      .wk-pitch-accent-charts {
         display: flex;
         flex-wrap: wrap;
         gap: 14px;
         align-items: flex-end;
+        margin-bottom: 8px;
       }
 
       .wk-pitch-accent figure {
@@ -439,7 +437,7 @@
         --wk-pitch-accent-color: #ffad5c;
       }
 
-      .wk-pitch-accent svg {
+      .wk-pitch-accent-charts svg {
         display: block;
         width: auto;
         height: 33px;
@@ -472,13 +470,10 @@
         font-weight: 600;
       }
 
-      .wk-pitch-accent-reading-hidden .wk-pitch-accent-original-reading,
-      .wk-pitch-accent-reading-hidden.wk-pitch-accent-original-reading {
-        display: none !important;
-      }
-
-      .wk-pitch-accent .wk-pitch-accent-credit {
+      .wk-pitch-accent .wk-pitch-accent-credit,
+      .wk-pitch-accent .wk-pitch-accent-status {
         margin: 0;
+        margin-top: 50px;
         font-size: 12px;
         opacity: .75;
       }
@@ -498,33 +493,32 @@
     );
   }
 
-  function markOriginalReading(readingRow) {
-    const explicitReadings = [
-      ...readingRow.querySelectorAll('.reading-with-audio__reading, [data-reading]')
-    ];
-
-    if (explicitReadings.length) {
-      explicitReadings.forEach(element => {
-        element.classList.add('wk-pitch-accent-original-reading');
-      });
-      return;
-    }
-
+  function findReadingContainers(readingRow) {
     const audioRows = readingRow.matches('.reading-with-audio')
       ? [readingRow]
       : [...readingRow.querySelectorAll('.reading-with-audio')];
-    const containers = audioRows.length ? audioRows : [readingRow];
+    return audioRows.length ? audioRows : [readingRow];
+  }
 
-    containers.forEach(container => {
-      [...container.childNodes]
-        .filter(node => node.nodeType === Node.TEXT_NODE && node.textContent.trim())
-        .forEach(node => {
-          const reading = document.createElement('span');
-          reading.className = 'wk-pitch-accent-original-reading';
-          reading.textContent = node.textContent;
-          node.replaceWith(reading);
-        });
-    });
+  function getContainerReading(container) {
+    const reading = container.querySelector(
+      '.reading-with-audio__reading, [data-reading]'
+    );
+    return normalizeJapanese(
+      reading?.getAttribute('data-reading') ||
+      reading?.textContent ||
+      container.dataset.reading ||
+      container.textContent
+    );
+  }
+
+  function findReadingTarget(container) {
+    return (
+      container.querySelector('.reading-with-audio__reading, [data-reading]') ||
+      [...container.childNodes].find(
+        node => node.nodeType === Node.TEXT_NODE && node.textContent.trim()
+      )
+    );
   }
 
   function insertPitchAroundReading(readingContent, content) {
@@ -532,31 +526,56 @@
 
     if (!readingRow) return false;
 
-    readingRow.before(content.visual);
     if (content.replacesReading) {
-      const group = document.createElement('div');
-      group.className = 'wk-pitch-accent-reading-group';
+      const charts = [...content.visual.querySelectorAll('.wk-pitch-accent-charts')];
+      const usedCharts = new Set();
+      let replacedReading = false;
 
-      markOriginalReading(readingRow);
-      readingRow.classList.add('wk-pitch-accent-reading-hidden');
-      readingRow.before(group);
-      group.append(readingRow, content.details);
+      findReadingContainers(readingRow).forEach(container => {
+        const reading = getContainerReading(container);
+        const matchingCharts = charts.filter(chart => chart.dataset.reading === reading);
+        if (!matchingCharts.length) return;
+
+        const originalReading = findReadingTarget(container);
+        if (!originalReading) return;
+
+        const replacementCharts = matchingCharts.map(chart => {
+          const replacement = usedCharts.has(chart)
+            ? chart.cloneNode(true)
+            : chart;
+          usedCharts.add(chart);
+          replacement[ORIGINAL_READING_NODES] = [originalReading];
+          return replacement;
+        });
+
+        originalReading.replaceWith(...replacementCharts);
+        replacedReading = true;
+      });
+
+      if (replacedReading) {
+        content.visual.removeAttribute('id');
+        content.details.id = CONTENT_ID;
+      } else {
+        readingRow.before(content.visual);
+      }
+      readingRow.after(content.details);
     } else {
+      readingRow.before(content.visual);
       readingRow.after(content.details);
     }
     return true;
   }
 
-  function restoreReadingGroups(root) {
-    root?.querySelectorAll('.wk-pitch-accent-reading-group').forEach(group => {
-      const readingRow = group.querySelector('.wk-pitch-accent-reading-hidden');
-
-      if (readingRow) {
-        readingRow.classList.remove('wk-pitch-accent-reading-hidden');
-        group.before(readingRow);
-      }
-      group.remove();
+  function restorePitchContent(root) {
+    root?.querySelectorAll('.wk-pitch-accent-charts').forEach(charts => {
+      const originalNodes = charts[ORIGINAL_READING_NODES];
+      if (originalNodes) charts.replaceWith(...originalNodes);
+      else charts.remove();
     });
+    root?.querySelectorAll('.wk-pitch-accent-visual, .wk-pitch-accent-details')
+      .forEach(element => {
+        element.remove();
+      });
   }
 
   function getSubjectReadingContent() {
@@ -609,8 +628,7 @@
     const revealed = Boolean(subject && input?.hasAttribute('correct'));
 
     if (!revealed) {
-      restoreReadingGroups(frame);
-      frame?.querySelectorAll('.wk-pitch-accent').forEach(element => element.remove());
+      restorePitchContent(frame);
       return;
     }
 
@@ -658,13 +676,12 @@
       const html = await fetchText(searchUrl);
       const variants = parseOjadResults(html, subject);
       return createPitchContent(
-        subject,
         variants,
         variants.length ? null : 'No exact OJAD pitch accent found.'
       );
     } catch (error) {
       console.warn('[WaniKani Pitch Accent] Could not fetch OJAD:', error);
-      return createPitchContent(subject, [], 'OJAD pitch accent is currently unavailable.');
+      return createPitchContent([], 'OJAD pitch accent is currently unavailable.');
     }
   }
 

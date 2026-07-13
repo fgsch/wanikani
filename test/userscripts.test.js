@@ -1370,6 +1370,7 @@ test('pitch accent inserts an exact OJAD result inside Reading', async () => {
       <style>
         .subject-readings-with-audio { height: 60px; }
         .subject-readings-with-audio__item { height: 44px; margin: 8px 0; }
+        .reading-with-audio__audio svg { width: 16px; height: 16px; }
       </style>
       <header><span class="subject-character subject-character--vocabulary" title="たべる">
         <span class="subject-character__characters-text">食べる</span>
@@ -1387,7 +1388,9 @@ test('pitch accent inserts an exact OJAD result inside Reading', async () => {
                 <div class="subject-readings-with-audio__item">
                   <div class="reading-with-audio">
                     <span class="reading-with-audio__reading">たべる</span>
-                    <button class="reading-with-audio__audio">Play audio</button>
+                    <button class="reading-with-audio__audio">
+                      <svg class="reading-with-audio__audio-icon"></svg>Play audio
+                    </button>
                   </div>
                 </div>
               </div>
@@ -1410,6 +1413,16 @@ test('pitch accent inserts an exact OJAD result inside Reading', async () => {
     `,
     'https://www.wanikani.com/vocabulary/%E9%A3%9F%E3%81%B9%E3%82%8B'
   );
+  const readingRow = dom.window.document.querySelector('.subject-readings-with-audio');
+  const readingItem = dom.window.document.querySelector(
+    '.subject-readings-with-audio__item'
+  );
+  const originalReading = dom.window.document.querySelector(
+    '.reading-with-audio__reading'
+  );
+  const audioControl = dom.window.document.querySelector(
+    '.reading-with-audio__audio'
+  );
   let fetchedUrl;
 
   await loadUserscript(dom, 'wk-pitch-accent.js', {
@@ -1422,7 +1435,7 @@ test('pitch accent inserts an exact OJAD result inside Reading', async () => {
   });
 
   await waitFor(() => {
-    assert.ok(dom.window.document.querySelector('#wk-pitch-accent svg'));
+    assert.ok(dom.window.document.querySelector('.wk-pitch-accent-charts svg'));
   });
 
   const sections = [...dom.window.document.querySelectorAll('main > .subject-section')];
@@ -1432,61 +1445,80 @@ test('pitch accent inserts an exact OJAD result inside Reading', async () => {
   ]);
   assert.equal(fetchedUrl, 'https://www.gavo.t.u-tokyo.ac.jp/ojad/search/index/word:%E9%A3%9F%E3%81%B9%E3%82%8B');
   assert.ok(dom.window.document.querySelector('.subject-section--reading #wk-pitch-accent'));
-  assert.equal(dom.window.document.querySelector('#wk-pitch-accent figcaption')?.textContent, 'Nakadaka');
+  assert.equal(dom.window.document.querySelector('.wk-pitch-accent-charts figcaption')?.textContent, 'Nakadaka');
   assert.equal(dom.window.document.querySelector('.wk-pitch-accent-heading'), null);
-  const originalReading = dom.window.document.querySelector(
-    '.wk-pitch-accent-reading-hidden .reading-with-audio__reading'
-  );
-  const audioControl = dom.window.document.querySelector(
-    '.wk-pitch-accent-reading-hidden .reading-with-audio__audio'
-  );
-  assert.equal(dom.window.getComputedStyle(originalReading).display, 'none');
+  assert.equal(originalReading.isConnected, false);
+  assert.equal(originalReading.className, 'reading-with-audio__reading');
+  assert.equal(originalReading.textContent, 'たべる');
   assert.notEqual(dom.window.getComputedStyle(audioControl).display, 'none');
   assert.equal(
     dom.window.getComputedStyle(
-      dom.window.document.querySelector('.wk-pitch-accent-visual')
-    ).paddingBottom,
-    '8px'
+      audioControl.querySelector('.reading-with-audio__audio-icon')
+    ).height,
+    '16px'
+  );
+  assert.equal(
+    dom.window.document.querySelector('.wk-pitch-accent-charts')
+      ?.parentElement.className,
+    'reading-with-audio'
+  );
+  assert.equal(
+    audioControl.previousElementSibling,
+    dom.window.document.querySelector('.wk-pitch-accent-charts')
   );
   assert.equal(
     dom.window.getComputedStyle(
       dom.window.document.querySelector('.subject-readings-with-audio')
     ).height,
-    'auto'
+    '60px'
   );
   assert.equal(
     dom.window.getComputedStyle(
       dom.window.document.querySelector('.subject-readings-with-audio__item')
     ).display,
-    'contents'
-  );
-  assert.equal(
-    dom.window.getComputedStyle(
-      dom.window.document.querySelector('.wk-pitch-accent-reading-group')
-    ).gap,
-    '12px'
+    'block'
   );
   assert.equal(
     dom.window.getComputedStyle(
       dom.window.document.querySelector('.wk-pitch-accent-credit')
     ).marginTop,
+    '50px'
+  );
+  assert.equal(
+    dom.window.document.querySelector('.wk-pitch-accent-credit a')?.href,
+    'https://www.gavo.t.u-tokyo.ac.jp/ojad'
+  );
+  assert.equal(
+    dom.window.getComputedStyle(
+      dom.window.document.querySelector('.wk-pitch-accent-details')
+    ).paddingTop,
     '0px'
+  );
+  assert.equal(
+    dom.window.getComputedStyle(
+      dom.window.document.querySelector('.wk-pitch-accent-details')
+    ).marginTop,
+    '-26px'
+  );
+  assert.equal(
+    dom.window.getComputedStyle(readingItem).marginBottom,
+    '8px'
   );
   assert.equal(dom.window.document.querySelector('a[href="#pitch-accent"]'), null);
   assert.deepEqual(
-    [...dom.window.document.querySelectorAll('#wk-pitch-accent svg text')]
+    [...dom.window.document.querySelectorAll('.wk-pitch-accent-charts svg text')]
       .map(node => node.textContent),
     ['た', 'べ', 'る', '2']
   );
   assert.equal(
-    dom.window.document.querySelector('#wk-pitch-accent svg')?.getAttribute('viewBox'),
+    dom.window.document.querySelector('.wk-pitch-accent-charts svg')?.getAttribute('viewBox'),
     '0 0 100 33'
   );
   assert.equal(
-    dom.window.document.querySelector('#wk-pitch-accent svg polyline')?.getAttribute('points'),
+    dom.window.document.querySelector('.wk-pitch-accent-charts svg polyline')?.getAttribute('points'),
     '2,30 24,30 24,3 48,3 48,30 70,30'
   );
-  assert.equal(dom.window.document.querySelectorAll('#wk-pitch-accent svg ellipse').length, 1);
+  assert.equal(dom.window.document.querySelectorAll('.wk-pitch-accent-charts svg ellipse').length, 1);
   assert.deepEqual(
     [...dom.window.document.querySelectorAll('.subject-section--reading > .subject-section__content > .subject-section__subsection')]
       .map(section => section.classList[1]),
@@ -1499,18 +1531,12 @@ test('pitch accent inserts an exact OJAD result inside Reading', async () => {
     [...dom.window.document.querySelector('.subject-section__subsection--reading').children]
       .map(element => element.className),
     [
-      'wk-pitch-accent wk-pitch-accent-visual',
-      'wk-pitch-accent-reading-group'
-    ]
-  );
-  assert.deepEqual(
-    [...dom.window.document.querySelector('.wk-pitch-accent-reading-group').children]
-      .map(element => element.className),
-    [
-      'subject-readings-with-audio wk-pitch-accent-reading-hidden',
+      'subject-readings-with-audio',
       'wk-pitch-accent wk-pitch-accent-details'
     ]
   );
+  assert.equal(readingRow.className, 'subject-readings-with-audio');
+  assert.equal(readingItem.className, 'subject-readings-with-audio__item');
 });
 
 test('pitch accent shows all exact variants and rejects other headwords and readings', async () => {
@@ -1543,7 +1569,6 @@ test('pitch accent shows all exact variants and rejects other headwords and read
     `,
     'https://www.wanikani.com/vocabulary/%E4%B8%8A%E3%81%92%E3%82%8B'
   );
-
   await loadUserscript(dom, 'wk-pitch-accent.js', {
     GM: {
       xmlHttpRequest({ onload }) {
@@ -1553,15 +1578,15 @@ test('pitch accent shows all exact variants and rejects other headwords and read
   });
 
   await waitFor(() => {
-    assert.equal(dom.window.document.querySelectorAll('#wk-pitch-accent figure').length, 2);
+    assert.equal(dom.window.document.querySelectorAll('.wk-pitch-accent-charts figure').length, 2);
   });
 
   assert.deepEqual(
-    [...dom.window.document.querySelectorAll('#wk-pitch-accent figcaption')].map(node => node.textContent),
+    [...dom.window.document.querySelectorAll('.wk-pitch-accent-charts figcaption')].map(node => node.textContent),
     ['Atamadaka', 'Heiban']
   );
   assert.deepEqual(
-    [...dom.window.document.querySelectorAll('#wk-pitch-accent figure')]
+    [...dom.window.document.querySelectorAll('.wk-pitch-accent-charts figure')]
       .map(figure => [...figure.querySelectorAll('text')].map(node => node.textContent)),
     [
       ['あ', 'げ', 'る', '1'],
@@ -1569,22 +1594,103 @@ test('pitch accent shows all exact variants and rejects other headwords and read
     ]
   );
   assert.deepEqual(
-    [...dom.window.document.querySelectorAll('#wk-pitch-accent figure')]
+    [...dom.window.document.querySelectorAll('.wk-pitch-accent-charts figure')]
       .map(figure => figure.className),
     ['wk-pitch-accent-variant-1', 'wk-pitch-accent-variant-2']
   );
-  const fallbackReading = dom.window.document.querySelector(
-    '.reading-with-audio .wk-pitch-accent-original-reading'
-  );
-  assert.equal(fallbackReading?.textContent, 'あげる');
-  assert.equal(dom.window.getComputedStyle(fallbackReading).display, 'none');
   assert.match(
     dom.window.document.querySelector('#wk-pitch-accent-style')?.textContent || '',
     /html\[data-wk-dark-theme="dark"\] \.wk-pitch-accent-variant-1/
   );
   assert.equal(
-    dom.window.document.querySelectorAll('#wk-pitch-accent polyline')[1]?.getAttribute('points'),
+    dom.window.document.querySelectorAll('.wk-pitch-accent-charts polyline')[1]?.getAttribute('points'),
     '2,30 24,30 24,3 46,3 70,3'
+  );
+});
+
+test('pitch accent replaces each reading beside its own audio control', async () => {
+  const accent = (reading, dropIndex) => `
+    <tr>
+      <td class="midashi"><p class="midashi_word">日本</p></td>
+      <td class="katsuyo_jisho_js"><span class="accented_word">
+        ${[...reading].map((character, index) => `
+          <span class="${index === dropIndex ? 'accent_top' : ''}"><span class="char">${character}</span></span>
+        `).join('')}
+      </span></td>
+    </tr>
+  `;
+  const dom = createDom(
+    `
+      <span class="subject-character subject-character--vocabulary"></span>
+      <main><section class="subject-section subject-section--reading">
+        <section class="subject-section__content">
+          <div class="subject-readings-with-audio">
+            <div class="subject-readings-with-audio__item">
+              <div class="reading-with-audio">
+                <span class="reading-with-audio__reading">にほん</span>
+                <button class="reading-with-audio__audio">Play にほん</button>
+              </div>
+            </div>
+            <div class="subject-readings-with-audio__item">
+              <div class="reading-with-audio">
+                <span class="reading-with-audio__reading">にっぽん</span>
+                <button class="reading-with-audio__audio">Play にっぽん</button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </section></main>
+    `,
+    'https://www.wanikani.com/vocabulary/%E6%97%A5%E6%9C%AC'
+  );
+  const originalReadings = [
+    ...dom.window.document.querySelectorAll('.reading-with-audio__reading')
+  ];
+
+  await loadUserscript(dom, 'wk-pitch-accent.js', {
+    GM: {
+      xmlHttpRequest({ onload }) {
+        onload({
+          status: 200,
+          responseText: `<table id="word_table"><tbody>
+            ${accent('にほん', 1)}
+            ${accent('にっぽん', 2)}
+          </tbody></table>`
+        });
+      }
+    }
+  });
+
+  await waitFor(() => {
+    assert.equal(dom.window.document.querySelectorAll('.wk-pitch-accent-charts figure').length, 2);
+  });
+
+  const readingRow = dom.window.document.querySelector('.subject-readings-with-audio');
+  assert.deepEqual(
+    [...readingRow.children].map(element => element.className),
+    ['subject-readings-with-audio__item', 'subject-readings-with-audio__item']
+  );
+  assert.deepEqual(
+    [...readingRow.querySelectorAll('.reading-with-audio')].map(row =>
+      [...row.children].map(element => element.className)
+    ),
+    [
+      ['wk-pitch-accent wk-pitch-accent-charts', 'reading-with-audio__audio'],
+      ['wk-pitch-accent wk-pitch-accent-charts', 'reading-with-audio__audio']
+    ]
+  );
+  assert.deepEqual(
+    originalReadings.map(reading => [reading.isConnected, reading.className]),
+    [
+      [false, 'reading-with-audio__reading'],
+      [false, 'reading-with-audio__reading']
+    ]
+  );
+  assert.deepEqual(
+    [...readingRow.querySelectorAll('.wk-pitch-accent-charts')].map(charts =>
+      [...charts.querySelectorAll('svg text')].map(node => node.textContent).join('')
+    ),
+    ['にほん2', 'にっぽん3']
   );
 });
 
@@ -1646,29 +1752,14 @@ test('pitch accent inserts inside the vocabulary lesson Reading slide', async ()
     [...dom.window.document.querySelector('#reading .subject-section__content').children]
       .map(element => element.className),
     [
-      'wk-pitch-accent wk-pitch-accent-visual',
-      'wk-pitch-accent-reading-group'
-    ]
-  );
-  assert.deepEqual(
-    [...dom.window.document.querySelector('#reading .wk-pitch-accent-reading-group').children]
-      .map(element => element.className),
-    [
-      'reading-with-audio wk-pitch-accent-reading-hidden',
+      'reading-with-audio',
       'wk-pitch-accent wk-pitch-accent-details'
     ]
   );
-  assert.equal(
-    dom.window.getComputedStyle(
-      dom.window.document.querySelector('#reading .wk-pitch-accent-reading-group')
-    ).gap,
-    '12px'
-  );
-  assert.equal(
-    dom.window.getComputedStyle(
-      dom.window.document.querySelector('#reading .reading-with-audio__reading')
-    ).display,
-    'none'
+  assert.deepEqual(
+    [...dom.window.document.querySelector('#reading .reading-with-audio').children]
+      .map(element => element.className),
+    ['wk-pitch-accent wk-pitch-accent-charts', 'reading-with-audio__audio']
   );
   assert.notEqual(
     dom.window.getComputedStyle(
@@ -1711,17 +1802,20 @@ test('pitch accent waits for a revealed quiz answer and Reading item info', asyn
   );
   const controller = {
     currentSubject: {
-      object: 'vocabulary',
+      type: 'Vocabulary',
+      subject_category: 'Vocabulary',
       characters: '食べる',
-      readings: [{ reading: 'たべる', acceptedAnswer: true }]
+      readings: [{ text: 'たべる', kind: 'primary' }]
     }
   };
   let fetchCount = 0;
 
   await loadUserscript(dom, 'wk-pitch-accent.js', {
-    Stimulus: {
-      getControllerForElementAndIdentifier() {
-        return controller;
+    unsafeWindow: {
+      Stimulus: {
+        getControllerForElementAndIdentifier() {
+          return controller;
+        }
       }
     },
     GM: {
@@ -1754,9 +1848,10 @@ test('pitch accent waits for a revealed quiz answer and Reading item info', asyn
       </section>
     </section>
   `;
+  const originalQuizReading = frame.querySelector('.reading-with-audio__reading');
 
   await waitFor(() => {
-    assert.ok(dom.window.document.querySelector('#subject-info #wk-pitch-accent svg'));
+    assert.ok(dom.window.document.querySelector('#subject-info .wk-pitch-accent-charts svg'));
   });
 
   assert.equal(fetchCount, 1);
@@ -1764,26 +1859,16 @@ test('pitch accent waits for a revealed quiz answer and Reading item info', asyn
     [...frame.querySelector('.subject-section__subsection--reading').children]
       .map(element => element.className),
     [
-      'wk-pitch-accent wk-pitch-accent-visual',
-      'wk-pitch-accent-reading-group'
-    ]
-  );
-  assert.deepEqual(
-    [...frame.querySelector('.wk-pitch-accent-reading-group').children]
-      .map(element => element.className),
-    [
-      'reading-with-audio wk-pitch-accent-reading-hidden',
+      'reading-with-audio',
       'wk-pitch-accent wk-pitch-accent-details'
     ]
   );
-  assert.equal(
-    dom.window.getComputedStyle(frame.querySelector('.wk-pitch-accent-reading-group')).gap,
-    '12px'
+  assert.deepEqual(
+    [...frame.querySelector('.reading-with-audio').children]
+      .map(element => element.className),
+    ['wk-pitch-accent wk-pitch-accent-charts', 'reading-with-audio__audio']
   );
-  assert.equal(
-    dom.window.getComputedStyle(frame.querySelector('.reading-with-audio__reading')).display,
-    'none'
-  );
+  assert.equal(originalQuizReading.isConnected, false);
   assert.notEqual(
     dom.window.getComputedStyle(frame.querySelector('.reading-with-audio__audio')).display,
     'none'
@@ -1794,11 +1879,9 @@ test('pitch accent waits for a revealed quiz answer and Reading item info', asyn
   await waitFor(() => {
     assert.equal(dom.window.document.querySelector('#subject-info #wk-pitch-accent'), null);
   });
-  assert.equal(frame.querySelector('.wk-pitch-accent-reading-hidden'), null);
-  assert.notEqual(
-    dom.window.getComputedStyle(frame.querySelector('.reading-with-audio__reading')).display,
-    'none'
-  );
+  assert.equal(frame.querySelector('.wk-pitch-accent-charts'), null);
+  assert.equal(originalQuizReading.isConnected, true);
+  assert.equal(frame.querySelector('.reading-with-audio__reading'), originalQuizReading);
 });
 
 test('pitch accent recognizes Reading item info outside review URLs', async () => {
@@ -1895,8 +1978,39 @@ test('pitch accent does not insert a stale lookup after vocabulary navigation', 
   requests[1].onload({ status: 200, responseText: result('飲む', 'のむ') });
 
   await waitFor(() => {
-    assert.equal(dom.window.document.querySelector('#wk-pitch-accent figcaption')?.textContent, 'Heiban');
+    assert.equal(
+      dom.window.document.querySelector('.wk-pitch-accent-charts figcaption')?.textContent,
+      'Heiban'
+    );
   });
+});
+
+test('pitch accent omits the OJAD credit when no exact result is found', async () => {
+  const dom = createDom(
+    `
+      <span class="subject-character subject-character--vocabulary" title="たべる"></span>
+      <main><section class="subject-section subject-section--reading">
+        <section class="subject-section__content"><div class="reading-with-audio">WaniKani reading</div></section>
+      </section></main>
+    `,
+    'https://www.wanikani.com/vocabulary/%E9%A3%9F%E3%81%B9%E3%82%8B'
+  );
+
+  await loadUserscript(dom, 'wk-pitch-accent.js', {
+    GM: {
+      xmlHttpRequest({ onload }) {
+        onload({ status: 200, responseText: '<table id="word_table"><tbody></tbody></table>' });
+      }
+    }
+  });
+
+  await waitFor(() => {
+    assert.equal(
+      dom.window.document.querySelector('.wk-pitch-accent-status')?.textContent,
+      'No exact OJAD pitch accent found.'
+    );
+  });
+  assert.equal(dom.window.document.querySelector('.wk-pitch-accent-credit'), null);
 });
 
 test('pitch accent shows an unavailable state without repeatedly requesting OJAD', async () => {
@@ -1928,6 +2042,7 @@ test('pitch accent shows an unavailable state without repeatedly requesting OJAD
       'OJAD pitch accent is currently unavailable.'
     );
   });
+  assert.equal(dom.window.document.querySelector('.wk-pitch-accent-credit'), null);
 
   dom.window.document.body.innerHTML = page;
 
