@@ -10,6 +10,7 @@
 // @downloadURL  https://raw.githubusercontent.com/fgsch/wanikani/main/wk-stroke-order.js
 // @match        https://www.wanikani.com/*
 // @grant        GM.xmlHttpRequest
+// @grant        unsafeWindow
 // @connect      raw.githubusercontent.com
 // ==/UserScript==
 
@@ -67,8 +68,15 @@
   }
 
   function getQuizController() {
-    return window.Stimulus?.getControllerForElementAndIdentifier?.(
-      document.querySelector('.quiz-input'),
+    const pageWindow =
+      typeof unsafeWindow === 'undefined' ? window : unsafeWindow;
+    const stimulus = pageWindow.Stimulus || window.Stimulus;
+    const quizInput =
+      pageWindow.document?.querySelector('.quiz-input') ||
+      document.querySelector('.quiz-input');
+
+    return stimulus?.getControllerForElementAndIdentifier?.(
+      quizInput,
       'quiz-input'
     );
   }
@@ -176,6 +184,16 @@
         list-style: none;
       }
 
+      #${CONTENT_ID} button.wk-kanjivg-replay {
+        padding: 0;
+        border: 0;
+        background: none;
+        color: inherit;
+        font: inherit;
+        text-decoration: underline;
+        cursor: pointer;
+      }
+
       #${CONTENT_ID} .wk-kanjivg-options {
         display: flex;
         flex-direction: column;
@@ -223,6 +241,10 @@
 
       #${CONTENT_ID} .wk-kanjivg-credit a {
         text-decoration: underline;
+      }
+
+      .subject-section--stroke-order #${CONTENT_ID} .wk-kanjivg-credit {
+        margin-bottom: 0;
       }
 
       @media (max-width: 720px) {
@@ -489,13 +511,19 @@
 
   function createReplayControl(onClick) {
     const navTemplate =
-      document.querySelector('a.wk-nav__item') ||
-      (!isKanjiLessonPage() &&
-        (findGoToLink('Meaning') || findGoToLink('Stroke Order')));
+      !isReviewPage() &&
+      (document.querySelector('a.wk-nav__item') ||
+        (!isKanjiLessonPage() &&
+          (findGoToLink('Meaning') || findGoToLink('Stroke Order'))));
 
     let control;
 
-    if (navTemplate) {
+    if (isReviewPage()) {
+      control = document.createElement('button');
+      control.type = 'button';
+      control.className = 'wk-kanjivg-replay';
+      control.textContent = 'Replay animation';
+    } else if (navTemplate) {
       control = navTemplate.cloneNode(true);
       control.classList.add('wk-kanjivg-replay');
       control.href = '#';

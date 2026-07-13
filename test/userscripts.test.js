@@ -751,6 +751,74 @@ test('stroke order inserts before Meaning in review Item Info after answering', 
   assert.ok(sections[0].querySelector('#wk-kanjivg-stroke-order svg.wk-kanjivg-main'));
 });
 
+test('stroke order reads the review subject from the userscript page window', async () => {
+  const svgText = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 109 109">
+      <path d="M10 50 L90 50"></path>
+    </svg>
+  `;
+  const dom = createDom(
+    `
+      <div class="quiz-input"><div class="quiz-input__input-container" correct="true"></div></div>
+      <turbo-frame class="subject-info" id="subject-info">
+        <div class="container">
+          <section class="subject-section subject-section--meaning subject-section--collapsible">
+            <h2 class="subject-section__title">
+              <a class="subject-section__toggle">
+                <span class="subject-section__title-text">Meaning</span>
+              </a>
+            </h2>
+            <section id="section-meaning" class="subject-section__content"></section>
+          </section>
+        </div>
+      </turbo-frame>
+    `,
+    'https://www.wanikani.com/subjects/review'
+  );
+  const controller = {
+    currentSubject: {
+      id: 543,
+      type: 'Kanji',
+      subject_category: 'Kanji',
+      characters: '先'
+    }
+  };
+
+  dom.window.SVGElement.prototype.getTotalLength = () => 100;
+
+  await loadUserscript(dom, 'wk-stroke-order.js', {
+    GM: {
+      xmlHttpRequest({ onload }) {
+        onload({ status: 200, responseText: svgText });
+      }
+    },
+    unsafeWindow: {
+      Stimulus: {
+        getControllerForElementAndIdentifier() {
+          return controller;
+        }
+      }
+    }
+  });
+
+  await waitFor(() => {
+    assert.equal(
+      dom.window.document
+        .querySelector('#wk-kanjivg-stroke-order svg')
+        ?.getAttribute('aria-label'),
+      '先 stroke order'
+    );
+  });
+
+  const replay = dom.window.document.querySelector(
+    '#wk-kanjivg-stroke-order .wk-kanjivg-replay'
+  );
+
+  assert.equal(replay.tagName, 'BUTTON');
+  assert.equal(replay.textContent, 'Replay animation');
+  assert.equal(replay.classList.contains('subject-section__toggle'), false);
+});
+
 test('stroke order does not fetch diagrams for non-kanji review subjects', async () => {
   const dom = createDom(
     `
