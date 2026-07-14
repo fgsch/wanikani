@@ -1512,11 +1512,21 @@ test('pitch accent inserts an exact OJAD result inside Reading', async () => {
   );
   assert.equal(
     dom.window.document.querySelector('.wk-pitch-accent-charts svg')?.getAttribute('viewBox'),
-    '0 0 100 33'
+    '0 0 100 44'
   );
   assert.equal(
     dom.window.document.querySelector('.wk-pitch-accent-charts svg polyline')?.getAttribute('points'),
-    '2,30 24,30 24,3 48,3 48,30 70,30'
+    '12,16 36,3 60,16'
+  );
+  assert.deepEqual(
+    [...dom.window.document.querySelectorAll('.wk-pitch-accent-charts svg circle')]
+      .map(circle => circle.getAttribute('cx')),
+    ['12', '36', '60']
+  );
+  assert.deepEqual(
+    [...dom.window.document.querySelectorAll('.wk-pitch-accent-charts svg circle')]
+      .map(circle => circle.getAttribute('cy')),
+    ['16', '3', '16']
   );
   assert.equal(dom.window.document.querySelectorAll('.wk-pitch-accent-charts svg ellipse').length, 1);
   assert.deepEqual(
@@ -1596,7 +1606,7 @@ test('pitch accent shows all exact variants and rejects other headwords and read
   assert.deepEqual(
     [...dom.window.document.querySelectorAll('.wk-pitch-accent-charts figure')]
       .map(figure => figure.className),
-    ['wk-pitch-accent-variant-1', 'wk-pitch-accent-variant-2']
+    ['wk-pitch-accent-variant-2', 'wk-pitch-accent-variant-1']
   );
   assert.match(
     dom.window.document.querySelector('#wk-pitch-accent-style')?.textContent || '',
@@ -1604,7 +1614,7 @@ test('pitch accent shows all exact variants and rejects other headwords and read
   );
   assert.equal(
     dom.window.document.querySelectorAll('.wk-pitch-accent-charts polyline')[1]?.getAttribute('points'),
-    '2,30 24,30 24,3 46,3 70,3'
+    '12,16 36,3 60,3'
   );
 });
 

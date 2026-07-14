@@ -21,7 +21,12 @@
   const STYLE_ID = 'wk-pitch-accent-style';
   const OJAD_BASE_URL = 'https://www.gavo.t.u-tokyo.ac.jp/ojad';
   const SVG_NS = 'http://www.w3.org/2000/svg';
-  const VARIANT_COUNT = 4;
+  const PATTERN_VARIANT = {
+    Heiban: 1,
+    Atamadaka: 2,
+    Nakadaka: 3,
+    Odaka: 4
+  };
   const ORIGINAL_READING_NODES = Symbol('originalReadingNodes');
 
   const responseCache = new Map();
@@ -259,11 +264,12 @@
   function createPitchSvg(variant) {
     const step = 24;
     const highY = 3;
-    const lowY = 30;
+    const lowY = 16;
+    const textY = 34;
     const accentNumber = getAccentNumber(variant.moras);
     const width = variant.moras.length * step + 28;
     const svg = createSvgElement('svg', {
-      viewBox: `0 0 ${width} 33`,
+      viewBox: `0 0 ${width} 44`,
       role: 'img',
       'aria-label': `${variant.reading}, ${getPatternLabel(variant.moras)} pitch accent`
     });
@@ -271,7 +277,7 @@
     variant.moras.forEach((mora, index) => {
       const character = createSvgElement('text', {
         x: step / 2 + index * step,
-        y: 18,
+        y: textY,
         class: 'wk-pitch-accent-character'
       });
       character.textContent = mora.text;
@@ -279,18 +285,10 @@
       svg.appendChild(character);
     });
 
-    const points = [{ x: 2, y: variant.moras[0].high ? highY : lowY }];
-    variant.moras.forEach((mora, index) => {
-      const isLast = index === variant.moras.length - 1;
-      const nextHigh = isLast ? accentNumber === 0 : variant.moras[index + 1].high;
-      const currentY = mora.high ? highY : lowY;
-      const nextY = nextHigh ? highY : lowY;
-      const changesPitch = currentY !== nextY;
-      const right = (index + 1) * step - (changesPitch ? 0 : 2);
-
-      points.push({ x: right, y: currentY });
-      if (changesPitch) points.push({ x: right, y: nextY });
-    });
+    const points = variant.moras.map((mora, index) => ({
+      x: step / 2 + index * step,
+      y: mora.high ? highY : lowY
+    }));
 
     svg.appendChild(
       createSvgElement('polyline', {
@@ -303,10 +301,21 @@
       })
     );
 
+    variant.moras.forEach((mora, index) => {
+      svg.appendChild(
+        createSvgElement('circle', {
+          cx: step / 2 + index * step,
+          cy: mora.high ? highY : lowY,
+          r: 3,
+          fill: 'var(--wk-pitch-accent-color)'
+        })
+      );
+    });
+
     svg.appendChild(
       createSvgElement('ellipse', {
         cx: variant.moras.length * step + 16,
-        cy: 18,
+        cy: textY,
         rx: 10,
         ry: 10,
         fill: 'var(--wk-pitch-accent-color)',
@@ -316,7 +325,7 @@
 
     const number = createSvgElement('text', {
       x: variant.moras.length * step + 16,
-      y: 18,
+      y: textY,
       class: 'wk-pitch-accent-number',
       fill: 'var(--wk-pitch-accent-color)'
     });
@@ -368,7 +377,7 @@
           visual.appendChild(charts);
         }
 
-        const variantClass = `wk-pitch-accent-variant-${index % VARIANT_COUNT + 1}`;
+        const variantClass = `wk-pitch-accent-variant-${PATTERN_VARIANT[getPatternName(variant.moras)] || 1}`;
         const figure = document.createElement('figure');
         const caption = document.createElement('figcaption');
 
@@ -411,7 +420,7 @@
 
       .wk-pitch-accent figure {
         display: flex;
-        align-items: center;
+        align-items: flex-end;
         gap: 7px;
         margin: 0;
       }
@@ -440,7 +449,7 @@
       .wk-pitch-accent-charts svg {
         display: block;
         width: auto;
-        height: 33px;
+        height: 44px;
         overflow: visible;
       }
 
