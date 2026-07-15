@@ -2705,6 +2705,41 @@ test("dark theme uses a lighter neutral surface palette", async () => {
   assert.equal(styles.getPropertyValue("--wk-dark-border").trim(), "#424957");
 });
 
+test("dark theme replaces light collocation pattern backgrounds", async () => {
+  const dom = createDom(
+    `<style>
+      .subject-collocations__pattern-name { background-color: #e0e0e0; }
+    </style>
+    <div class="subject-collocations">
+      <a class="subject-collocations__pattern-name" aria-selected="true">〜の字</a>
+      <a class="subject-collocations__pattern-name" aria-selected="false">字を〜</a>
+    </div>`,
+    "https://www.wanikani.com/vocabulary/%E5%AD%97",
+  );
+
+  await loadUserscript(dom, "wk-dark-theme.js", {
+    matchMedia() {
+      return {
+        matches: true,
+        addEventListener() {},
+      };
+    },
+  });
+
+  const patterns = dom.window.document.querySelectorAll(
+    ".subject-collocations__pattern-name",
+  );
+
+  assert.equal(
+    dom.window.getComputedStyle(patterns[0]).backgroundColor,
+    "var(--wk-dark-surface-raised)",
+  );
+  assert.equal(
+    dom.window.getComputedStyle(patterns[1]).backgroundColor,
+    "var(--wk-dark-surface)",
+  );
+});
+
 test("dark theme keeps sitemap section headers readable", async () => {
   const dom = createDom(
     `<style>
