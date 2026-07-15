@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WaniKani Redo Answer
 // @namespace    wk-redo-answer
-// @version      0.2.0
+// @version      0.3.0
 // @author       Federico G. Schwindt <fgsch@lodoss.net>
 // @description  Adds a Redo button to WaniKani review and extra study quizzes.
 // @license      MIT

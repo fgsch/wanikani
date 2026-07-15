@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WaniKani Stroke Order
 // @namespace    wk-stroke-order
-// @version      0.3.0
+// @version      0.4.0
 // @author       Federico G. Schwindt <fgsch@lodoss.net>
 // @description  Adds animated KanjiVG stroke order, radicals, and component groups to WaniKani kanji pages, lessons, and reviews.
 // @license      MIT

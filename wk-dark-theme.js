@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WaniKani Dark Theme
 // @namespace    wk-dark-theme
-// @version      0.2.0
+// @version      0.3.0
 // @author       Federico G. Schwindt <fgsch@lodoss.net>
 // @description  Adds a neutral dark theme to WaniKani with system and manual modes.
 // @license      MIT
