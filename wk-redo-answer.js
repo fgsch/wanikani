@@ -21,7 +21,9 @@
   let pendingAnswerTransaction = null;
 
   function isQuizPage() {
-    return /^\/subjects\/(?:review|extra_study)(?:\/|$)/.test(location.pathname);
+    return /^\/subjects\/(?:review|extra_study)(?:\/|$)/.test(
+      location.pathname,
+    );
   }
 
   function getRedoButton() {
@@ -31,15 +33,18 @@
   function getQuizInputController() {
     return window.Stimulus?.getControllerForElementAndIdentifier?.(
       document.querySelector(".quiz-input"),
-      "quiz-input"
+      "quiz-input",
     );
   }
 
   function pendingAnswerEventDetail(controller, quizQueue, answer, results) {
     const subject = quizQueue.currentItem ?? controller.currentSubject;
-    const questionType = quizQueue.questionType ?? controller.currentQuestionType;
+    const questionType =
+      quizQueue.questionType ?? controller.currentQuestionType;
 
-    if (!subject || !questionType) {return null;}
+    if (!subject || !questionType) {
+      return null;
+    }
 
     let stats;
 
@@ -58,8 +63,7 @@
     stats[questionType].complete = results.action === "pass";
 
     if (results.action === "fail") {
-      stats[questionType].incorrect =
-        (stats[questionType].incorrect ?? 0) + 1;
+      stats[questionType].incorrect = (stats[questionType].incorrect ?? 0) + 1;
     }
 
     return {
@@ -75,7 +79,7 @@
       controller,
       quizQueue,
       answer,
-      results
+      results,
     );
 
     if (detail) {
@@ -87,7 +91,9 @@
     const dispatchEvent = window.dispatchEvent;
 
     window.dispatchEvent = function (event) {
-      if (event?.type === "didAnswerQuestion") {return true;}
+      if (event?.type === "didAnswerQuestion") {
+        return true;
+      }
       return dispatchEvent.call(this, event);
     };
 
@@ -99,7 +105,9 @@
   }
 
   function installPendingAnswerTransaction(controller) {
-    if (!controller) {return null;}
+    if (!controller) {
+      return null;
+    }
 
     let quizQueue;
 
@@ -131,7 +139,12 @@
 
     const wrappedSubmitAnswer = (answer, results) => {
       pendingAnswer = { answer, results };
-      dispatchPendingAnswerEvent(transaction.controller, quizQueue, answer, results);
+      dispatchPendingAnswerEvent(
+        transaction.controller,
+        quizQueue,
+        answer,
+        results,
+      );
     };
 
     const wrappedNextItem = (questionType) => {
@@ -146,7 +159,9 @@
         pendingAnswer = null;
       },
       flush() {
-        if (!pendingAnswer) {return;}
+        if (!pendingAnswer) {
+          return;
+        }
 
         const { answer, results } = pendingAnswer;
         pendingAnswer = null;
@@ -180,14 +195,19 @@
 
   function updateRedoButtonState() {
     const redoButton = getRedoButton();
-    const inputContainer = document.querySelector(".quiz-input__input-container");
+    const inputContainer = document.querySelector(
+      ".quiz-input__input-container",
+    );
 
-    if (!redoButton || !inputContainer) {return;}
+    if (!redoButton || !inputContainer) {
+      return;
+    }
 
-    const transaction = installPendingAnswerTransaction(getQuizInputController());
+    const transaction = installPendingAnswerTransaction(
+      getQuizInputController(),
+    );
     const canRedo =
-      inputContainer.hasAttribute("correct") &&
-      transaction?.hasPendingAnswer();
+      inputContainer.hasAttribute("correct") && transaction?.hasPendingAnswer();
 
     redoButton.classList.toggle(DISABLED_CLASS, !canRedo);
     redoButton.setAttribute("aria-disabled", String(!canRedo));
@@ -209,7 +229,7 @@
     }
 
     const subjectInfoFrame = document.querySelector(
-      "turbo-frame#subject-info, turbo-frame.subject-info"
+      "turbo-frame#subject-info, turbo-frame.subject-info",
     );
 
     if (subjectInfoFrame) {
@@ -219,7 +239,9 @@
 
   function redoAnswer() {
     const controller = getQuizInputController();
-    if (!controller) {return;}
+    if (!controller) {
+      return;
+    }
 
     installPendingAnswerTransaction(controller)?.discard();
 
@@ -247,7 +269,9 @@
       resetItemInfo();
 
       const input = document.querySelector("#user-response");
-      if (!input) {return;}
+      if (!input) {
+        return;
+      }
 
       input.value = "";
       input.setAttribute("enabled", "true");
@@ -288,7 +312,9 @@
     });
 
     button.addEventListener("keydown", (event) => {
-      if (event.key !== "Enter" && event.key !== " ") {return;}
+      if (event.key !== "Enter" && event.key !== " ") {
+        return;
+      }
 
       event.preventDefault();
 
@@ -301,20 +327,28 @@
   }
 
   function injectRedoButton() {
-    if (!isQuizPage()) {return;}
-    if (getRedoButton()) {return;}
+    if (!isQuizPage()) {
+      return;
+    }
+    if (getRedoButton()) {
+      return;
+    }
 
     const lastItemsLi = document
       .querySelector(".additional-content__item--last-items")
       ?.closest("li");
 
-    if (!lastItemsLi) {return;}
+    if (!lastItemsLi) {
+      return;
+    }
 
     lastItemsLi.before(createRedoButton());
   }
 
   function run() {
-    if (!isQuizPage()) {return;}
+    if (!isQuizPage()) {
+      return;
+    }
 
     installPendingAnswerTransaction(getQuizInputController());
     injectRedoButton();
@@ -325,13 +359,18 @@
     let previousPath = location.pathname;
 
     const checkPath = () => {
-      if (location.pathname === previousPath) {return;}
+      if (location.pathname === previousPath) {
+        return;
+      }
 
       previousPath = location.pathname;
       run();
     };
 
-    if (window.navigation && typeof window.navigation.addEventListener === "function") {
+    if (
+      window.navigation &&
+      typeof window.navigation.addEventListener === "function"
+    ) {
       window.navigation.addEventListener("navigate", () => {
         setTimeout(checkPath, 0);
       });

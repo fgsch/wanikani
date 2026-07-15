@@ -229,7 +229,9 @@
   `;
 
   function installStyles() {
-    if (document.getElementById(STYLE_ID)) {return;}
+    if (document.getElementById(STYLE_ID)) {
+      return;
+    }
 
     const style = document.createElement("style");
     style.id = STYLE_ID;
@@ -251,7 +253,7 @@
     toggle.textContent = label;
     toggle.setAttribute(
       "aria-label",
-      `Theme: ${label}. Click for ${nextLabel}.`
+      `Theme: ${label}. Click for ${nextLabel}.`,
     );
     toggle.title = `Theme: ${label} (click for ${nextLabel})`;
   }
@@ -264,7 +266,9 @@
   }
 
   function installToggle() {
-    if (!document.body) {return;}
+    if (!document.body) {
+      return;
+    }
 
     const existingToggle = document.getElementById(TOGGLE_ID);
     if (existingToggle) {
@@ -294,7 +298,9 @@
   }
 
   mediaQuery.addEventListener?.("change", () => {
-    if (mode === "system") {applyTheme();}
+    if (mode === "system") {
+      applyTheme();
+    }
   });
   document.addEventListener("turbo:load", run);
   run();

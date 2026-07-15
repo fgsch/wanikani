@@ -1,7 +1,7 @@
-import { readFile } from 'node:fs/promises';
-import { test } from 'node:test';
-import assert from 'node:assert/strict';
-import { JSDOM } from 'jsdom';
+import { readFile } from "node:fs/promises";
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { JSDOM } from "jsdom";
 
 async function loadUserscript(dom, filename, globals = {}) {
   Object.assign(dom.window, {
@@ -11,10 +11,13 @@ async function loadUserscript(dom, filename, globals = {}) {
         version: "0.0.0-test",
       },
     },
-    ...globals
+    ...globals,
   });
 
-  const source = await readFile(new URL(`../${filename}`, import.meta.url), 'utf8');
+  const source = await readFile(
+    new URL(`../${filename}`, import.meta.url),
+    "utf8",
+  );
   dom.window.eval(source);
 }
 
@@ -31,7 +34,7 @@ async function waitFor(assertion, { attempts = 20 } = {}) {
       return;
     } catch (error) {
       lastError = error;
-      await new Promise(resolve => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
     }
   }
 
@@ -41,12 +44,12 @@ async function waitFor(assertion, { attempts = 20 } = {}) {
 function createDom(html, url) {
   return new JSDOM(html, {
     url,
-    runScripts: 'outside-only',
-    pretendToBeVisual: true
+    runScripts: "outside-only",
+    pretendToBeVisual: true,
   });
 }
 
-test('redo answer inserts a disabled redo control before last items', async () => {
+test("redo answer inserts a disabled redo control before last items", async () => {
   const dom = createDom(
     `
       <div class="quiz-input">
@@ -59,44 +62,51 @@ test('redo answer inserts a disabled redo control before last items', async () =
         <li><a class="additional-content__item additional-content__item--last-items"></a></li>
       </ul>
     `,
-    'https://www.wanikani.com/subjects/review'
+    "https://www.wanikani.com/subjects/review",
   );
 
-  await loadUserscript(dom, 'wk-redo-answer.js');
+  await loadUserscript(dom, "wk-redo-answer.js");
 
-  const redoButton = dom.window.document.querySelector('.additional-content__item--redo-answer');
-  const lastItems = dom.window.document.querySelector('.additional-content__item--last-items');
+  const redoButton = dom.window.document.querySelector(
+    ".additional-content__item--redo-answer",
+  );
+  const lastItems = dom.window.document.querySelector(
+    ".additional-content__item--last-items",
+  );
 
   assert.ok(redoButton);
-  assert.equal(redoButton.getAttribute('aria-disabled'), 'true');
+  assert.equal(redoButton.getAttribute("aria-disabled"), "true");
   assert.ok(
-    redoButton.closest('li').compareDocumentPosition(lastItems.closest('li')) &
-      dom.window.Node.DOCUMENT_POSITION_FOLLOWING
+    redoButton.closest("li").compareDocumentPosition(lastItems.closest("li")) &
+      dom.window.Node.DOCUMENT_POSITION_FOLLOWING,
   );
 });
 
-test('redo answer does not insert a control outside quiz pages', async () => {
+test("redo answer does not insert a control outside quiz pages", async () => {
   const dom = createDom(
     `
       <ul>
         <li><a class="additional-content__item additional-content__item--last-items"></a></li>
       </ul>
     `,
-    'https://www.wanikani.com/kanji/%E4%B8%80'
+    "https://www.wanikani.com/kanji/%E4%B8%80",
   );
 
-  await loadUserscript(dom, 'wk-redo-answer.js');
+  await loadUserscript(dom, "wk-redo-answer.js");
 
-  assert.equal(dom.window.document.querySelector('.additional-content__item--redo-answer'), null);
+  assert.equal(
+    dom.window.document.querySelector(".additional-content__item--redo-answer"),
+    null,
+  );
 });
 
-test('redo answer activates after navigating into a quiz page', async () => {
+test("redo answer activates after navigating into a quiz page", async () => {
   const dom = createDom(
-    '<main><h2>Meaning</h2></main>',
-    'https://www.wanikani.com/kanji/%E4%B8%80'
+    "<main><h2>Meaning</h2></main>",
+    "https://www.wanikani.com/kanji/%E4%B8%80",
   );
 
-  await loadUserscript(dom, 'wk-redo-answer.js');
+  await loadUserscript(dom, "wk-redo-answer.js");
 
   dom.window.document.body.innerHTML = `
     <div class="quiz-input">
@@ -108,14 +118,18 @@ test('redo answer activates after navigating into a quiz page', async () => {
       <li><a class="additional-content__item additional-content__item--last-items"></a></li>
     </ul>
   `;
-  dom.window.history.pushState({}, '', '/subjects/review');
+  dom.window.history.pushState({}, "", "/subjects/review");
 
   await waitFor(() => {
-    assert.ok(dom.window.document.querySelector('.additional-content__item--redo-answer'));
+    assert.ok(
+      dom.window.document.querySelector(
+        ".additional-content__item--redo-answer",
+      ),
+    );
   });
 });
 
-test('redo answer updates when WaniKani marks an answer correct', async () => {
+test("redo answer updates when WaniKani marks an answer correct", async () => {
   const dom = createDom(
     `
       <div class="quiz-input">
@@ -127,36 +141,40 @@ test('redo answer updates when WaniKani marks an answer correct', async () => {
         <li><a class="additional-content__item additional-content__item--last-items"></a></li>
       </ul>
     `,
-    'https://www.wanikani.com/subjects/review'
+    "https://www.wanikani.com/subjects/review",
   );
   const quizQueueController = {
     submitAnswer() {},
-    nextItem() {}
+    nextItem() {},
   };
   const controller = { quizQueueOutlet: quizQueueController };
 
-  await loadUserscript(dom, 'wk-redo-answer.js', {
+  await loadUserscript(dom, "wk-redo-answer.js", {
     Stimulus: {
       getControllerForElementAndIdentifier() {
         return controller;
-      }
-    }
+      },
+    },
   });
 
-  const redoButton = dom.window.document.querySelector('.additional-content__item--redo-answer');
-  const inputContainer = dom.window.document.querySelector('.quiz-input__input-container');
+  const redoButton = dom.window.document.querySelector(
+    ".additional-content__item--redo-answer",
+  );
+  const inputContainer = dom.window.document.querySelector(
+    ".quiz-input__input-container",
+  );
 
-  assert.equal(redoButton.getAttribute('aria-disabled'), 'true');
+  assert.equal(redoButton.getAttribute("aria-disabled"), "true");
 
-  quizQueueController.submitAnswer('answer', { action: 'pass' });
-  inputContainer.setAttribute('correct', '');
+  quizQueueController.submitAnswer("answer", { action: "pass" });
+  inputContainer.setAttribute("correct", "");
 
   await waitFor(() => {
-    assert.equal(redoButton.getAttribute('aria-disabled'), 'false');
+    assert.equal(redoButton.getAttribute("aria-disabled"), "false");
   });
 });
 
-test('redo answer unlocks item info when the answer is submitted', async () => {
+test("redo answer unlocks item info when the answer is submitted", async () => {
   const dom = createDom(
     `
       <div class="quiz-input">
@@ -172,64 +190,71 @@ test('redo answer unlocks item info when the answer is submitted', async () => {
       </ul>
       <turbo-frame id="subject-info"></turbo-frame>
     `,
-    'https://www.wanikani.com/subjects/review'
+    "https://www.wanikani.com/subjects/review",
   );
   const itemInfo = dom.window.document.querySelector(
-    '.additional-content__item--item-info'
+    ".additional-content__item--item-info",
   );
   const submitCalls = [];
   let answerEventCount = 0;
   const quizQueueController = {
     currentItem: { id: 42 },
-    questionType: 'meaning',
+    questionType: "meaning",
     stats: {
       get() {
         return {
           meaning: { complete: false, incorrect: 0 },
-          reading: { complete: false, incorrect: 0 }
+          reading: { complete: false, incorrect: 0 },
         };
-      }
+      },
     },
     submitAnswer(answer, results) {
       submitCalls.push([answer, results]);
-      dom.window.dispatchEvent(new dom.window.CustomEvent('didAnswerQuestion'));
+      dom.window.dispatchEvent(new dom.window.CustomEvent("didAnswerQuestion"));
     },
-    nextItem() {}
+    nextItem() {},
   };
   const controller = { quizQueueOutlet: quizQueueController };
 
-  await loadUserscript(dom, 'wk-redo-answer.js', {
+  await loadUserscript(dom, "wk-redo-answer.js", {
     Stimulus: {
       getControllerForElementAndIdentifier() {
         return controller;
-      }
-    }
+      },
+    },
   });
 
-  dom.window.addEventListener('didAnswerQuestion', event => {
+  dom.window.addEventListener("didAnswerQuestion", (event) => {
     answerEventCount += 1;
     const subjectId = event.detail.subjectWithStats.subject.id;
-    itemInfo.classList.remove('additional-content__item--disabled');
-    itemInfo.setAttribute('href', `/subjects/${subjectId}`);
-    dom.window.document.querySelector('#subject-info').textContent = 'Item details';
+    itemInfo.classList.remove("additional-content__item--disabled");
+    itemInfo.setAttribute("href", `/subjects/${subjectId}`);
+    dom.window.document.querySelector("#subject-info").textContent =
+      "Item details";
   });
 
-  const results = { action: 'pass' };
-  quizQueueController.submitAnswer('answer', results);
+  const results = { action: "pass" };
+  quizQueueController.submitAnswer("answer", results);
 
-  assert.equal(itemInfo.classList.contains('additional-content__item--disabled'), false);
-  assert.equal(itemInfo.getAttribute('href'), '/subjects/42');
-  assert.equal(dom.window.document.querySelector('#subject-info').textContent, 'Item details');
+  assert.equal(
+    itemInfo.classList.contains("additional-content__item--disabled"),
+    false,
+  );
+  assert.equal(itemInfo.getAttribute("href"), "/subjects/42");
+  assert.equal(
+    dom.window.document.querySelector("#subject-info").textContent,
+    "Item details",
+  );
   assert.deepEqual(submitCalls, []);
   assert.equal(answerEventCount, 1);
 
   quizQueueController.nextItem();
 
-  assert.deepEqual(submitCalls, [['answer', results]]);
+  assert.deepEqual(submitCalls, [["answer", results]]);
   assert.equal(answerEventCount, 1);
 });
 
-test('redo answer stays disabled when the pending-answer interface is unavailable', async () => {
+test("redo answer stays disabled when the pending-answer interface is unavailable", async () => {
   const dom = createDom(
     `
       <div class="quiz-input">
@@ -239,23 +264,25 @@ test('redo answer stays disabled when the pending-answer interface is unavailabl
       </div>
       <ul><li><a class="additional-content__item additional-content__item--last-items"></a></li></ul>
     `,
-    'https://www.wanikani.com/subjects/review'
+    "https://www.wanikani.com/subjects/review",
   );
 
-  await loadUserscript(dom, 'wk-redo-answer.js', {
+  await loadUserscript(dom, "wk-redo-answer.js", {
     Stimulus: {
       getControllerForElementAndIdentifier() {
         return {};
-      }
-    }
+      },
+    },
   });
 
-  const redoButton = dom.window.document.querySelector('.additional-content__item--redo-answer');
+  const redoButton = dom.window.document.querySelector(
+    ".additional-content__item--redo-answer",
+  );
 
-  assert.equal(redoButton.getAttribute('aria-disabled'), 'true');
+  assert.equal(redoButton.getAttribute("aria-disabled"), "true");
 });
 
-test('redo answer can reset the current quiz input through the WaniKani controller', async () => {
+test("redo answer can reset the current quiz input through the WaniKani controller", async () => {
   const dom = createDom(
     `
       <div class="quiz-input">
@@ -272,60 +299,76 @@ test('redo answer can reset the current quiz input through the WaniKani controll
         <li><a class="additional-content__item additional-content__item--last-items"></a></li>
       </ul>
     `,
-    'https://www.wanikani.com/subjects/review'
+    "https://www.wanikani.com/subjects/review",
   );
   const controller = {
     currentSubject: { id: 1 },
-    currentQuestionType: 'meaning',
-    lastAnswer: 'old answer',
-    inputChars: ['o'],
+    currentQuestionType: "meaning",
+    lastAnswer: "old answer",
+    inputChars: ["o"],
     quizQueueOutlet: {
       submitAnswer() {},
-      nextItem() {}
+      nextItem() {},
     },
     updateQuestionCalls: [],
     updateQuestion(event) {
       this.updateQuestionCalls.push(event.detail);
-    }
+    },
   };
 
-  await loadUserscript(dom, 'wk-redo-answer.js', {
+  await loadUserscript(dom, "wk-redo-answer.js", {
     Stimulus: {
       getControllerForElementAndIdentifier() {
         return controller;
-      }
-    }
+      },
+    },
   });
 
-  const redoButton = dom.window.document.querySelector('.additional-content__item--redo-answer');
-  const inputContainer = dom.window.document.querySelector('.quiz-input__input-container');
+  const redoButton = dom.window.document.querySelector(
+    ".additional-content__item--redo-answer",
+  );
+  const inputContainer = dom.window.document.querySelector(
+    ".quiz-input__input-container",
+  );
 
-  controller.quizQueueOutlet.submitAnswer('old answer', { action: 'pass' });
-  inputContainer.setAttribute('correct', '');
+  controller.quizQueueOutlet.submitAnswer("old answer", { action: "pass" });
+  inputContainer.setAttribute("correct", "");
 
   await waitFor(() => {
-    assert.equal(redoButton.getAttribute('aria-disabled'), 'false');
+    assert.equal(redoButton.getAttribute("aria-disabled"), "false");
   });
 
   redoButton.click();
 
-  await new Promise(resolve => dom.window.requestAnimationFrame(resolve));
+  await new Promise((resolve) => dom.window.requestAnimationFrame(resolve));
 
-  const input = dom.window.document.querySelector('#user-response');
+  const input = dom.window.document.querySelector("#user-response");
   assert.equal(controller.lastAnswer, null);
-  assert.equal(controller.inputChars, '');
+  assert.equal(controller.inputChars, "");
   assert.equal(controller.inputEnabled, true);
   assert.equal(controller.updateQuestionCalls.length, 1);
-  assert.equal(controller.updateQuestionCalls[0].subject, controller.currentSubject);
-  assert.equal(controller.updateQuestionCalls[0].questionType, controller.currentQuestionType);
-  assert.equal(input.value, '');
-  assert.equal(inputContainer.hasAttribute('correct'), false);
-  assert.equal(redoButton.getAttribute('aria-disabled'), 'true');
-  assert.equal(dom.window.document.querySelector('.answer-exception').textContent, '');
-  assert.equal(dom.window.document.querySelector('turbo-frame#subject-info').innerHTML, '');
+  assert.equal(
+    controller.updateQuestionCalls[0].subject,
+    controller.currentSubject,
+  );
+  assert.equal(
+    controller.updateQuestionCalls[0].questionType,
+    controller.currentQuestionType,
+  );
+  assert.equal(input.value, "");
+  assert.equal(inputContainer.hasAttribute("correct"), false);
+  assert.equal(redoButton.getAttribute("aria-disabled"), "true");
+  assert.equal(
+    dom.window.document.querySelector(".answer-exception").textContent,
+    "",
+  );
+  assert.equal(
+    dom.window.document.querySelector("turbo-frame#subject-info").innerHTML,
+    "",
+  );
 });
 
-test('redo answer commits only the replacement answer when advancing', async () => {
+test("redo answer commits only the replacement answer when advancing", async () => {
   const dom = createDom(
     `
       <div class="quiz-input">
@@ -337,59 +380,63 @@ test('redo answer commits only the replacement answer when advancing', async () 
         <li><a class="additional-content__item additional-content__item--last-items"></a></li>
       </ul>
     `,
-    'https://www.wanikani.com/subjects/review'
+    "https://www.wanikani.com/subjects/review",
   );
   const calls = [];
   const quizQueueController = {
     submitAnswer(answer, results) {
-      calls.push(['submit', answer, results]);
+      calls.push(["submit", answer, results]);
     },
     nextItem(questionType) {
-      calls.push(['next', questionType]);
-    }
+      calls.push(["next", questionType]);
+    },
   };
   const controller = {
     currentSubject: { id: 1 },
-    currentQuestionType: 'meaning',
-    lastAnswer: 'wrong',
-    inputChars: 'wrong',
+    currentQuestionType: "meaning",
+    lastAnswer: "wrong",
+    inputChars: "wrong",
     quizQueueOutlet: quizQueueController,
-    updateQuestion() {}
+    updateQuestion() {},
   };
 
-  await loadUserscript(dom, 'wk-redo-answer.js', {
+  await loadUserscript(dom, "wk-redo-answer.js", {
     Stimulus: {
       getControllerForElementAndIdentifier() {
         return controller;
-      }
-    }
+      },
+    },
   });
 
-  const inputContainer = dom.window.document.querySelector('.quiz-input__input-container');
-  const redoButton = dom.window.document.querySelector('.additional-content__item--redo-answer');
-  const firstResults = { action: 'fail' };
-  const replacementResults = { action: 'pass' };
+  const inputContainer = dom.window.document.querySelector(
+    ".quiz-input__input-container",
+  );
+  const redoButton = dom.window.document.querySelector(
+    ".additional-content__item--redo-answer",
+  );
+  const firstResults = { action: "fail" };
+  const replacementResults = { action: "pass" };
 
-  quizQueueController.submitAnswer('wrong', firstResults);
-  inputContainer.setAttribute('correct', 'false');
+  quizQueueController.submitAnswer("wrong", firstResults);
+  inputContainer.setAttribute("correct", "false");
 
   await waitFor(() => {
-    assert.equal(redoButton.getAttribute('aria-disabled'), 'false');
+    assert.equal(redoButton.getAttribute("aria-disabled"), "false");
   });
 
   redoButton.click();
-  await new Promise(resolve => dom.window.requestAnimationFrame(resolve));
+  await new Promise((resolve) => dom.window.requestAnimationFrame(resolve));
 
-  quizQueueController.submitAnswer('correct', replacementResults);
-  quizQueueController.nextItem('reading');
+  quizQueueController.submitAnswer("correct", replacementResults);
+  quizQueueController.nextItem("reading");
 
   assert.deepEqual(calls, [
-    ['submit', 'correct', replacementResults],
-    ['next', 'reading']
+    ["submit", "correct", replacementResults],
+    ["next", "reading"],
   ]);
 });
 
-test('redo answer commits a pending answer when the page exits', async () => {
+test("redo answer commits a pending answer when the page exits", async () => {
   const dom = createDom(
     `
       <div class="quiz-input">
@@ -397,39 +444,39 @@ test('redo answer commits a pending answer when the page exits', async () => {
       </div>
       <ul><li><a class="additional-content__item additional-content__item--last-items"></a></li></ul>
     `,
-    'https://www.wanikani.com/subjects/review'
+    "https://www.wanikani.com/subjects/review",
   );
   const calls = [];
   const quizQueueController = {
     submitAnswer(answer, results) {
       calls.push([answer, results]);
     },
-    nextItem() {}
+    nextItem() {},
   };
   const controller = {
-    quizQueueOutlet: quizQueueController
+    quizQueueOutlet: quizQueueController,
   };
 
-  await loadUserscript(dom, 'wk-redo-answer.js', {
+  await loadUserscript(dom, "wk-redo-answer.js", {
     Stimulus: {
       getControllerForElementAndIdentifier() {
         return controller;
-      }
-    }
+      },
+    },
   });
 
-  const results = { action: 'pass' };
-  quizQueueController.submitAnswer('answer', results);
+  const results = { action: "pass" };
+  quizQueueController.submitAnswer("answer", results);
 
   assert.deepEqual(calls, []);
 
-  dom.window.dispatchEvent(new dom.window.Event('pagehide'));
-  dom.window.dispatchEvent(new dom.window.Event('pagehide'));
+  dom.window.dispatchEvent(new dom.window.Event("pagehide"));
+  dom.window.dispatchEvent(new dom.window.Event("pagehide"));
 
-  assert.deepEqual(calls, [['answer', results]]);
+  assert.deepEqual(calls, [["answer", results]]);
 });
 
-test('redo answer commits a pending answer before Turbo navigation', async () => {
+test("redo answer commits a pending answer before Turbo navigation", async () => {
   const dom = createDom(
     `
       <div class="quiz-input">
@@ -437,135 +484,133 @@ test('redo answer commits a pending answer before Turbo navigation', async () =>
       </div>
       <ul><li><a class="additional-content__item additional-content__item--last-items"></a></li></ul>
     `,
-    'https://www.wanikani.com/subjects/review'
+    "https://www.wanikani.com/subjects/review",
   );
   const calls = [];
   const quizQueueController = {
     submitAnswer(answer) {
       calls.push(answer);
     },
-    nextItem() {}
+    nextItem() {},
   };
   const controller = { quizQueueOutlet: quizQueueController };
 
-  await loadUserscript(dom, 'wk-redo-answer.js', {
+  await loadUserscript(dom, "wk-redo-answer.js", {
     Stimulus: {
       getControllerForElementAndIdentifier() {
         return controller;
-      }
-    }
+      },
+    },
   });
 
-  quizQueueController.submitAnswer('answer', { action: 'pass' });
-  dom.window.document.dispatchEvent(new dom.window.Event('turbo:before-visit'));
+  quizQueueController.submitAnswer("answer", { action: "pass" });
+  dom.window.document.dispatchEvent(new dom.window.Event("turbo:before-visit"));
 
-  assert.deepEqual(calls, ['answer']);
+  assert.deepEqual(calls, ["answer"]);
 });
 
-test('redo answer moves its transaction when the queue outlet changes', async () => {
+test("redo answer moves its transaction when the queue outlet changes", async () => {
   const dom = createDom(
     `
       <div class="quiz-input"><div class="quiz-input__input-container"></div></div>
       <ul><li><a class="additional-content__item additional-content__item--last-items"></a></li></ul>
     `,
-    'https://www.wanikani.com/subjects/review'
+    "https://www.wanikani.com/subjects/review",
   );
   const firstCalls = [];
   const secondCalls = [];
   const firstQueue = {
     submitAnswer(answer) {
-      firstCalls.push(['submit', answer]);
+      firstCalls.push(["submit", answer]);
     },
     nextItem() {
-      firstCalls.push(['next']);
-    }
+      firstCalls.push(["next"]);
+    },
   };
   const secondQueue = {
     submitAnswer(answer) {
-      secondCalls.push(['submit', answer]);
+      secondCalls.push(["submit", answer]);
     },
     nextItem() {
-      secondCalls.push(['next']);
-    }
+      secondCalls.push(["next"]);
+    },
   };
   const controller = { quizQueueOutlet: firstQueue };
 
-  await loadUserscript(dom, 'wk-redo-answer.js', {
+  await loadUserscript(dom, "wk-redo-answer.js", {
     Stimulus: {
       getControllerForElementAndIdentifier() {
         return controller;
-      }
-    }
+      },
+    },
   });
 
-  firstQueue.submitAnswer('first', { action: 'pass' });
+  firstQueue.submitAnswer("first", { action: "pass" });
   controller.quizQueueOutlet = secondQueue;
-  dom.window.document.body.appendChild(dom.window.document.createElement('div'));
+  dom.window.document.body.appendChild(
+    dom.window.document.createElement("div"),
+  );
 
   await waitFor(() => {
-    assert.deepEqual(firstCalls, [['submit', 'first']]);
+    assert.deepEqual(firstCalls, [["submit", "first"]]);
   });
 
-  firstQueue.submitAnswer('after uninstall', { action: 'pass' });
-  secondQueue.submitAnswer('second', { action: 'pass' });
+  firstQueue.submitAnswer("after uninstall", { action: "pass" });
+  secondQueue.submitAnswer("second", { action: "pass" });
 
   assert.deepEqual(firstCalls, [
-    ['submit', 'first'],
-    ['submit', 'after uninstall']
+    ["submit", "first"],
+    ["submit", "after uninstall"],
   ]);
   assert.deepEqual(secondCalls, []);
 
   secondQueue.nextItem();
 
-  assert.deepEqual(secondCalls, [
-    ['submit', 'second'],
-    ['next']
-  ]);
+  assert.deepEqual(secondCalls, [["submit", "second"], ["next"]]);
 });
 
-test('redo answer reuses its transaction when the input controller changes', async () => {
+test("redo answer reuses its transaction when the input controller changes", async () => {
   const dom = createDom(
     `
       <div class="quiz-input"><div class="quiz-input__input-container"></div></div>
       <ul><li><a class="additional-content__item additional-content__item--last-items"></a></li></ul>
     `,
-    'https://www.wanikani.com/subjects/review'
+    "https://www.wanikani.com/subjects/review",
   );
   const calls = [];
   const quizQueueController = {
     submitAnswer(answer) {
-      calls.push(['submit', answer]);
+      calls.push(["submit", answer]);
     },
     nextItem() {
-      calls.push(['next']);
-    }
+      calls.push(["next"]);
+    },
   };
   let controller = { quizQueueOutlet: quizQueueController };
 
-  await loadUserscript(dom, 'wk-redo-answer.js', {
+  await loadUserscript(dom, "wk-redo-answer.js", {
     Stimulus: {
       getControllerForElementAndIdentifier() {
         return controller;
-      }
-    }
+      },
+    },
   });
 
-  quizQueueController.submitAnswer('answer', { action: 'pass' });
+  quizQueueController.submitAnswer("answer", { action: "pass" });
   controller = { quizQueueOutlet: quizQueueController };
-  dom.window.document.body.appendChild(dom.window.document.createElement('div'));
+  dom.window.document.body.appendChild(
+    dom.window.document.createElement("div"),
+  );
   await flushMutationObservers();
 
   assert.deepEqual(calls, []);
 
   quizQueueController.nextItem();
 
-  assert.deepEqual(calls, [
-    ['submit', 'answer'],
-    ['next']
-  ]);
+  assert.deepEqual(calls, [["submit", "answer"], ["next"]]);
 });
 
-test('stroke order inserts a KanjiVG section and navigation link on kanji pages', async () => {
+test("stroke order inserts a KanjiVG section and navigation link on kanji pages", async () => {
   const svgText = `
     <svg xmlns="http://www.w3.org/2000/svg" xmlns:kvg="http://kanjivg.tagaini.net" viewBox="0 0 109 109">
       <g id="kvg:kanji_4e00" kvg:element="一" kvg:radical="general">
@@ -583,34 +628,48 @@ test('stroke order inserts a KanjiVG section and navigation link on kanji pages'
         <h2 id="meaning">Meaning</h2>
       </main>
     `,
-    'https://www.wanikani.com/kanji/%E4%B8%80'
+    "https://www.wanikani.com/kanji/%E4%B8%80",
   );
   let fetchedUrl = null;
 
   dom.window.SVGElement.prototype.getTotalLength = () => 100;
 
-  await loadUserscript(dom, 'wk-stroke-order.js', {
+  await loadUserscript(dom, "wk-stroke-order.js", {
     GM: {
       xmlHttpRequest({ url, onload }) {
         fetchedUrl = url;
         onload({ status: 200, responseText: svgText });
-      }
-    }
+      },
+    },
   });
 
   const document = dom.window.document;
 
   await waitFor(() => {
-    assert.equal(document.querySelector('#stroke-order')?.textContent, 'Stroke Order');
+    assert.equal(
+      document.querySelector("#stroke-order")?.textContent,
+      "Stroke Order",
+    );
   });
 
-  assert.equal(fetchedUrl, 'https://raw.githubusercontent.com/KanjiVG/kanjivg/master/kanji/04e00.svg');
-  assert.ok(document.querySelector('#wk-kanjivg-stroke-order svg.wk-kanjivg-main'));
-  assert.equal(document.querySelector('a[href="#stroke-order"]')?.textContent, 'Stroke Order');
-  assert.equal(document.querySelector('.wk-kanjivg-credit a')?.href, 'https://kanjivg.tagaini.net/');
+  assert.equal(
+    fetchedUrl,
+    "https://raw.githubusercontent.com/KanjiVG/kanjivg/master/kanji/04e00.svg",
+  );
+  assert.ok(
+    document.querySelector("#wk-kanjivg-stroke-order svg.wk-kanjivg-main"),
+  );
+  assert.equal(
+    document.querySelector('a[href="#stroke-order"]')?.textContent,
+    "Stroke Order",
+  );
+  assert.equal(
+    document.querySelector(".wk-kanjivg-credit a")?.href,
+    "https://kanjivg.tagaini.net/",
+  );
 });
 
-test('stroke order inserts a lesson tab after Radicals on kanji lessons', async () => {
+test("stroke order inserts a lesson tab after Radicals on kanji lessons", async () => {
   const svgText = `
     <svg xmlns="http://www.w3.org/2000/svg" xmlns:kvg="http://kanjivg.tagaini.net" viewBox="0 0 109 109">
       <g id="kvg:kanji_5148" kvg:element="先" kvg:radical="general">
@@ -654,39 +713,65 @@ test('stroke order inserts a lesson tab after Radicals on kanji lessons', async 
         </div>
       </div>
     `,
-    'https://www.wanikani.com/subject-lessons/-4190889689937224551/543'
+    "https://www.wanikani.com/subject-lessons/-4190889689937224551/543",
   );
   let fetchedUrl = null;
 
   dom.window.SVGElement.prototype.getTotalLength = () => 100;
 
-  await loadUserscript(dom, 'wk-stroke-order.js', {
+  await loadUserscript(dom, "wk-stroke-order.js", {
     GM: {
       xmlHttpRequest({ url, onload }) {
         fetchedUrl = url;
         onload({ status: 200, responseText: svgText });
-      }
-    }
+      },
+    },
   });
 
   const document = dom.window.document;
 
   await waitFor(() => {
-    assert.ok(document.querySelector('#stroke-order #wk-kanjivg-stroke-order'));
+    assert.ok(document.querySelector("#stroke-order #wk-kanjivg-stroke-order"));
   });
 
-  const tabs = [...document.querySelectorAll('.subject-slides__navigation-link')];
-  const slides = [...document.querySelectorAll('.subject-slide')];
+  const tabs = [
+    ...document.querySelectorAll(".subject-slides__navigation-link"),
+  ];
+  const slides = [...document.querySelectorAll(".subject-slide")];
 
-  assert.equal(fetchedUrl, 'https://raw.githubusercontent.com/KanjiVG/kanjivg/master/kanji/05148.svg');
-  assert.deepEqual(tabs.map(tab => tab.textContent.trim()), ['Radicals', 'Stroke Order', 'Meaning']);
-  assert.deepEqual(slides.map(slide => slide.id), ['composition', 'stroke-order', 'meaning']);
-  assert.equal(document.querySelector('#composition [aria-label="next slide"]')?.getAttribute('href'), '#stroke-order');
-  assert.equal(document.querySelector('#meaning [aria-label="previous slide"]')?.getAttribute('href'), '#stroke-order');
-  assert.equal(document.querySelector('#stroke-order .wk-kanjivg-replay')?.hasAttribute('data-action'), false);
+  assert.equal(
+    fetchedUrl,
+    "https://raw.githubusercontent.com/KanjiVG/kanjivg/master/kanji/05148.svg",
+  );
+  assert.deepEqual(
+    tabs.map((tab) => tab.textContent.trim()),
+    ["Radicals", "Stroke Order", "Meaning"],
+  );
+  assert.deepEqual(
+    slides.map((slide) => slide.id),
+    ["composition", "stroke-order", "meaning"],
+  );
+  assert.equal(
+    document
+      .querySelector('#composition [aria-label="next slide"]')
+      ?.getAttribute("href"),
+    "#stroke-order",
+  );
+  assert.equal(
+    document
+      .querySelector('#meaning [aria-label="previous slide"]')
+      ?.getAttribute("href"),
+    "#stroke-order",
+  );
+  assert.equal(
+    document
+      .querySelector("#stroke-order .wk-kanjivg-replay")
+      ?.hasAttribute("data-action"),
+    false,
+  );
 });
 
-test('stroke order inserts before Meaning in review Item Info after answering', async () => {
+test("stroke order inserts before Meaning in review Item Info after answering", async () => {
   const svgText = `
     <svg xmlns="http://www.w3.org/2000/svg" xmlns:kvg="http://kanjivg.tagaini.net" viewBox="0 0 109 109">
       <g id="kvg:kanji_4e00" kvg:element="一" kvg:radical="general">
@@ -708,58 +793,64 @@ test('stroke order inserts before Meaning in review Item Info after answering', 
         </section>
       </turbo-frame>
     `,
-    'https://www.wanikani.com/subjects/review'
+    "https://www.wanikani.com/subjects/review",
   );
   let fetchCount = 0;
   const controller = {
     currentSubject: {
       id: 1,
-      object: 'kanji',
-      characters: '一'
-    }
+      object: "kanji",
+      characters: "一",
+    },
   };
 
   dom.window.SVGElement.prototype.getTotalLength = () => 100;
 
-  await loadUserscript(dom, 'wk-stroke-order.js', {
+  await loadUserscript(dom, "wk-stroke-order.js", {
     GM: {
       xmlHttpRequest({ onload }) {
         fetchCount += 1;
         onload({ status: 200, responseText: svgText });
-      }
+      },
     },
     Stimulus: {
       getControllerForElementAndIdentifier() {
         return controller;
-      }
-    }
+      },
+    },
   });
 
   assert.equal(fetchCount, 0);
 
   dom.window.document
-    .querySelector('.quiz-input__input-container')
-    .setAttribute('correct', '');
+    .querySelector(".quiz-input__input-container")
+    .setAttribute("correct", "");
 
   await waitFor(() => {
-    assert.ok(dom.window.document.querySelector('.subject-section--stroke-order'));
+    assert.ok(
+      dom.window.document.querySelector(".subject-section--stroke-order"),
+    );
   });
 
-  const sections = [...dom.window.document.querySelectorAll('#subject-info > .subject-section')];
+  const sections = [
+    ...dom.window.document.querySelectorAll("#subject-info > .subject-section"),
+  ];
 
   assert.equal(fetchCount, 1);
   assert.deepEqual(
-    sections.map(section => section.title),
-    ['Stroke Order', 'Meaning']
+    sections.map((section) => section.title),
+    ["Stroke Order", "Meaning"],
   );
   assert.equal(
-    sections[0].querySelector('.subject-section__title-text')?.textContent,
-    'Stroke Order'
+    sections[0].querySelector(".subject-section__title-text")?.textContent,
+    "Stroke Order",
   );
-  assert.ok(sections[0].querySelector('#wk-kanjivg-stroke-order svg.wk-kanjivg-main'));
+  assert.ok(
+    sections[0].querySelector("#wk-kanjivg-stroke-order svg.wk-kanjivg-main"),
+  );
 });
 
-test('stroke order reads the review subject from the userscript page window', async () => {
+test("stroke order reads the review subject from the userscript page window", async () => {
   const svgText = `
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 109 109">
       <path d="M10 50 L90 50"></path>
@@ -781,53 +872,53 @@ test('stroke order reads the review subject from the userscript page window', as
         </div>
       </turbo-frame>
     `,
-    'https://www.wanikani.com/subjects/review'
+    "https://www.wanikani.com/subjects/review",
   );
   const controller = {
     currentSubject: {
       id: 543,
-      type: 'Kanji',
-      subject_category: 'Kanji',
-      characters: '先'
-    }
+      type: "Kanji",
+      subject_category: "Kanji",
+      characters: "先",
+    },
   };
 
   dom.window.SVGElement.prototype.getTotalLength = () => 100;
 
-  await loadUserscript(dom, 'wk-stroke-order.js', {
+  await loadUserscript(dom, "wk-stroke-order.js", {
     GM: {
       xmlHttpRequest({ onload }) {
         onload({ status: 200, responseText: svgText });
-      }
+      },
     },
     unsafeWindow: {
       Stimulus: {
         getControllerForElementAndIdentifier() {
           return controller;
-        }
-      }
-    }
+        },
+      },
+    },
   });
 
   await waitFor(() => {
     assert.equal(
       dom.window.document
-        .querySelector('#wk-kanjivg-stroke-order svg')
-        ?.getAttribute('aria-label'),
-      '先 stroke order'
+        .querySelector("#wk-kanjivg-stroke-order svg")
+        ?.getAttribute("aria-label"),
+      "先 stroke order",
     );
   });
 
   const replay = dom.window.document.querySelector(
-    '#wk-kanjivg-stroke-order .wk-kanjivg-replay'
+    "#wk-kanjivg-stroke-order .wk-kanjivg-replay",
   );
 
-  assert.equal(replay.tagName, 'BUTTON');
-  assert.equal(replay.textContent, 'Replay animation');
-  assert.equal(replay.classList.contains('subject-section__toggle'), false);
+  assert.equal(replay.tagName, "BUTTON");
+  assert.equal(replay.textContent, "Replay animation");
+  assert.equal(replay.classList.contains("subject-section__toggle"), false);
 });
 
-test('stroke order does not fetch diagrams for non-kanji review subjects', async () => {
+test("stroke order does not fetch diagrams for non-kanji review subjects", async () => {
   const dom = createDom(
     `
       <div class="quiz-input">
@@ -838,37 +929,40 @@ test('stroke order does not fetch diagrams for non-kanji review subjects', async
         <section class="subject-section subject-section--meaning" title="Meaning"></section>
       </turbo-frame>
     `,
-    'https://www.wanikani.com/subjects/review'
+    "https://www.wanikani.com/subjects/review",
   );
   let fetchCount = 0;
 
-  await loadUserscript(dom, 'wk-stroke-order.js', {
+  await loadUserscript(dom, "wk-stroke-order.js", {
     GM: {
       xmlHttpRequest() {
         fetchCount += 1;
-      }
+      },
     },
     Stimulus: {
       getControllerForElementAndIdentifier() {
         return {
           currentSubject: {
             id: 2,
-            object: 'vocabulary',
-            characters: '一つ'
-          }
+            object: "vocabulary",
+            characters: "一つ",
+          },
         };
-      }
-    }
+      },
+    },
   });
 
   await flushMutationObservers();
 
   assert.equal(fetchCount, 0);
-  assert.equal(dom.window.document.querySelector('.subject-section--stroke-order'), null);
+  assert.equal(
+    dom.window.document.querySelector(".subject-section--stroke-order"),
+    null,
+  );
 });
 
-test('stroke order discards a stale review lookup when the subject changes', async () => {
-  const svgText = kanji => `
+test("stroke order discards a stale review lookup when the subject changes", async () => {
+  const svgText = (kanji) => `
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 109 109">
       <path d="M10 50 L90 50"></path>
       <text x="12" y="45">1</text>
@@ -887,53 +981,56 @@ test('stroke order discards a stale review lookup when the subject changes', asy
       <ul><li><a class="additional-content__item--last-items"></a></li></ul>
       <turbo-frame id="subject-info">${itemInfo()}</turbo-frame>
     `,
-    'https://www.wanikani.com/subjects/review'
+    "https://www.wanikani.com/subjects/review",
   );
   const requests = [];
   const controller = {
-    currentSubject: { id: 1, object: 'kanji', characters: '一' }
+    currentSubject: { id: 1, object: "kanji", characters: "一" },
   };
 
   dom.window.SVGElement.prototype.getTotalLength = () => 100;
 
-  await loadUserscript(dom, 'wk-stroke-order.js', {
+  await loadUserscript(dom, "wk-stroke-order.js", {
     GM: {
       xmlHttpRequest(request) {
         requests.push(request);
-      }
+      },
     },
     Stimulus: {
       getControllerForElementAndIdentifier() {
         return controller;
-      }
-    }
+      },
+    },
   });
 
   assert.equal(requests.length, 1);
 
-  controller.currentSubject = { id: 2, object: 'kanji', characters: '二' };
-  dom.window.document.querySelector('#subject-info').innerHTML = itemInfo();
-  requests[0].onload({ status: 200, responseText: svgText('一') });
+  controller.currentSubject = { id: 2, object: "kanji", characters: "二" };
+  dom.window.document.querySelector("#subject-info").innerHTML = itemInfo();
+  requests[0].onload({ status: 200, responseText: svgText("一") });
 
   await waitFor(() => {
     assert.equal(requests.length, 2);
   });
 
-  assert.equal(dom.window.document.querySelector('#wk-kanjivg-stroke-order'), null);
+  assert.equal(
+    dom.window.document.querySelector("#wk-kanjivg-stroke-order"),
+    null,
+  );
 
-  requests[1].onload({ status: 200, responseText: svgText('二') });
+  requests[1].onload({ status: 200, responseText: svgText("二") });
 
   await waitFor(() => {
     assert.equal(
       dom.window.document
-        .querySelector('#wk-kanjivg-stroke-order svg')
-        ?.getAttribute('aria-label'),
-      '二 stroke order'
+        .querySelector("#wk-kanjivg-stroke-order svg")
+        ?.getAttribute("aria-label"),
+      "二 stroke order",
     );
   });
 });
 
-test('stroke order retries a failed kanji only after the review subject changes', async () => {
+test("stroke order retries a failed kanji only after the review subject changes", async () => {
   const itemInfo = `
     <section class="subject-section subject-section--meaning" title="Meaning">
       <h2>Meaning</h2>
@@ -945,49 +1042,53 @@ test('stroke order retries a failed kanji only after the review subject changes'
       <div class="quiz-input"><div class="quiz-input__input-container" correct></div></div>
       <turbo-frame id="subject-info">${itemInfo}</turbo-frame>
     `,
-    'https://www.wanikani.com/subjects/review'
+    "https://www.wanikani.com/subjects/review",
   );
   const requests = [];
   const controller = {
-    currentSubject: { id: 1, object: 'kanji', characters: '一' }
+    currentSubject: { id: 1, object: "kanji", characters: "一" },
   };
 
   dom.window.console.warn = () => {};
 
-  await loadUserscript(dom, 'wk-stroke-order.js', {
+  await loadUserscript(dom, "wk-stroke-order.js", {
     GM: {
       xmlHttpRequest(request) {
         requests.push(request);
-      }
+      },
     },
     Stimulus: {
       getControllerForElementAndIdentifier() {
         return controller;
-      }
-    }
+      },
+    },
   });
 
-  requests[0].onload({ status: 200, responseText: '<html>Not an SVG</html>' });
+  requests[0].onload({ status: 200, responseText: "<html>Not an SVG</html>" });
 
-  await new Promise(resolve => setTimeout(resolve, 0));
-  dom.window.document.querySelector('#subject-info').innerHTML = itemInfo;
-  await new Promise(resolve => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  dom.window.document.querySelector("#subject-info").innerHTML = itemInfo;
+  await new Promise((resolve) => setTimeout(resolve, 0));
 
   assert.equal(requests.length, 1);
 
-  controller.currentSubject = { id: 2, object: 'vocabulary', characters: '一つ' };
-  dom.window.document.querySelector('#subject-info').innerHTML = itemInfo;
+  controller.currentSubject = {
+    id: 2,
+    object: "vocabulary",
+    characters: "一つ",
+  };
+  dom.window.document.querySelector("#subject-info").innerHTML = itemInfo;
   await flushMutationObservers();
 
-  controller.currentSubject = { id: 1, object: 'kanji', characters: '一' };
-  dom.window.document.querySelector('#subject-info').innerHTML = itemInfo;
+  controller.currentSubject = { id: 1, object: "kanji", characters: "一" };
+  dom.window.document.querySelector("#subject-info").innerHTML = itemInfo;
 
   await waitFor(() => {
     assert.equal(requests.length, 2);
   });
 });
 
-test('stroke order starts a review lookup while a subject-page lookup is pending', async () => {
+test("stroke order starts a review lookup while a subject-page lookup is pending", async () => {
   const svgText = `
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 109 109">
       <path d="M10 50 L90 50"></path>
@@ -1000,31 +1101,31 @@ test('stroke order starts a review lookup while a subject-page lookup is pending
         <h2>Meaning</h2>
       </main>
     `,
-    'https://www.wanikani.com/kanji/%E4%B8%80'
+    "https://www.wanikani.com/kanji/%E4%B8%80",
   );
   const requests = [];
   const controller = {
-    currentSubject: { id: 2, object: 'kanji', characters: '二' }
+    currentSubject: { id: 2, object: "kanji", characters: "二" },
   };
 
   dom.window.SVGElement.prototype.getTotalLength = () => 100;
 
-  await loadUserscript(dom, 'wk-stroke-order.js', {
+  await loadUserscript(dom, "wk-stroke-order.js", {
     GM: {
       xmlHttpRequest(request) {
         requests.push(request);
-      }
+      },
     },
     Stimulus: {
       getControllerForElementAndIdentifier() {
         return controller;
-      }
-    }
+      },
+    },
   });
 
   assert.equal(requests.length, 1);
 
-  dom.window.history.pushState({}, '', '/subjects/review');
+  dom.window.history.pushState({}, "", "/subjects/review");
   dom.window.document.body.innerHTML = `
     <div class="quiz-input"><div class="quiz-input__input-container" correct></div></div>
     <turbo-frame id="subject-info">
@@ -1047,29 +1148,29 @@ test('stroke order starts a review lookup while a subject-page lookup is pending
   await waitFor(() => {
     assert.equal(
       dom.window.document
-        .querySelector('#wk-kanjivg-stroke-order svg')
-        ?.getAttribute('aria-label'),
-      '二 stroke order'
+        .querySelector("#wk-kanjivg-stroke-order svg")
+        ?.getAttribute("aria-label"),
+      "二 stroke order",
     );
   });
 
   requests[0].onload({ status: 200, responseText: svgText });
 
-  await new Promise(resolve => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
 
   assert.equal(
-    dom.window.document.querySelectorAll('#wk-kanjivg-stroke-order').length,
-    1
+    dom.window.document.querySelectorAll("#wk-kanjivg-stroke-order").length,
+    1,
   );
   assert.equal(
     dom.window.document
-      .querySelector('#wk-kanjivg-stroke-order svg')
-      ?.getAttribute('aria-label'),
-    '二 stroke order'
+      .querySelector("#wk-kanjivg-stroke-order svg")
+      ?.getAttribute("aria-label"),
+    "二 stroke order",
   );
 });
 
-test('stroke order reinserts after a same-path lesson render', async () => {
+test("stroke order reinserts after a same-path lesson render", async () => {
   const lessonHtml = `
     <div class="lesson-container">
       <div class="character-header character-header--kanji">
@@ -1103,35 +1204,43 @@ test('stroke order reinserts after a same-path lesson render', async () => {
   `;
   const dom = createDom(
     lessonHtml,
-    'https://www.wanikani.com/subject-lessons/-4190889689937224551/543'
+    "https://www.wanikani.com/subject-lessons/-4190889689937224551/543",
   );
   let fetchCount = 0;
 
   dom.window.SVGElement.prototype.getTotalLength = () => 100;
 
-  await loadUserscript(dom, 'wk-stroke-order.js', {
+  await loadUserscript(dom, "wk-stroke-order.js", {
     GM: {
       xmlHttpRequest({ onload }) {
         fetchCount += 1;
         onload({ status: 200, responseText: svgText });
-      }
-    }
+      },
+    },
   });
 
   await waitFor(() => {
-    assert.ok(dom.window.document.querySelector('#stroke-order #wk-kanjivg-stroke-order'));
+    assert.ok(
+      dom.window.document.querySelector(
+        "#stroke-order #wk-kanjivg-stroke-order",
+      ),
+    );
   });
 
   dom.window.document.body.innerHTML = lessonHtml;
 
   await waitFor(() => {
-    assert.ok(dom.window.document.querySelector('#stroke-order #wk-kanjivg-stroke-order'));
+    assert.ok(
+      dom.window.document.querySelector(
+        "#stroke-order #wk-kanjivg-stroke-order",
+      ),
+    );
   });
 
   assert.equal(fetchCount, 2);
 });
 
-for (const subjectType of ['radical', 'vocabulary']) {
+for (const subjectType of ["radical", "vocabulary"]) {
   test(`stroke order does not run on ${subjectType} lessons`, async () => {
     const dom = createDom(
       `
@@ -1142,26 +1251,26 @@ for (const subjectType of ['radical', 'vocabulary']) {
           <div class="subject-slide" id="composition"></div>
         </div>
       `,
-      'https://www.wanikani.com/subject-lessons/-4190889689937224551/543'
+      "https://www.wanikani.com/subject-lessons/-4190889689937224551/543",
     );
     let fetchCount = 0;
 
-    await loadUserscript(dom, 'wk-stroke-order.js', {
+    await loadUserscript(dom, "wk-stroke-order.js", {
       GM: {
         xmlHttpRequest() {
           fetchCount += 1;
-        }
-      }
+        },
+      },
     });
 
     await flushMutationObservers();
 
     assert.equal(fetchCount, 0);
-    assert.equal(dom.window.document.querySelector('#stroke-order'), null);
+    assert.equal(dom.window.document.querySelector("#stroke-order"), null);
   });
 }
 
-test('stroke order sanitizes fetched SVG before insertion', async () => {
+test("stroke order sanitizes fetched SVG before insertion", async () => {
   const svgText = `
     <svg xmlns="http://www.w3.org/2000/svg" xmlns:kvg="http://kanjivg.tagaini.net" viewBox="0 0 109 109" onload="alert(1)">
       <script>alert(1)</script>
@@ -1182,34 +1291,38 @@ test('stroke order sanitizes fetched SVG before insertion', async () => {
         <h2 id="meaning">Meaning</h2>
       </main>
     `,
-    'https://www.wanikani.com/kanji/%E4%B8%80'
+    "https://www.wanikani.com/kanji/%E4%B8%80",
   );
 
   dom.window.SVGElement.prototype.getTotalLength = () => 100;
 
-  await loadUserscript(dom, 'wk-stroke-order.js', {
+  await loadUserscript(dom, "wk-stroke-order.js", {
     GM: {
       xmlHttpRequest({ onload }) {
         onload({ status: 200, responseText: svgText });
-      }
-    }
+      },
+    },
   });
 
   await waitFor(() => {
-    assert.ok(dom.window.document.querySelector('#wk-kanjivg-stroke-order svg'));
+    assert.ok(
+      dom.window.document.querySelector("#wk-kanjivg-stroke-order svg"),
+    );
   });
 
-  const insertedSvg = dom.window.document.querySelector('#wk-kanjivg-stroke-order svg');
+  const insertedSvg = dom.window.document.querySelector(
+    "#wk-kanjivg-stroke-order svg",
+  );
 
-  assert.equal(insertedSvg.hasAttribute('onload'), false);
-  assert.equal(insertedSvg.querySelector('script'), null);
-  assert.equal(insertedSvg.querySelector('foreignObject'), null);
-  assert.equal(insertedSvg.querySelector('[onclick]'), null);
-  assert.equal(insertedSvg.querySelector('[onmouseover]'), null);
-  assert.equal(insertedSvg.querySelector('a[href]'), null);
+  assert.equal(insertedSvg.hasAttribute("onload"), false);
+  assert.equal(insertedSvg.querySelector("script"), null);
+  assert.equal(insertedSvg.querySelector("foreignObject"), null);
+  assert.equal(insertedSvg.querySelector("[onclick]"), null);
+  assert.equal(insertedSvg.querySelector("[onmouseover]"), null);
+  assert.equal(insertedSvg.querySelector("a[href]"), null);
 });
 
-test('stroke order can reinsert after navigating away and back to a kanji page', async () => {
+test("stroke order can reinsert after navigating away and back to a kanji page", async () => {
   const svgText = `
     <svg xmlns="http://www.w3.org/2000/svg" xmlns:kvg="http://kanjivg.tagaini.net" viewBox="0 0 109 109">
       <g id="kvg:kanji_4e00" kvg:element="一" kvg:radical="general">
@@ -1225,45 +1338,48 @@ test('stroke order can reinsert after navigating away and back to a kanji page',
       <h2 id="meaning">Meaning</h2>
     </main>
   `;
-  const dom = createDom(kanjiPage, 'https://www.wanikani.com/kanji/%E4%B8%80');
+  const dom = createDom(kanjiPage, "https://www.wanikani.com/kanji/%E4%B8%80");
   let fetchCount = 0;
 
   dom.window.SVGElement.prototype.getTotalLength = () => 100;
 
-  await loadUserscript(dom, 'wk-stroke-order.js', {
+  await loadUserscript(dom, "wk-stroke-order.js", {
     GM: {
       xmlHttpRequest({ onload }) {
         fetchCount += 1;
         onload({ status: 200, responseText: svgText });
-      }
-    }
+      },
+    },
   });
 
   await waitFor(() => {
-    assert.ok(dom.window.document.querySelector('#wk-kanjivg-stroke-order'));
+    assert.ok(dom.window.document.querySelector("#wk-kanjivg-stroke-order"));
   });
 
-  dom.window.history.pushState({}, '', '/vocabulary/%E4%B8%80');
-  dom.window.document.body.innerHTML = '<main><h2>Meaning</h2></main>';
+  dom.window.history.pushState({}, "", "/vocabulary/%E4%B8%80");
+  dom.window.document.body.innerHTML = "<main><h2>Meaning</h2></main>";
 
-  await new Promise(resolve => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
 
   await waitFor(() => {
-    assert.equal(dom.window.document.querySelector('#wk-kanjivg-stroke-order'), null);
+    assert.equal(
+      dom.window.document.querySelector("#wk-kanjivg-stroke-order"),
+      null,
+    );
   });
 
-  dom.window.history.pushState({}, '', '/kanji/%E4%B8%80');
+  dom.window.history.pushState({}, "", "/kanji/%E4%B8%80");
   dom.window.document.body.innerHTML = kanjiPage;
 
-  await new Promise(resolve => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
 
   await waitFor(() => {
-    assert.ok(dom.window.document.querySelector('#wk-kanjivg-stroke-order'));
+    assert.ok(dom.window.document.querySelector("#wk-kanjivg-stroke-order"));
     assert.equal(fetchCount, 2);
   });
 });
 
-test('stroke order does not duplicate SVG ids in generated figures', async () => {
+test("stroke order does not duplicate SVG ids in generated figures", async () => {
   const svgText = `
     <svg xmlns="http://www.w3.org/2000/svg" xmlns:kvg="http://kanjivg.tagaini.net" viewBox="0 0 109 109">
       <g id="kvg:kanji_4e00" kvg:element="一" kvg:radical="general">
@@ -1280,52 +1396,57 @@ test('stroke order does not duplicate SVG ids in generated figures', async () =>
         <h2 id="meaning">Meaning</h2>
       </main>
     `,
-    'https://www.wanikani.com/kanji/%E4%B8%80'
+    "https://www.wanikani.com/kanji/%E4%B8%80",
   );
 
   dom.window.SVGElement.prototype.getTotalLength = () => 100;
 
-  await loadUserscript(dom, 'wk-stroke-order.js', {
+  await loadUserscript(dom, "wk-stroke-order.js", {
     GM: {
       xmlHttpRequest({ onload }) {
         onload({ status: 200, responseText: svgText });
-      }
-    }
+      },
+    },
   });
 
   await waitFor(() => {
-    assert.ok(dom.window.document.querySelector('#wk-kanjivg-stroke-order svg'));
+    assert.ok(
+      dom.window.document.querySelector("#wk-kanjivg-stroke-order svg"),
+    );
   });
 
-  const ids = [...dom.window.document.querySelectorAll('#wk-kanjivg-stroke-order [id]')].map(
-    element => element.id
-  );
+  const ids = [
+    ...dom.window.document.querySelectorAll("#wk-kanjivg-stroke-order [id]"),
+  ].map((element) => element.id);
 
   assert.equal(new Set(ids).size, ids.length);
 });
 
-test('stroke order does not run on non-kanji pages', async () => {
+test("stroke order does not run on non-kanji pages", async () => {
   const dom = createDom(
-    '<main><h2>Meaning</h2></main>',
-    'https://www.wanikani.com/vocabulary/%E4%B8%80'
+    "<main><h2>Meaning</h2></main>",
+    "https://www.wanikani.com/vocabulary/%E4%B8%80",
   );
   let fetchCount = 0;
 
-  await loadUserscript(dom, 'wk-stroke-order.js', {
+  await loadUserscript(dom, "wk-stroke-order.js", {
     GM: {
       xmlHttpRequest() {
         fetchCount += 1;
-      }
-    }
+      },
+    },
   });
 
   await flushMutationObservers();
 
   assert.equal(fetchCount, 0);
-  assert.equal(dom.window.document.querySelector('#wk-kanjivg-stroke-order'), null);
+  assert.equal(
+    dom.window.document.querySelector("#wk-kanjivg-stroke-order"),
+    null,
+  );
 });
 
-test('stroke order does not repeatedly fetch a failed KanjiVG file', async () => {
+test("stroke order does not repeatedly fetch a failed KanjiVG file", async () => {
   const dom = createDom(
     `
       <main>
@@ -1333,34 +1454,38 @@ test('stroke order does not repeatedly fetch a failed KanjiVG file', async () =>
         <h2>Meaning</h2>
       </main>
     `,
-    'https://www.wanikani.com/kanji/%E4%B8%80'
+    "https://www.wanikani.com/kanji/%E4%B8%80",
   );
   let fetchCount = 0;
 
   dom.window.console.warn = () => {};
 
-  await loadUserscript(dom, 'wk-stroke-order.js', {
+  await loadUserscript(dom, "wk-stroke-order.js", {
     GM: {
       xmlHttpRequest({ onload }) {
         fetchCount += 1;
-        onload({ status: 404, responseText: 'Not found' });
-      }
-    }
+        onload({ status: 404, responseText: "Not found" });
+      },
+    },
   });
 
   await waitFor(() => {
     assert.equal(fetchCount, 1);
   });
 
-  dom.window.document.body.appendChild(dom.window.document.createElement('div'));
-  dom.window.document.body.appendChild(dom.window.document.createElement('div'));
+  dom.window.document.body.appendChild(
+    dom.window.document.createElement("div"),
+  );
+  dom.window.document.body.appendChild(
+    dom.window.document.createElement("div"),
+  );
 
-  await new Promise(resolve => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
 
   assert.equal(fetchCount, 1);
 });
 
-test('pitch accent inserts an exact OJAD result inside Reading', async () => {
+test("pitch accent inserts an exact OJAD result inside Reading", async () => {
   const ojadHtml = `
     <table id="word_table"><tbody><tr>
       <td class="midashi"><p class="midashi_word">食べる・食べます</p></td>
@@ -1419,160 +1544,202 @@ test('pitch accent inserts an exact OJAD result inside Reading', async () => {
         </section>
       </main>
     `,
-    'https://www.wanikani.com/vocabulary/%E9%A3%9F%E3%81%B9%E3%82%8B'
+    "https://www.wanikani.com/vocabulary/%E9%A3%9F%E3%81%B9%E3%82%8B",
   );
-  const readingRow = dom.window.document.querySelector('.subject-readings-with-audio');
+  const readingRow = dom.window.document.querySelector(
+    ".subject-readings-with-audio",
+  );
   const readingItem = dom.window.document.querySelector(
-    '.subject-readings-with-audio__item'
+    ".subject-readings-with-audio__item",
   );
   const originalReading = dom.window.document.querySelector(
-    '.reading-with-audio__reading'
+    ".reading-with-audio__reading",
   );
   const audioControl = dom.window.document.querySelector(
-    '.reading-with-audio__audio'
+    ".reading-with-audio__audio",
   );
   let fetchedUrl;
 
-  await loadUserscript(dom, 'wk-pitch-accent.js', {
+  await loadUserscript(dom, "wk-pitch-accent.js", {
     GM: {
       xmlHttpRequest({ url, onload }) {
         fetchedUrl = url;
         onload({ status: 200, responseText: ojadHtml });
-      }
-    }
+      },
+    },
   });
 
   await waitFor(() => {
-    assert.ok(dom.window.document.querySelector('.wk-pitch-accent-charts svg'));
+    assert.ok(dom.window.document.querySelector(".wk-pitch-accent-charts svg"));
   });
 
-  const sections = [...dom.window.document.querySelectorAll('main > .subject-section')];
-  assert.deepEqual(sections.map(section => section.classList[1]), [
-    'subject-section--reading',
-    'subject-section--context'
-  ]);
-  assert.equal(fetchedUrl, 'https://www.gavo.t.u-tokyo.ac.jp/ojad/search/index/word:%E9%A3%9F%E3%81%B9%E3%82%8B');
-  assert.ok(dom.window.document.querySelector('.subject-section--reading #wk-pitch-accent'));
-  assert.equal(dom.window.document.querySelector('.wk-pitch-accent-charts figcaption')?.textContent, 'Nakadaka');
-  assert.equal(dom.window.document.querySelector('.wk-pitch-accent-heading'), null);
-  assert.equal(originalReading.isConnected, false);
-  assert.equal(originalReading.className, 'reading-with-audio__reading');
-  assert.equal(originalReading.textContent, 'たべる');
-  assert.notEqual(dom.window.getComputedStyle(audioControl).display, 'none');
-  assert.equal(
-    dom.window.getComputedStyle(
-      audioControl.querySelector('.reading-with-audio__audio-icon')
-    ).height,
-    '16px'
+  const sections = [
+    ...dom.window.document.querySelectorAll("main > .subject-section"),
+  ];
+  assert.deepEqual(
+    sections.map((section) => section.classList[1]),
+    ["subject-section--reading", "subject-section--context"],
   );
   assert.equal(
-    dom.window.document.querySelector('.wk-pitch-accent-charts')
-      ?.parentElement.className,
-    'reading-with-audio'
+    fetchedUrl,
+    "https://www.gavo.t.u-tokyo.ac.jp/ojad/search/index/word:%E9%A3%9F%E3%81%B9%E3%82%8B",
+  );
+  assert.ok(
+    dom.window.document.querySelector(
+      ".subject-section--reading #wk-pitch-accent",
+    ),
+  );
+  assert.equal(
+    dom.window.document.querySelector(".wk-pitch-accent-charts figcaption")
+      ?.textContent,
+    "Nakadaka",
+  );
+  assert.equal(
+    dom.window.document.querySelector(".wk-pitch-accent-heading"),
+    null,
+  );
+  assert.equal(originalReading.isConnected, false);
+  assert.equal(originalReading.className, "reading-with-audio__reading");
+  assert.equal(originalReading.textContent, "たべる");
+  assert.notEqual(dom.window.getComputedStyle(audioControl).display, "none");
+  assert.equal(
+    dom.window.getComputedStyle(
+      audioControl.querySelector(".reading-with-audio__audio-icon"),
+    ).height,
+    "16px",
+  );
+  assert.equal(
+    dom.window.document.querySelector(".wk-pitch-accent-charts")?.parentElement
+      .className,
+    "reading-with-audio",
   );
   assert.equal(
     audioControl.previousElementSibling,
-    dom.window.document.querySelector('.wk-pitch-accent-charts')
+    dom.window.document.querySelector(".wk-pitch-accent-charts"),
   );
   assert.equal(
     dom.window.getComputedStyle(
-      dom.window.document.querySelector('.subject-readings-with-audio')
+      dom.window.document.querySelector(".subject-readings-with-audio"),
     ).height,
-    '60px'
+    "60px",
   );
   assert.equal(
     dom.window.getComputedStyle(
-      dom.window.document.querySelector('.subject-readings-with-audio__item')
+      dom.window.document.querySelector(".subject-readings-with-audio__item"),
     ).display,
-    'block'
+    "block",
   );
   assert.equal(
     dom.window.getComputedStyle(
-      dom.window.document.querySelector('.wk-pitch-accent-credit')
+      dom.window.document.querySelector(".wk-pitch-accent-credit"),
     ).marginTop,
-    '50px'
+    "50px",
   );
   assert.equal(
-    dom.window.document.querySelector('.wk-pitch-accent-credit a')?.href,
-    'https://www.gavo.t.u-tokyo.ac.jp/ojad'
+    dom.window.document.querySelector(".wk-pitch-accent-credit a")?.href,
+    "https://www.gavo.t.u-tokyo.ac.jp/ojad",
   );
   assert.equal(
     dom.window.getComputedStyle(
-      dom.window.document.querySelector('.wk-pitch-accent-details')
+      dom.window.document.querySelector(".wk-pitch-accent-details"),
     ).paddingTop,
-    '0px'
+    "0px",
   );
   assert.equal(
     dom.window.getComputedStyle(
-      dom.window.document.querySelector('.wk-pitch-accent-details')
+      dom.window.document.querySelector(".wk-pitch-accent-details"),
     ).marginTop,
-    '-26px'
+    "-26px",
   );
+  assert.equal(dom.window.getComputedStyle(readingItem).marginBottom, "8px");
   assert.equal(
-    dom.window.getComputedStyle(readingItem).marginBottom,
-    '8px'
-  );
-  assert.equal(dom.window.document.querySelector('a[href="#pitch-accent"]'), null);
-  assert.deepEqual(
-    [...dom.window.document.querySelectorAll('.wk-pitch-accent-charts svg text')]
-      .map(node => node.textContent),
-    ['た', 'べ', 'る', '2']
-  );
-  assert.equal(
-    dom.window.document.querySelector('.wk-pitch-accent-charts svg')?.getAttribute('viewBox'),
-    '0 0 100 44'
-  );
-  assert.equal(
-    dom.window.document.querySelector('.wk-pitch-accent-charts svg polyline')?.getAttribute('points'),
-    '12,16 36,3 60,16'
+    dom.window.document.querySelector('a[href="#pitch-accent"]'),
+    null,
   );
   assert.deepEqual(
-    [...dom.window.document.querySelectorAll('.wk-pitch-accent-charts svg circle')]
-      .map(circle => circle.getAttribute('cx')),
-    ['12', '36', '60']
-  );
-  assert.deepEqual(
-    [...dom.window.document.querySelectorAll('.wk-pitch-accent-charts svg circle')]
-      .map(circle => circle.getAttribute('cy')),
-    ['16', '3', '16']
-  );
-  assert.equal(dom.window.document.querySelectorAll('.wk-pitch-accent-charts svg ellipse').length, 1);
-  assert.deepEqual(
-    [...dom.window.document.querySelectorAll('.subject-section--reading > .subject-section__content > .subject-section__subsection')]
-      .map(section => section.classList[1]),
     [
-      'subject-section__subsection--reading',
-      'subject-section__subsection--explanation'
-    ]
+      ...dom.window.document.querySelectorAll(
+        ".wk-pitch-accent-charts svg text",
+      ),
+    ].map((node) => node.textContent),
+    ["た", "べ", "る", "2"],
+  );
+  assert.equal(
+    dom.window.document
+      .querySelector(".wk-pitch-accent-charts svg")
+      ?.getAttribute("viewBox"),
+    "0 0 100 44",
+  );
+  assert.equal(
+    dom.window.document
+      .querySelector(".wk-pitch-accent-charts svg polyline")
+      ?.getAttribute("points"),
+    "12,16 36,3 60,16",
   );
   assert.deepEqual(
-    [...dom.window.document.querySelector('.subject-section__subsection--reading').children]
-      .map(element => element.className),
     [
-      'subject-readings-with-audio',
-      'wk-pitch-accent wk-pitch-accent-details'
-    ]
+      ...dom.window.document.querySelectorAll(
+        ".wk-pitch-accent-charts svg circle",
+      ),
+    ].map((circle) => circle.getAttribute("cx")),
+    ["12", "36", "60"],
   );
-  assert.equal(readingRow.className, 'subject-readings-with-audio');
-  assert.equal(readingItem.className, 'subject-readings-with-audio__item');
+  assert.deepEqual(
+    [
+      ...dom.window.document.querySelectorAll(
+        ".wk-pitch-accent-charts svg circle",
+      ),
+    ].map((circle) => circle.getAttribute("cy")),
+    ["16", "3", "16"],
+  );
+  assert.equal(
+    dom.window.document.querySelectorAll(".wk-pitch-accent-charts svg ellipse")
+      .length,
+    1,
+  );
+  assert.deepEqual(
+    [
+      ...dom.window.document.querySelectorAll(
+        ".subject-section--reading > .subject-section__content > .subject-section__subsection",
+      ),
+    ].map((section) => section.classList[1]),
+    [
+      "subject-section__subsection--reading",
+      "subject-section__subsection--explanation",
+    ],
+  );
+  assert.deepEqual(
+    [
+      ...dom.window.document.querySelector(
+        ".subject-section__subsection--reading",
+      ).children,
+    ].map((element) => element.className),
+    ["subject-readings-with-audio", "wk-pitch-accent wk-pitch-accent-details"],
+  );
+  assert.equal(readingRow.className, "subject-readings-with-audio");
+  assert.equal(readingItem.className, "subject-readings-with-audio__item");
 });
 
-test('pitch accent shows all exact variants and rejects other headwords and readings', async () => {
+test("pitch accent shows all exact variants and rejects other headwords and readings", async () => {
   const accent = (word, reading, accentClasses) => `
     <tr>
       <td class="midashi"><p class="midashi_word">${word}</p></td>
       <td class="katsuyo_jisho_js"><span class="accented_word">
-        ${[...reading].map((character, index) => `
-          <span class="${accentClasses[index] || ''}"><span class="char">${character}</span></span>
-        `).join('')}
+        ${[...reading]
+          .map(
+            (character, index) => `
+          <span class="${accentClasses[index] || ""}"><span class="char">${character}</span></span>
+        `,
+          )
+          .join("")}
       </span></td>
     </tr>
   `;
   const ojadHtml = `<table id="word_table"><tbody>
-    ${accent('上がる・上がります', 'あがる', ['', 'accent_plain', 'accent_plain'])}
-    ${accent('上げる・上げます', 'あげる', ['accent_top'])}
-    ${accent('上げる・上げます', 'うえげる', ['accent_top'])}
-    ${accent('上げる・上げます', 'あげる', ['', 'accent_plain', 'accent_plain'])}
+    ${accent("上がる・上がります", "あがる", ["", "accent_plain", "accent_plain"])}
+    ${accent("上げる・上げます", "あげる", ["accent_top"])}
+    ${accent("上げる・上げます", "うえげる", ["accent_top"])}
+    ${accent("上げる・上げます", "あげる", ["", "accent_plain", "accent_plain"])}
   </tbody></table>`;
   const dom = createDom(
     `
@@ -1585,55 +1752,74 @@ test('pitch accent shows all exact variants and rejects other headwords and read
         <section class="subject-section subject-section--context"></section>
       </main>
     `,
-    'https://www.wanikani.com/vocabulary/%E4%B8%8A%E3%81%92%E3%82%8B'
+    "https://www.wanikani.com/vocabulary/%E4%B8%8A%E3%81%92%E3%82%8B",
   );
-  await loadUserscript(dom, 'wk-pitch-accent.js', {
+  await loadUserscript(dom, "wk-pitch-accent.js", {
     GM: {
       xmlHttpRequest({ onload }) {
         onload({ status: 200, responseText: ojadHtml });
-      }
-    }
+      },
+    },
   });
 
   await waitFor(() => {
-    assert.equal(dom.window.document.querySelectorAll('.wk-pitch-accent-charts figure').length, 2);
+    assert.equal(
+      dom.window.document.querySelectorAll(".wk-pitch-accent-charts figure")
+        .length,
+      2,
+    );
   });
 
   assert.deepEqual(
-    [...dom.window.document.querySelectorAll('.wk-pitch-accent-charts figcaption')].map(node => node.textContent),
-    ['Atamadaka', 'Heiban']
-  );
-  assert.deepEqual(
-    [...dom.window.document.querySelectorAll('.wk-pitch-accent-charts figure')]
-      .map(figure => [...figure.querySelectorAll('text')].map(node => node.textContent)),
     [
-      ['あ', 'げ', 'る', '1'],
-      ['あ', 'げ', 'る', '0']
-    ]
+      ...dom.window.document.querySelectorAll(
+        ".wk-pitch-accent-charts figcaption",
+      ),
+    ].map((node) => node.textContent),
+    ["Atamadaka", "Heiban"],
   );
   assert.deepEqual(
-    [...dom.window.document.querySelectorAll('.wk-pitch-accent-charts figure')]
-      .map(figure => figure.className),
-    ['wk-pitch-accent-variant-2', 'wk-pitch-accent-variant-1']
+    [
+      ...dom.window.document.querySelectorAll(".wk-pitch-accent-charts figure"),
+    ].map((figure) =>
+      [...figure.querySelectorAll("text")].map((node) => node.textContent),
+    ),
+    [
+      ["あ", "げ", "る", "1"],
+      ["あ", "げ", "る", "0"],
+    ],
+  );
+  assert.deepEqual(
+    [
+      ...dom.window.document.querySelectorAll(".wk-pitch-accent-charts figure"),
+    ].map((figure) => figure.className),
+    ["wk-pitch-accent-variant-2", "wk-pitch-accent-variant-1"],
   );
   assert.match(
-    dom.window.document.querySelector('#wk-pitch-accent-style')?.textContent || '',
-    /html\[data-wk-dark-theme="dark"\] \.wk-pitch-accent-variant-1/
+    dom.window.document.querySelector("#wk-pitch-accent-style")?.textContent ||
+      "",
+    /html\[data-wk-dark-theme="dark"\] \.wk-pitch-accent-variant-1/,
   );
   assert.equal(
-    dom.window.document.querySelectorAll('.wk-pitch-accent-charts polyline')[1]?.getAttribute('points'),
-    '12,16 36,3 60,3'
+    dom.window.document
+      .querySelectorAll(".wk-pitch-accent-charts polyline")[1]
+      ?.getAttribute("points"),
+    "12,16 36,3 60,3",
   );
 });
 
-test('pitch accent replaces each reading beside its own audio control', async () => {
+test("pitch accent replaces each reading beside its own audio control", async () => {
   const accent = (reading, dropIndex) => `
     <tr>
       <td class="midashi"><p class="midashi_word">日本</p></td>
       <td class="katsuyo_jisho_js"><span class="accented_word">
-        ${[...reading].map((character, index) => `
-          <span class="${index === dropIndex ? 'accent_top' : ''}"><span class="char">${character}</span></span>
-        `).join('')}
+        ${[...reading]
+          .map(
+            (character, index) => `
+          <span class="${index === dropIndex ? "accent_top" : ""}"><span class="char">${character}</span></span>
+        `,
+          )
+          .join("")}
       </span></td>
     </tr>
   `;
@@ -1659,60 +1845,68 @@ test('pitch accent replaces each reading beside its own audio control', async ()
         </section>
       </section></main>
     `,
-    'https://www.wanikani.com/vocabulary/%E6%97%A5%E6%9C%AC'
+    "https://www.wanikani.com/vocabulary/%E6%97%A5%E6%9C%AC",
   );
   const originalReadings = [
-    ...dom.window.document.querySelectorAll('.reading-with-audio__reading')
+    ...dom.window.document.querySelectorAll(".reading-with-audio__reading"),
   ];
 
-  await loadUserscript(dom, 'wk-pitch-accent.js', {
+  await loadUserscript(dom, "wk-pitch-accent.js", {
     GM: {
       xmlHttpRequest({ onload }) {
         onload({
           status: 200,
           responseText: `<table id="word_table"><tbody>
-            ${accent('にほん', 1)}
-            ${accent('にっぽん', 2)}
-          </tbody></table>`
+            ${accent("にほん", 1)}
+            ${accent("にっぽん", 2)}
+          </tbody></table>`,
         });
-      }
-    }
+      },
+    },
   });
 
   await waitFor(() => {
-    assert.equal(dom.window.document.querySelectorAll('.wk-pitch-accent-charts figure').length, 2);
+    assert.equal(
+      dom.window.document.querySelectorAll(".wk-pitch-accent-charts figure")
+        .length,
+      2,
+    );
   });
 
-  const readingRow = dom.window.document.querySelector('.subject-readings-with-audio');
-  assert.deepEqual(
-    [...readingRow.children].map(element => element.className),
-    ['subject-readings-with-audio__item', 'subject-readings-with-audio__item']
+  const readingRow = dom.window.document.querySelector(
+    ".subject-readings-with-audio",
   );
   assert.deepEqual(
-    [...readingRow.querySelectorAll('.reading-with-audio')].map(row =>
-      [...row.children].map(element => element.className)
+    [...readingRow.children].map((element) => element.className),
+    ["subject-readings-with-audio__item", "subject-readings-with-audio__item"],
+  );
+  assert.deepEqual(
+    [...readingRow.querySelectorAll(".reading-with-audio")].map((row) =>
+      [...row.children].map((element) => element.className),
     ),
     [
-      ['wk-pitch-accent wk-pitch-accent-charts', 'reading-with-audio__audio'],
-      ['wk-pitch-accent wk-pitch-accent-charts', 'reading-with-audio__audio']
-    ]
+      ["wk-pitch-accent wk-pitch-accent-charts", "reading-with-audio__audio"],
+      ["wk-pitch-accent wk-pitch-accent-charts", "reading-with-audio__audio"],
+    ],
   );
   assert.deepEqual(
-    originalReadings.map(reading => [reading.isConnected, reading.className]),
+    originalReadings.map((reading) => [reading.isConnected, reading.className]),
     [
-      [false, 'reading-with-audio__reading'],
-      [false, 'reading-with-audio__reading']
-    ]
+      [false, "reading-with-audio__reading"],
+      [false, "reading-with-audio__reading"],
+    ],
   );
   assert.deepEqual(
-    [...readingRow.querySelectorAll('.wk-pitch-accent-charts')].map(charts =>
-      [...charts.querySelectorAll('svg text')].map(node => node.textContent).join('')
+    [...readingRow.querySelectorAll(".wk-pitch-accent-charts")].map((charts) =>
+      [...charts.querySelectorAll("svg text")]
+        .map((node) => node.textContent)
+        .join(""),
     ),
-    ['にほん2', 'にっぽん3']
+    ["にほん2", "にっぽん3"],
   );
 });
 
-test('pitch accent inserts inside the vocabulary lesson Reading slide', async () => {
+test("pitch accent inserts inside the vocabulary lesson Reading slide", async () => {
   const ojadHtml = `<table id="word_table"><tbody><tr>
     <td class="midashi"><p class="midashi_word">食べる・食べます</p></td>
     <td class="katsuyo_jisho_js"><span class="accented_word">
@@ -1751,54 +1945,71 @@ test('pitch accent inserts inside the vocabulary lesson Reading slide', async ()
         </div>
       </div>
     `,
-    'https://www.wanikani.com/subject-lessons/-4190889689937224551/544'
+    "https://www.wanikani.com/subject-lessons/-4190889689937224551/544",
   );
 
-  await loadUserscript(dom, 'wk-pitch-accent.js', {
+  await loadUserscript(dom, "wk-pitch-accent.js", {
     GM: {
       xmlHttpRequest({ onload }) {
         onload({ status: 200, responseText: ojadHtml });
-      }
-    }
+      },
+    },
   });
 
   await waitFor(() => {
-    assert.ok(dom.window.document.querySelector('#reading #wk-pitch-accent'));
+    assert.ok(dom.window.document.querySelector("#reading #wk-pitch-accent"));
   });
 
   assert.deepEqual(
-    [...dom.window.document.querySelector('#reading .subject-section__content').children]
-      .map(element => element.className),
     [
-      'reading-with-audio',
-      'wk-pitch-accent wk-pitch-accent-details'
-    ]
+      ...dom.window.document.querySelector("#reading .subject-section__content")
+        .children,
+    ].map((element) => element.className),
+    ["reading-with-audio", "wk-pitch-accent wk-pitch-accent-details"],
   );
   assert.deepEqual(
-    [...dom.window.document.querySelector('#reading .reading-with-audio').children]
-      .map(element => element.className),
-    ['wk-pitch-accent wk-pitch-accent-charts', 'reading-with-audio__audio']
+    [
+      ...dom.window.document.querySelector("#reading .reading-with-audio")
+        .children,
+    ].map((element) => element.className),
+    ["wk-pitch-accent wk-pitch-accent-charts", "reading-with-audio__audio"],
   );
   assert.notEqual(
     dom.window.getComputedStyle(
-      dom.window.document.querySelector('#reading .reading-with-audio__audio')
+      dom.window.document.querySelector("#reading .reading-with-audio__audio"),
     ).display,
-    'none'
+    "none",
   );
 
   assert.deepEqual(
-    [...dom.window.document.querySelectorAll('.subject-slides__navigation-link')].map(link => link.textContent.trim()),
-    ['Meaning', 'Reading', 'Context']
+    [
+      ...dom.window.document.querySelectorAll(
+        ".subject-slides__navigation-link",
+      ),
+    ].map((link) => link.textContent.trim()),
+    ["Meaning", "Reading", "Context"],
   );
   assert.deepEqual(
-    [...dom.window.document.querySelectorAll('.subject-slide')].map(slide => slide.id),
-    ['meaning', 'reading', 'context']
+    [...dom.window.document.querySelectorAll(".subject-slide")].map(
+      (slide) => slide.id,
+    ),
+    ["meaning", "reading", "context"],
   );
-  assert.equal(dom.window.document.querySelector('#reading [aria-label="next slide"]')?.getAttribute('href'), '#context');
-  assert.equal(dom.window.document.querySelector('#context [aria-label="previous slide"]')?.getAttribute('href'), '#reading');
+  assert.equal(
+    dom.window.document
+      .querySelector('#reading [aria-label="next slide"]')
+      ?.getAttribute("href"),
+    "#context",
+  );
+  assert.equal(
+    dom.window.document
+      .querySelector('#context [aria-label="previous slide"]')
+      ?.getAttribute("href"),
+    "#reading",
+  );
 });
 
-test('pitch accent waits for a revealed quiz answer and Reading item info', async () => {
+test("pitch accent waits for a revealed quiz answer and Reading item info", async () => {
   const ojadHtml = `<table id="word_table"><tbody><tr>
     <td class="midashi"><p class="midashi_word">食べる・食べます</p></td>
     <td class="katsuyo_jisho_js"><span class="accented_word">
@@ -1816,41 +2027,48 @@ test('pitch accent waits for a revealed quiz answer and Reading item info', asyn
         <li><a class="additional-content__item additional-content__item--last-items"></a></li>
       </ul>
     `,
-    'https://www.wanikani.com/subjects/review'
+    "https://www.wanikani.com/subjects/review",
   );
   const controller = {
     currentSubject: {
-      type: 'Vocabulary',
-      subject_category: 'Vocabulary',
-      characters: '食べる',
-      readings: [{ text: 'たべる', kind: 'primary' }]
-    }
+      type: "Vocabulary",
+      subject_category: "Vocabulary",
+      characters: "食べる",
+      readings: [{ text: "たべる", kind: "primary" }],
+    },
   };
   let fetchCount = 0;
 
-  await loadUserscript(dom, 'wk-pitch-accent.js', {
+  await loadUserscript(dom, "wk-pitch-accent.js", {
     unsafeWindow: {
       Stimulus: {
         getControllerForElementAndIdentifier() {
           return controller;
-        }
-      }
+        },
+      },
     },
     GM: {
       xmlHttpRequest({ onload }) {
         fetchCount += 1;
         onload({ status: 200, responseText: ojadHtml });
-      }
-    }
+      },
+    },
   });
 
-  const inputContainer = dom.window.document.querySelector('.quiz-input__input-container');
-  const frame = dom.window.document.querySelector('#subject-info');
+  const inputContainer = dom.window.document.querySelector(
+    ".quiz-input__input-container",
+  );
+  const frame = dom.window.document.querySelector("#subject-info");
 
-  assert.equal(dom.window.document.querySelector('.additional-content__item--pitch-accent'), null);
+  assert.equal(
+    dom.window.document.querySelector(
+      ".additional-content__item--pitch-accent",
+    ),
+    null,
+  );
   assert.equal(fetchCount, 0);
 
-  inputContainer.setAttribute('correct', 'true');
+  inputContainer.setAttribute("correct", "true");
   await flushMutationObservers();
   assert.equal(fetchCount, 0);
 
@@ -1866,43 +2084,56 @@ test('pitch accent waits for a revealed quiz answer and Reading item info', asyn
       </section>
     </section>
   `;
-  const originalQuizReading = frame.querySelector('.reading-with-audio__reading');
+  const originalQuizReading = frame.querySelector(
+    ".reading-with-audio__reading",
+  );
 
   await waitFor(() => {
-    assert.ok(dom.window.document.querySelector('#subject-info .wk-pitch-accent-charts svg'));
+    assert.ok(
+      dom.window.document.querySelector(
+        "#subject-info .wk-pitch-accent-charts svg",
+      ),
+    );
   });
 
   assert.equal(fetchCount, 1);
   assert.deepEqual(
-    [...frame.querySelector('.subject-section__subsection--reading').children]
-      .map(element => element.className),
     [
-      'reading-with-audio',
-      'wk-pitch-accent wk-pitch-accent-details'
-    ]
+      ...frame.querySelector(".subject-section__subsection--reading").children,
+    ].map((element) => element.className),
+    ["reading-with-audio", "wk-pitch-accent wk-pitch-accent-details"],
   );
   assert.deepEqual(
-    [...frame.querySelector('.reading-with-audio').children]
-      .map(element => element.className),
-    ['wk-pitch-accent wk-pitch-accent-charts', 'reading-with-audio__audio']
+    [...frame.querySelector(".reading-with-audio").children].map(
+      (element) => element.className,
+    ),
+    ["wk-pitch-accent wk-pitch-accent-charts", "reading-with-audio__audio"],
   );
   assert.equal(originalQuizReading.isConnected, false);
   assert.notEqual(
-    dom.window.getComputedStyle(frame.querySelector('.reading-with-audio__audio')).display,
-    'none'
+    dom.window.getComputedStyle(
+      frame.querySelector(".reading-with-audio__audio"),
+    ).display,
+    "none",
   );
 
-  inputContainer.removeAttribute('correct');
+  inputContainer.removeAttribute("correct");
 
   await waitFor(() => {
-    assert.equal(dom.window.document.querySelector('#subject-info #wk-pitch-accent'), null);
+    assert.equal(
+      dom.window.document.querySelector("#subject-info #wk-pitch-accent"),
+      null,
+    );
   });
-  assert.equal(frame.querySelector('.wk-pitch-accent-charts'), null);
+  assert.equal(frame.querySelector(".wk-pitch-accent-charts"), null);
   assert.equal(originalQuizReading.isConnected, true);
-  assert.equal(frame.querySelector('.reading-with-audio__reading'), originalQuizReading);
+  assert.equal(
+    frame.querySelector(".reading-with-audio__reading"),
+    originalQuizReading,
+  );
 });
 
-test('pitch accent recognizes Reading item info outside review URLs', async () => {
+test("pitch accent recognizes Reading item info outside review URLs", async () => {
   const ojadHtml = `<table id="word_table"><tbody><tr>
     <td class="midashi"><p class="midashi_word">こんにちは</p></td>
     <td class="katsuyo_jisho_js"><span class="accented_word">
@@ -1923,35 +2154,37 @@ test('pitch accent recognizes Reading item info outside review URLs', async () =
       </turbo-frame>
       <ul><li><a class="additional-content__item additional-content__item--last-items"></a></li></ul>
     `,
-    'https://www.wanikani.com/subject-lessons/session/quiz'
+    "https://www.wanikani.com/subject-lessons/session/quiz",
   );
 
-  await loadUserscript(dom, 'wk-pitch-accent.js', {
+  await loadUserscript(dom, "wk-pitch-accent.js", {
     Stimulus: {
       getControllerForElementAndIdentifier() {
         return {
           currentSubject: {
-            subject_category: 'KanaVocabulary',
-            characters: 'こんにちは',
-            readings: []
-          }
+            subject_category: "KanaVocabulary",
+            characters: "こんにちは",
+            readings: [],
+          },
         };
-      }
+      },
     },
     GM: {
       xmlHttpRequest({ onload }) {
         onload({ status: 200, responseText: ojadHtml });
-      }
-    }
+      },
+    },
   });
 
   await waitFor(() => {
-    assert.ok(dom.window.document.querySelector('#subject-info #wk-pitch-accent'));
+    assert.ok(
+      dom.window.document.querySelector("#subject-info #wk-pitch-accent"),
+    );
   });
 });
 
-test('pitch accent does not insert a stale lookup after vocabulary navigation', async () => {
-  const page = reading => `
+test("pitch accent does not insert a stale lookup after vocabulary navigation", async () => {
+  const page = (reading) => `
     <span class="subject-character subject-character--vocabulary" title="${reading}"></span>
     <nav><ul><li><a href="#context"><span class="wk-nav__item-text">Context</span></a></li></ul></nav>
     <main>
@@ -1964,46 +2197,47 @@ test('pitch accent does not insert a stale lookup after vocabulary navigation', 
   const result = (word, reading) => `<table id="word_table"><tbody><tr>
     <td class="midashi"><p class="midashi_word">${word}</p></td>
     <td class="katsuyo_jisho_js"><span class="accented_word">
-      ${[...reading].map(character => `<span><span class="char">${character}</span></span>`).join('')}
+      ${[...reading].map((character) => `<span><span class="char">${character}</span></span>`).join("")}
     </span></td>
   </tr></tbody></table>`;
   const dom = createDom(
-    page('たべる'),
-    'https://www.wanikani.com/vocabulary/%E9%A3%9F%E3%81%B9%E3%82%8B'
+    page("たべる"),
+    "https://www.wanikani.com/vocabulary/%E9%A3%9F%E3%81%B9%E3%82%8B",
   );
   const requests = [];
 
-  await loadUserscript(dom, 'wk-pitch-accent.js', {
+  await loadUserscript(dom, "wk-pitch-accent.js", {
     GM: {
       xmlHttpRequest(request) {
         requests.push(request);
-      }
-    }
+      },
+    },
   });
 
   assert.equal(requests.length, 1);
 
-  dom.window.history.pushState({}, '', '/vocabulary/%E9%A3%B2%E3%82%80');
-  dom.window.document.body.innerHTML = page('のむ');
-  requests[0].onload({ status: 200, responseText: result('食べる', 'たべる') });
+  dom.window.history.pushState({}, "", "/vocabulary/%E9%A3%B2%E3%82%80");
+  dom.window.document.body.innerHTML = page("のむ");
+  requests[0].onload({ status: 200, responseText: result("食べる", "たべる") });
 
   await waitFor(() => {
     assert.equal(requests.length, 2);
   });
 
-  assert.equal(dom.window.document.querySelector('#wk-pitch-accent'), null);
+  assert.equal(dom.window.document.querySelector("#wk-pitch-accent"), null);
 
-  requests[1].onload({ status: 200, responseText: result('飲む', 'のむ') });
+  requests[1].onload({ status: 200, responseText: result("飲む", "のむ") });
 
   await waitFor(() => {
     assert.equal(
-      dom.window.document.querySelector('.wk-pitch-accent-charts figcaption')?.textContent,
-      'Heiban'
+      dom.window.document.querySelector(".wk-pitch-accent-charts figcaption")
+        ?.textContent,
+      "Heiban",
     );
   });
 });
 
-test('pitch accent omits the OJAD credit when no exact result is found', async () => {
+test("pitch accent omits the OJAD credit when no exact result is found", async () => {
   const dom = createDom(
     `
       <span class="subject-character subject-character--vocabulary" title="たべる"></span>
@@ -2011,27 +2245,33 @@ test('pitch accent omits the OJAD credit when no exact result is found', async (
         <section class="subject-section__content"><div class="reading-with-audio">WaniKani reading</div></section>
       </section></main>
     `,
-    'https://www.wanikani.com/vocabulary/%E9%A3%9F%E3%81%B9%E3%82%8B'
+    "https://www.wanikani.com/vocabulary/%E9%A3%9F%E3%81%B9%E3%82%8B",
   );
 
-  await loadUserscript(dom, 'wk-pitch-accent.js', {
+  await loadUserscript(dom, "wk-pitch-accent.js", {
     GM: {
       xmlHttpRequest({ onload }) {
-        onload({ status: 200, responseText: '<table id="word_table"><tbody></tbody></table>' });
-      }
-    }
+        onload({
+          status: 200,
+          responseText: '<table id="word_table"><tbody></tbody></table>',
+        });
+      },
+    },
   });
 
   await waitFor(() => {
     assert.equal(
-      dom.window.document.querySelector('.wk-pitch-accent-status')?.textContent,
-      'No exact OJAD pitch accent found.'
+      dom.window.document.querySelector(".wk-pitch-accent-status")?.textContent,
+      "No exact OJAD pitch accent found.",
     );
   });
-  assert.equal(dom.window.document.querySelector('.wk-pitch-accent-credit'), null);
+  assert.equal(
+    dom.window.document.querySelector(".wk-pitch-accent-credit"),
+    null,
+  );
 });
 
-test('pitch accent shows an unavailable state without repeatedly requesting OJAD', async () => {
+test("pitch accent shows an unavailable state without repeatedly requesting OJAD", async () => {
   const page = `
     <span class="subject-character subject-character--vocabulary" title="たべる"></span>
     <main><section class="subject-section subject-section--reading">
@@ -2040,40 +2280,43 @@ test('pitch accent shows an unavailable state without repeatedly requesting OJAD
   `;
   const dom = createDom(
     page,
-    'https://www.wanikani.com/vocabulary/%E9%A3%9F%E3%81%B9%E3%82%8B'
+    "https://www.wanikani.com/vocabulary/%E9%A3%9F%E3%81%B9%E3%82%8B",
   );
   let fetchCount = 0;
   dom.window.console.warn = () => {};
 
-  await loadUserscript(dom, 'wk-pitch-accent.js', {
+  await loadUserscript(dom, "wk-pitch-accent.js", {
     GM: {
       xmlHttpRequest({ onload }) {
         fetchCount += 1;
-        onload({ status: 503, responseText: 'Unavailable' });
-      }
-    }
+        onload({ status: 503, responseText: "Unavailable" });
+      },
+    },
   });
 
   await waitFor(() => {
     assert.equal(
-      dom.window.document.querySelector('.wk-pitch-accent-status')?.textContent,
-      'OJAD pitch accent is currently unavailable.'
+      dom.window.document.querySelector(".wk-pitch-accent-status")?.textContent,
+      "OJAD pitch accent is currently unavailable.",
     );
   });
-  assert.equal(dom.window.document.querySelector('.wk-pitch-accent-credit'), null);
+  assert.equal(
+    dom.window.document.querySelector(".wk-pitch-accent-credit"),
+    null,
+  );
 
   dom.window.document.body.innerHTML = page;
 
   await waitFor(() => {
     assert.equal(
-      dom.window.document.querySelector('.wk-pitch-accent-status')?.textContent,
-      'OJAD pitch accent is currently unavailable.'
+      dom.window.document.querySelector(".wk-pitch-accent-status")?.textContent,
+      "OJAD pitch accent is currently unavailable.",
     );
   });
   assert.equal(fetchCount, 1);
 });
 
-test('pitch accent waits for the Reading row before lookup and insertion', async () => {
+test("pitch accent waits for the Reading row before lookup and insertion", async () => {
   const ojadHtml = `<table id="word_table"><tbody><tr>
     <td class="midashi"><p class="midashi_word">食べる・食べます</p></td>
     <td class="katsuyo_jisho_js"><span class="accented_word">
@@ -2089,33 +2332,35 @@ test('pitch accent waits for the Reading row before lookup and insertion', async
         <section class="subject-section__content"></section>
       </section>
     `,
-    'https://www.wanikani.com/vocabulary/%E9%A3%9F%E3%81%B9%E3%82%8B'
+    "https://www.wanikani.com/vocabulary/%E9%A3%9F%E3%81%B9%E3%82%8B",
   );
   let fetchCount = 0;
 
-  await loadUserscript(dom, 'wk-pitch-accent.js', {
+  await loadUserscript(dom, "wk-pitch-accent.js", {
     GM: {
       xmlHttpRequest({ onload }) {
         fetchCount += 1;
         onload({ status: 200, responseText: ojadHtml });
-      }
-    }
+      },
+    },
   });
 
   assert.equal(fetchCount, 0);
 
-  const reading = dom.window.document.createElement('div');
-  reading.className = 'reading-with-audio';
-  reading.textContent = 'WaniKani reading';
-  dom.window.document.querySelector('.subject-section__content').appendChild(reading);
+  const reading = dom.window.document.createElement("div");
+  reading.className = "reading-with-audio";
+  reading.textContent = "WaniKani reading";
+  dom.window.document
+    .querySelector(".subject-section__content")
+    .appendChild(reading);
 
   await waitFor(() => {
     assert.equal(fetchCount, 1);
-    assert.ok(dom.window.document.querySelector('#wk-pitch-accent'));
+    assert.ok(dom.window.document.querySelector("#wk-pitch-accent"));
   });
 });
 
-test('pitch accent parses moras with multiple char elements like じょ', async () => {
+test("pitch accent parses moras with multiple char elements like じょ", async () => {
   const ojadHtml = `<table id="word_table"><tbody><tr>
     <td class="midashi"><p class="midashi_word">工場</p></td>
     <td class="katsuyo_jisho_js"><span class="accented_word">
@@ -2137,221 +2382,256 @@ test('pitch accent parses moras with multiple char elements like じょ', async 
         </section>
       </section></main>
     `,
-    'https://www.wanikani.com/vocabulary/%E5%B7%A5%E5%A0%B4'
+    "https://www.wanikani.com/vocabulary/%E5%B7%A5%E5%A0%B4",
   );
 
-  await loadUserscript(dom, 'wk-pitch-accent.js', {
+  await loadUserscript(dom, "wk-pitch-accent.js", {
     GM: {
       xmlHttpRequest({ onload }) {
         onload({ status: 200, responseText: ojadHtml });
-      }
-    }
+      },
+    },
   });
 
   await waitFor(() => {
-    assert.ok(dom.window.document.querySelector('.wk-pitch-accent-charts svg'));
+    assert.ok(dom.window.document.querySelector(".wk-pitch-accent-charts svg"));
   });
 
   assert.deepEqual(
-    [...dom.window.document.querySelectorAll('.wk-pitch-accent-charts svg text')]
-      .map(node => node.textContent),
-    ['こ', 'う', 'じょ', 'う', '3']
+    [
+      ...dom.window.document.querySelectorAll(
+        ".wk-pitch-accent-charts svg text",
+      ),
+    ].map((node) => node.textContent),
+    ["こ", "う", "じょ", "う", "3"],
   );
   assert.equal(
-    dom.window.document.querySelector('.wk-pitch-accent-charts figcaption')?.textContent,
-    'Nakadaka'
+    dom.window.document.querySelector(".wk-pitch-accent-charts figcaption")
+      ?.textContent,
+    "Nakadaka",
   );
 });
 
-test('dark theme follows a dark system preference by default', async () => {
-  const dom = createDom('<main>Dashboard</main>', 'https://www.wanikani.com/');
+test("dark theme follows a dark system preference by default", async () => {
+  const dom = createDom("<main>Dashboard</main>", "https://www.wanikani.com/");
 
-  await loadUserscript(dom, 'wk-dark-theme.js', {
+  await loadUserscript(dom, "wk-dark-theme.js", {
     matchMedia() {
       return {
         matches: true,
-        addEventListener() {}
+        addEventListener() {},
       };
-    }
+    },
   });
 
-  const toggle = dom.window.document.querySelector('#wk-dark-theme-toggle');
+  const toggle = dom.window.document.querySelector("#wk-dark-theme-toggle");
 
-  assert.equal(dom.window.document.documentElement.dataset.wkDarkTheme, 'dark');
-  assert.equal(dom.window.document.documentElement.dataset.wkDarkThemeMode, 'system');
-  assert.equal(toggle?.textContent.trim(), 'System');
-  assert.equal(toggle?.getAttribute('aria-label'), 'Theme: System. Click for Dark.');
+  assert.equal(dom.window.document.documentElement.dataset.wkDarkTheme, "dark");
+  assert.equal(
+    dom.window.document.documentElement.dataset.wkDarkThemeMode,
+    "system",
+  );
+  assert.equal(toggle?.textContent.trim(), "System");
+  assert.equal(
+    toggle?.getAttribute("aria-label"),
+    "Theme: System. Click for Dark.",
+  );
 });
 
-test('dark theme toggle stays in the lower-left corner in light mode', async () => {
-  const dom = createDom('<main>Dashboard</main>', 'https://www.wanikani.com/');
+test("dark theme toggle stays in the lower-left corner in light mode", async () => {
+  const dom = createDom("<main>Dashboard</main>", "https://www.wanikani.com/");
 
-  await loadUserscript(dom, 'wk-dark-theme.js', {
+  await loadUserscript(dom, "wk-dark-theme.js", {
     matchMedia() {
       return {
         matches: false,
-        addEventListener() {}
+        addEventListener() {},
       };
-    }
+    },
   });
 
-  const toggle = dom.window.document.querySelector('#wk-dark-theme-toggle');
+  const toggle = dom.window.document.querySelector("#wk-dark-theme-toggle");
   const toggleStyle = dom.window.getComputedStyle(toggle);
 
-  assert.equal(toggleStyle.bottom, '16px');
-  assert.equal(toggleStyle.left, '16px');
-  assert.equal(toggleStyle.right, 'auto');
+  assert.equal(toggleStyle.bottom, "16px");
+  assert.equal(toggleStyle.left, "16px");
+  assert.equal(toggleStyle.right, "auto");
 });
 
-test('dark theme toggle cycles through and persists manual overrides', async () => {
-  const dom = createDom('<main>Dashboard</main>', 'https://www.wanikani.com/');
+test("dark theme toggle cycles through and persists manual overrides", async () => {
+  const dom = createDom("<main>Dashboard</main>", "https://www.wanikani.com/");
 
-  await loadUserscript(dom, 'wk-dark-theme.js', {
+  await loadUserscript(dom, "wk-dark-theme.js", {
     matchMedia() {
       return {
         matches: false,
-        addEventListener() {}
+        addEventListener() {},
       };
-    }
+    },
   });
 
   const root = dom.window.document.documentElement;
-  const toggle = dom.window.document.querySelector('#wk-dark-theme-toggle');
+  const toggle = dom.window.document.querySelector("#wk-dark-theme-toggle");
 
   toggle.click();
-  assert.equal(root.dataset.wkDarkThemeMode, 'dark');
-  assert.equal(root.dataset.wkDarkTheme, 'dark');
-  assert.equal(toggle.textContent.trim(), 'Dark');
-  assert.equal(dom.window.localStorage.getItem('wk-dark-theme-mode'), 'dark');
+  assert.equal(root.dataset.wkDarkThemeMode, "dark");
+  assert.equal(root.dataset.wkDarkTheme, "dark");
+  assert.equal(toggle.textContent.trim(), "Dark");
+  assert.equal(dom.window.localStorage.getItem("wk-dark-theme-mode"), "dark");
 
   toggle.click();
-  assert.equal(root.dataset.wkDarkThemeMode, 'light');
-  assert.equal(root.dataset.wkDarkTheme, 'light');
-  assert.equal(toggle.textContent.trim(), 'Light');
-  assert.equal(dom.window.localStorage.getItem('wk-dark-theme-mode'), 'light');
+  assert.equal(root.dataset.wkDarkThemeMode, "light");
+  assert.equal(root.dataset.wkDarkTheme, "light");
+  assert.equal(toggle.textContent.trim(), "Light");
+  assert.equal(dom.window.localStorage.getItem("wk-dark-theme-mode"), "light");
 
   toggle.click();
-  assert.equal(root.dataset.wkDarkThemeMode, 'system');
-  assert.equal(root.dataset.wkDarkTheme, 'light');
-  assert.equal(toggle.textContent.trim(), 'System');
-  assert.equal(dom.window.localStorage.getItem('wk-dark-theme-mode'), 'system');
+  assert.equal(root.dataset.wkDarkThemeMode, "system");
+  assert.equal(root.dataset.wkDarkTheme, "light");
+  assert.equal(toggle.textContent.trim(), "System");
+  assert.equal(dom.window.localStorage.getItem("wk-dark-theme-mode"), "system");
 });
 
-test('dark theme restores a saved override instead of the system preference', async () => {
-  const dom = createDom('<main>Dashboard</main>', 'https://www.wanikani.com/');
-  dom.window.localStorage.setItem('wk-dark-theme-mode', 'light');
+test("dark theme restores a saved override instead of the system preference", async () => {
+  const dom = createDom("<main>Dashboard</main>", "https://www.wanikani.com/");
+  dom.window.localStorage.setItem("wk-dark-theme-mode", "light");
 
-  await loadUserscript(dom, 'wk-dark-theme.js', {
+  await loadUserscript(dom, "wk-dark-theme.js", {
     matchMedia() {
       return {
         matches: true,
-        addEventListener() {}
+        addEventListener() {},
       };
-    }
+    },
   });
 
   const root = dom.window.document.documentElement;
-  const toggle = dom.window.document.querySelector('#wk-dark-theme-toggle');
+  const toggle = dom.window.document.querySelector("#wk-dark-theme-toggle");
 
-  assert.equal(root.dataset.wkDarkThemeMode, 'light');
-  assert.equal(root.dataset.wkDarkTheme, 'light');
-  assert.equal(toggle.textContent.trim(), 'Light');
+  assert.equal(root.dataset.wkDarkThemeMode, "light");
+  assert.equal(root.dataset.wkDarkTheme, "light");
+  assert.equal(toggle.textContent.trim(), "Light");
 });
 
-test('dark theme restores its control after Turbo replaces the page body', async () => {
-  const dom = createDom('<main>Dashboard</main>', 'https://www.wanikani.com/');
+test("dark theme restores its control after Turbo replaces the page body", async () => {
+  const dom = createDom("<main>Dashboard</main>", "https://www.wanikani.com/");
 
-  await loadUserscript(dom, 'wk-dark-theme.js', {
+  await loadUserscript(dom, "wk-dark-theme.js", {
     matchMedia() {
       return {
         matches: true,
-        addEventListener() {}
+        addEventListener() {},
       };
-    }
+    },
   });
 
-  dom.window.document.body.innerHTML = '<main>Kanji</main>';
-  dom.window.document.dispatchEvent(new dom.window.Event('turbo:load'));
+  dom.window.document.body.innerHTML = "<main>Kanji</main>";
+  dom.window.document.dispatchEvent(new dom.window.Event("turbo:load"));
 
-  assert.equal(dom.window.document.querySelectorAll('#wk-dark-theme-toggle').length, 1);
-  assert.equal(dom.window.document.querySelectorAll('#wk-dark-theme-styles').length, 1);
-  assert.equal(dom.window.document.documentElement.dataset.wkDarkTheme, 'dark');
+  assert.equal(
+    dom.window.document.querySelectorAll("#wk-dark-theme-toggle").length,
+    1,
+  );
+  assert.equal(
+    dom.window.document.querySelectorAll("#wk-dark-theme-styles").length,
+    1,
+  );
+  assert.equal(dom.window.document.documentElement.dataset.wkDarkTheme, "dark");
 });
 
-test('dark theme applies at document start and adds its control when the body arrives', async () => {
-  const dom = createDom('<main>Dashboard</main>', 'https://www.wanikani.com/');
+test("dark theme applies at document start and adds its control when the body arrives", async () => {
+  const dom = createDom("<main>Dashboard</main>", "https://www.wanikani.com/");
   dom.window.document.body.remove();
 
-  await loadUserscript(dom, 'wk-dark-theme.js', {
+  await loadUserscript(dom, "wk-dark-theme.js", {
     matchMedia() {
       return {
         matches: true,
-        addEventListener() {}
+        addEventListener() {},
       };
-    }
+    },
   });
 
-  assert.equal(dom.window.document.documentElement.dataset.wkDarkTheme, 'dark');
-  assert.equal(dom.window.document.querySelector('#wk-dark-theme-toggle'), null);
+  assert.equal(dom.window.document.documentElement.dataset.wkDarkTheme, "dark");
+  assert.equal(
+    dom.window.document.querySelector("#wk-dark-theme-toggle"),
+    null,
+  );
 
-  dom.window.document.documentElement.append(dom.window.document.createElement('body'));
-  dom.window.document.dispatchEvent(new dom.window.Event('DOMContentLoaded'));
+  dom.window.document.documentElement.append(
+    dom.window.document.createElement("body"),
+  );
+  dom.window.document.dispatchEvent(new dom.window.Event("DOMContentLoaded"));
 
-  assert.ok(dom.window.document.querySelector('#wk-dark-theme-toggle'));
+  assert.ok(dom.window.document.querySelector("#wk-dark-theme-toggle"));
 });
 
-test('dark theme uses a lighter neutral surface palette', async () => {
-  const dom = createDom('<main>Dashboard</main>', 'https://www.wanikani.com/');
+test("dark theme uses a lighter neutral surface palette", async () => {
+  const dom = createDom("<main>Dashboard</main>", "https://www.wanikani.com/");
 
-  await loadUserscript(dom, 'wk-dark-theme.js', {
+  await loadUserscript(dom, "wk-dark-theme.js", {
     matchMedia() {
       return {
         matches: true,
-        addEventListener() {}
+        addEventListener() {},
       };
-    }
+    },
   });
 
-  const styles = dom.window.getComputedStyle(dom.window.document.documentElement);
+  const styles = dom.window.getComputedStyle(
+    dom.window.document.documentElement,
+  );
 
-  assert.equal(styles.getPropertyValue('--wk-dark-background').trim(), '#17191f');
-  assert.equal(styles.getPropertyValue('--wk-dark-surface').trim(), '#20232b');
-  assert.equal(styles.getPropertyValue('--wk-dark-surface-raised').trim(), '#292d37');
-  assert.equal(styles.getPropertyValue('--wk-dark-surface-hover').trim(), '#333844');
-  assert.equal(styles.getPropertyValue('--wk-dark-border').trim(), '#424957');
+  assert.equal(
+    styles.getPropertyValue("--wk-dark-background").trim(),
+    "#17191f",
+  );
+  assert.equal(styles.getPropertyValue("--wk-dark-surface").trim(), "#20232b");
+  assert.equal(
+    styles.getPropertyValue("--wk-dark-surface-raised").trim(),
+    "#292d37",
+  );
+  assert.equal(
+    styles.getPropertyValue("--wk-dark-surface-hover").trim(),
+    "#333844",
+  );
+  assert.equal(styles.getPropertyValue("--wk-dark-border").trim(), "#424957");
 });
 
-test('dark theme disables text shadows globally', async () => {
+test("dark theme disables text shadows globally", async () => {
   const dom = createDom(
     `<style>
       .subject-readings-with-audio { text-shadow: 0 1px 0 #fff !important; }
     </style>
     <div class="subject-readings-with-audio">Kyoko (Tokyo accent, female)</div>`,
-    'https://www.wanikani.com/vocabulary/%E9%A3%9F%E3%81%B9%E3%82%8B'
+    "https://www.wanikani.com/vocabulary/%E9%A3%9F%E3%81%B9%E3%82%8B",
   );
 
-  await loadUserscript(dom, 'wk-dark-theme.js', {
+  await loadUserscript(dom, "wk-dark-theme.js", {
     matchMedia() {
       return {
         matches: true,
-        addEventListener() {}
+        addEventListener() {},
       };
-    }
+    },
   });
 
   const audioDetails = dom.window.document.querySelector(
-    '.subject-readings-with-audio'
+    ".subject-readings-with-audio",
   );
   assert.equal(
     dom.window.getComputedStyle(audioDetails).textShadow,
-    'rgba(0, 0, 0, 0)'
+    "rgba(0, 0, 0, 0)",
   );
 
-  dom.window.document.documentElement.dataset.wkDarkTheme = 'light';
-  assert.equal(dom.window.getComputedStyle(audioDetails).textShadow, '0 1px 0 #fff');
+  dom.window.document.documentElement.dataset.wkDarkTheme = "light";
+  assert.equal(
+    dom.window.getComputedStyle(audioDetails).textShadow,
+    "0 1px 0 #fff",
+  );
 });
 
-test('dark theme preserves WaniKani subject and quiz-state colors', async () => {
+test("dark theme preserves WaniKani subject and quiz-state colors", async () => {
   const dom = createDom(
     `<style>
       :root {
@@ -2362,47 +2642,64 @@ test('dark theme preserves WaniKani subject and quiz-state colors', async () => 
         --color-quiz-incorrect-background: #ff0033;
       }
     </style>`,
-    'https://www.wanikani.com/'
+    "https://www.wanikani.com/",
   );
 
-  await loadUserscript(dom, 'wk-dark-theme.js', {
+  await loadUserscript(dom, "wk-dark-theme.js", {
     matchMedia() {
       return {
         matches: true,
-        addEventListener() {}
+        addEventListener() {},
       };
-    }
+    },
   });
 
-  const rootStyles = dom.window.getComputedStyle(dom.window.document.documentElement);
+  const rootStyles = dom.window.getComputedStyle(
+    dom.window.document.documentElement,
+  );
 
-  assert.equal(rootStyles.getPropertyValue('--color-radical').trim(), '#00aaff');
-  assert.equal(rootStyles.getPropertyValue('--color-kanji').trim(), '#ff00aa');
-  assert.equal(rootStyles.getPropertyValue('--color-vocabulary').trim(), '#aa00ff');
-  assert.equal(rootStyles.getPropertyValue('--color-quiz-correct-background').trim(), '#88cc00');
-  assert.equal(rootStyles.getPropertyValue('--color-quiz-incorrect-background').trim(), '#ff0033');
+  assert.equal(
+    rootStyles.getPropertyValue("--color-radical").trim(),
+    "#00aaff",
+  );
+  assert.equal(rootStyles.getPropertyValue("--color-kanji").trim(), "#ff00aa");
+  assert.equal(
+    rootStyles.getPropertyValue("--color-vocabulary").trim(),
+    "#aa00ff",
+  );
+  assert.equal(
+    rootStyles.getPropertyValue("--color-quiz-correct-background").trim(),
+    "#88cc00",
+  );
+  assert.equal(
+    rootStyles.getPropertyValue("--color-quiz-incorrect-background").trim(),
+    "#ff0033",
+  );
 });
 
-test('dark theme responds when the system preference changes', async () => {
-  const dom = createDom('<main>Dashboard</main>', 'https://www.wanikani.com/');
+test("dark theme responds when the system preference changes", async () => {
+  const dom = createDom("<main>Dashboard</main>", "https://www.wanikani.com/");
   let preferenceChanged;
   const preference = {
     matches: false,
     addEventListener(_event, listener) {
       preferenceChanged = listener;
-    }
+    },
   };
 
-  await loadUserscript(dom, 'wk-dark-theme.js', {
+  await loadUserscript(dom, "wk-dark-theme.js", {
     matchMedia() {
       return preference;
-    }
+    },
   });
 
-  assert.equal(dom.window.document.documentElement.dataset.wkDarkTheme, 'light');
+  assert.equal(
+    dom.window.document.documentElement.dataset.wkDarkTheme,
+    "light",
+  );
 
   preference.matches = true;
   preferenceChanged();
 
-  assert.equal(dom.window.document.documentElement.dataset.wkDarkTheme, 'dark');
+  assert.equal(dom.window.document.documentElement.dataset.wkDarkTheme, "dark");
 });

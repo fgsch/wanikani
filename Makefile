@@ -1,26 +1,28 @@
-.PHONY: check check-syntax lint ci clean test
+.DEFAULT_GOAL := help
 
-check: check-syntax lint test
+.PHONY: help check format format-check lint test clean
 
-check-syntax:
-	node --check wk-dark-theme.js
-	node --check wk-redo-answer.js
-	node --check wk-stroke-order.js
-	node --check wk-pitch-accent.js
+help: ## Show available targets
+	@awk 'BEGIN { FS = ":.*## " } \
+		/^[[:alnum:]_-]+:.*## / { printf "\033[36m%-30s\033[0m %s\n", $$1, $$2 }' \
+		$(MAKEFILE_LIST)
 
-ci:
-	npm ci
-	$(MAKE) check-syntax
-	npm test
+check: format-check lint test ## Run formatting check, lint and tests
 
-lint: node_modules
+format: node_modules ## Format code
+	node_modules/.bin/prettier --write wk-*.js
+
+format-check: node_modules ## Check formatting
+	node_modules/.bin/prettier --check wk-*.js
+
+lint: node_modules ## Run eslint
 	node_modules/.bin/eslint
 
-clean:
+test: node_modules ## Run tests
+	npm test
+
+clean: ## Remove build artifacts
 	rm -rf node_modules
 
 node_modules: package-lock.json
 	npm install
-
-test: node_modules
-	npm test

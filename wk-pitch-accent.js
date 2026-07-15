@@ -15,19 +15,19 @@
 // ==/UserScript==
 
 (function () {
-  'use strict';
+  "use strict";
 
-  const CONTENT_ID = 'wk-pitch-accent';
-  const STYLE_ID = 'wk-pitch-accent-style';
-  const OJAD_BASE_URL = 'https://www.gavo.t.u-tokyo.ac.jp/ojad';
-  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const CONTENT_ID = "wk-pitch-accent";
+  const STYLE_ID = "wk-pitch-accent-style";
+  const OJAD_BASE_URL = "https://www.gavo.t.u-tokyo.ac.jp/ojad";
+  const SVG_NS = "http://www.w3.org/2000/svg";
   const PATTERN_VARIANT = {
     Heiban: 1,
     Atamadaka: 2,
     Nakadaka: 3,
-    Odaka: 4
+    Odaka: 4,
   };
-  const ORIGINAL_READING_NODES = Symbol('originalReadingNodes');
+  const ORIGINAL_READING_NODES = Symbol("originalReadingNodes");
   const NAME = GM_info.script.name;
   const VERSION = GM_info.script.version;
 
@@ -38,14 +38,16 @@
     return (
       /^\/subjects\/(?:review|extra_study)(?:\/|$)/.test(location.pathname) ||
       Boolean(
-        document.querySelector('.quiz-input') &&
-        document.querySelector('.additional-content__item--last-items')
+        document.querySelector(".quiz-input") &&
+        document.querySelector(".additional-content__item--last-items"),
       )
     );
   }
 
   function isVocabularySubjectPage() {
-    return /^\/(?:vocabulary|kana-vocabulary)\/[^/]+\/?$/.test(location.pathname);
+    return /^\/(?:vocabulary|kana-vocabulary)\/[^/]+\/?$/.test(
+      location.pathname,
+    );
   }
 
   function isSubjectLessonPage() {
@@ -57,82 +59,106 @@
       isSubjectLessonPage() &&
       Boolean(
         document.querySelector(
-          '.character-header--vocabulary, .character-header--kana-vocabulary'
-        )
+          ".character-header--vocabulary, .character-header--kana-vocabulary",
+        ),
       )
     );
   }
 
   function normalizeJapanese(text) {
-    return (text || '').replace(/\s+/g, '').normalize('NFC');
+    return (text || "").replace(/\s+/g, "").normalize("NFC");
   }
 
   function collectReadings(root, initialReadings = []) {
-    const readings = new Set(initialReadings.map(normalizeJapanese).filter(Boolean));
+    const readings = new Set(
+      initialReadings.map(normalizeJapanese).filter(Boolean),
+    );
 
-    root?.querySelectorAll('.reading-with-audio__reading, [data-reading]').forEach(element => {
-      const reading = normalizeJapanese(
-        element.getAttribute('data-reading') || element.textContent
-      );
-      if (reading) {readings.add(reading);}
-    });
+    root
+      ?.querySelectorAll(".reading-with-audio__reading, [data-reading]")
+      .forEach((element) => {
+        const reading = normalizeJapanese(
+          element.getAttribute("data-reading") || element.textContent,
+        );
+        if (reading) {
+          readings.add(reading);
+        }
+      });
 
     return [...readings];
   }
 
   function vocabularyKey(subject) {
-    if (!subject) {return null;}
-    return `${subject.characters}\n${[...subject.readings].sort().join('\n')}`;
+    if (!subject) {
+      return null;
+    }
+    return `${subject.characters}\n${[...subject.readings].sort().join("\n")}`;
   }
 
   function getSubjectPageVocabulary(quiet) {
     if (!isVocabularySubjectPage()) {
-      if (!quiet) {console.debug(`[${NAME}] Not a vocabulary subject page`);}
+      if (!quiet) {
+        console.debug(`[${NAME}] Not a vocabulary subject page`);
+      }
       return null;
     }
 
     const characters = normalizeJapanese(
-      decodeURIComponent(location.pathname.split('/').filter(Boolean).pop() || '')
+      decodeURIComponent(
+        location.pathname.split("/").filter(Boolean).pop() || "",
+      ),
     );
     const header = document.querySelector(
-      '.subject-character--vocabulary, .subject-character--kana-vocabulary'
+      ".subject-character--vocabulary, .subject-character--kana-vocabulary",
     );
-    const readings = collectReadings(document.querySelector('.subject-section--reading'), [
-      header?.getAttribute('title')
-    ]);
+    const readings = collectReadings(
+      document.querySelector(".subject-section--reading"),
+      [header?.getAttribute("title")],
+    );
 
     if (!characters) {
-      if (!quiet) {console.debug(`[${NAME}] No characters found for subject page`);}
+      if (!quiet) {
+        console.debug(`[${NAME}] No characters found for subject page`);
+      }
       return null;
     }
 
     if (!quiet) {
-      console.debug(`[${NAME}] Subject page vocabulary:`, { characters, readings });
+      console.debug(`[${NAME}] Subject page vocabulary:`, {
+        characters,
+        readings,
+      });
     }
     return {
       characters,
-      readings
+      readings,
     };
   }
 
   function getLessonVocabulary(quiet) {
     if (!isVocabularyLessonPage()) {
-      if (!quiet) {console.debug(`[${NAME}] Not a vocabulary lesson page`);}
+      if (!quiet) {
+        console.debug(`[${NAME}] Not a vocabulary lesson page`);
+      }
       return null;
     }
 
     const header = document.querySelector(
-      '.character-header--vocabulary, .character-header--kana-vocabulary'
+      ".character-header--vocabulary, .character-header--kana-vocabulary",
     );
-    const charactersElement = header?.querySelector('.character-header__characters');
+    const charactersElement = header?.querySelector(
+      ".character-header__characters",
+    );
     const characters = normalizeJapanese(charactersElement?.textContent);
-    const readings = collectReadings(document.querySelector('#reading.subject-slide'), [
-      charactersElement?.getAttribute('title'),
-      header?.getAttribute('title')
-    ]);
+    const readings = collectReadings(
+      document.querySelector("#reading.subject-slide"),
+      [charactersElement?.getAttribute("title"), header?.getAttribute("title")],
+    );
 
     if (!characters) {
-      if (!quiet) {console.debug(`[${NAME}] No characters found for lesson page`);}
+      if (!quiet) {
+        console.debug(`[${NAME}] No characters found for lesson page`);
+      }
       return null;
     }
     if (!quiet) {
@@ -143,15 +169,15 @@
 
   function getQuizController() {
     const pageWindow =
-      typeof unsafeWindow === 'undefined' ? window : unsafeWindow;
+      typeof unsafeWindow === "undefined" ? window : unsafeWindow;
     const stimulus = pageWindow.Stimulus || window.Stimulus;
     const quizInput =
-      pageWindow.document?.querySelector('.quiz-input') ||
-      document.querySelector('.quiz-input');
+      pageWindow.document?.querySelector(".quiz-input") ||
+      document.querySelector(".quiz-input");
 
     return stimulus?.getControllerForElementAndIdentifier?.(
       quizInput,
-      'quiz-input'
+      "quiz-input",
     );
   }
 
@@ -163,27 +189,29 @@
     }
 
     const type = normalizeJapanese(
-      subject.object || subject.type || subject.subject_category
+      subject.object || subject.type || subject.subject_category,
     )
       .toLowerCase()
-      .replace(/[_-]/g, '');
+      .replace(/[_-]/g, "");
 
-    if (type !== 'vocabulary' && type !== 'kanavocabulary') {
+    if (type !== "vocabulary" && type !== "kanavocabulary") {
       console.debug(`[${NAME}] Quiz subject is not vocabulary:`, type);
       return null;
     }
 
     const characters = normalizeJapanese(subject.characters);
     const readings = (subject.readings || [])
-      .filter(reading => {
+      .filter((reading) => {
         const accepted =
           reading.acceptedAnswer ?? reading.accepted_answer ?? reading.primary;
-        if (accepted !== undefined) {return accepted;}
+        if (accepted !== undefined) {
+          return accepted;
+        }
 
         const kind = normalizeJapanese(reading.kind).toLowerCase();
-        return !kind || kind === 'primary' || kind === 'alternative';
+        return !kind || kind === "primary" || kind === "alternative";
       })
-      .map(reading => normalizeJapanese(reading.reading || reading.text))
+      .map((reading) => normalizeJapanese(reading.reading || reading.text))
       .filter(Boolean);
 
     if (!characters) {
@@ -193,25 +221,27 @@
     console.debug(`[${NAME}] Quiz vocabulary:`, { characters, readings });
     return {
       characters,
-      readings: readings.length ? readings : [characters]
+      readings: readings.length ? readings : [characters],
     };
   }
 
   function fetchText(url) {
-    if (responseCache.has(url)) {return responseCache.get(url);}
+    if (responseCache.has(url)) {
+      return responseCache.get(url);
+    }
 
     const request = new Promise((resolve, reject) => {
       GM.xmlHttpRequest({
-        method: 'GET',
+        method: "GET",
         url,
-        onload: response => {
+        onload: (response) => {
           if (response.status >= 200 && response.status < 300) {
             resolve(response.responseText);
           } else {
             reject(new Error(`HTTP ${response.status}`));
           }
         },
-        onerror: reject
+        onerror: reject,
       });
     });
 
@@ -220,65 +250,89 @@
   }
 
   function parseAccentWord(accentedWord) {
-    const moras = [...accentedWord.children].map(element => ({
+    const moras = [...accentedWord.children].map((element) => ({
       text: normalizeJapanese(
-        [...element.querySelectorAll('.char')].map(char => char.textContent).join('')
+        [...element.querySelectorAll(".char")]
+          .map((char) => char.textContent)
+          .join(""),
       ),
       high:
-        element.classList.contains('accent_plain') ||
-        element.classList.contains('accent_top'),
-      drop: element.classList.contains('accent_top'),
-      unvoiced: element.classList.contains('unvoiced')
+        element.classList.contains("accent_plain") ||
+        element.classList.contains("accent_top"),
+      drop: element.classList.contains("accent_top"),
+      unvoiced: element.classList.contains("unvoiced"),
     }));
 
-    if (!moras.length || moras.some(mora => !mora.text)) {return null;}
+    if (!moras.length || moras.some((mora) => !mora.text)) {
+      return null;
+    }
     return moras;
   }
 
   function parseOjadResults(html, subject) {
-    const document = new DOMParser().parseFromString(html, 'text/html');
+    const document = new DOMParser().parseFromString(html, "text/html");
     const acceptedReadings = new Set(subject.readings.map(normalizeJapanese));
     const variants = [];
     const seen = new Set();
 
-    const rows = document.querySelectorAll('#word_table tbody tr');
-    console.debug(`[${NAME}] OJAD rows found:`, rows.length, 'for', subject.characters);
+    const rows = document.querySelectorAll("#word_table tbody tr");
+    console.debug(
+      `[${NAME}] OJAD rows found:`,
+      rows.length,
+      "for",
+      subject.characters,
+    );
 
-    document.querySelectorAll('#word_table tbody tr').forEach(row => {
+    document.querySelectorAll("#word_table tbody tr").forEach((row) => {
       const headword = normalizeJapanese(
-        row.querySelector('.midashi_word')?.textContent.split('・')[0]
+        row.querySelector(".midashi_word")?.textContent.split("・")[0],
       );
 
       if (headword !== subject.characters) {
-        console.debug(`[${NAME}] Skipping row, headword mismatch:`, headword, '!=', subject.characters);
+        console.debug(
+          `[${NAME}] Skipping row, headword mismatch:`,
+          headword,
+          "!=",
+          subject.characters,
+        );
         return;
       }
 
-      row.querySelectorAll('.katsuyo_jisho_js .accented_word').forEach(word => {
-        const moras = parseAccentWord(word);
-        if (!moras) {
-          console.debug(`[${NAME}] Could not parse accent word`);
-          return;
-        }
+      row
+        .querySelectorAll(".katsuyo_jisho_js .accented_word")
+        .forEach((word) => {
+          const moras = parseAccentWord(word);
+          if (!moras) {
+            console.debug(`[${NAME}] Could not parse accent word`);
+            return;
+          }
 
-        const reading = moras.map(mora => mora.text).join('');
-        if (acceptedReadings.size && !acceptedReadings.has(reading)) {
-          console.debug(`[${NAME}] Skipping reading not in accepted:`, reading, 'accepted:', [...acceptedReadings]);
-          return;
-        }
+          const reading = moras.map((mora) => mora.text).join("");
+          if (acceptedReadings.size && !acceptedReadings.has(reading)) {
+            console.debug(
+              `[${NAME}] Skipping reading not in accepted:`,
+              reading,
+              "accepted:",
+              [...acceptedReadings],
+            );
+            return;
+          }
 
-        const key = moras
-          .map(mora => `${mora.text}:${mora.high ? 1 : 0}:${mora.drop ? 1 : 0}`)
-          .join('|');
+          const key = moras
+            .map(
+              (mora) =>
+                `${mora.text}:${mora.high ? 1 : 0}:${mora.drop ? 1 : 0}`,
+            )
+            .join("|");
 
-        if (seen.has(key)) {
-          console.debug(`[${NAME}] Skipping duplicate variant:`, key);
-          return;
-        }
-        seen.add(key);
-        console.debug(`[${NAME}] Adding variant:`, reading, key);
-        variants.push({ reading, moras });
-      });
+          if (seen.has(key)) {
+            console.debug(`[${NAME}] Skipping duplicate variant:`, key);
+            return;
+          }
+          seen.add(key);
+          console.debug(`[${NAME}] Adding variant:`, reading, key);
+          variants.push({ reading, moras });
+        });
     });
 
     console.debug(`[${NAME}] Total variants:`, variants.length);
@@ -292,14 +346,20 @@
   function getPatternName(moras) {
     const dropIndex = getAccentNumber(moras);
 
-    if (!dropIndex) {return 'Heiban';}
-    if (dropIndex === 1) {return 'Atamadaka';}
-    if (dropIndex === moras.length) {return 'Odaka';}
-    return 'Nakadaka';
+    if (!dropIndex) {
+      return "Heiban";
+    }
+    if (dropIndex === 1) {
+      return "Atamadaka";
+    }
+    if (dropIndex === moras.length) {
+      return "Odaka";
+    }
+    return "Nakadaka";
   }
 
   function getAccentNumber(moras) {
-    return moras.findIndex(mora => mora.drop) + 1;
+    return moras.findIndex((mora) => mora.drop) + 1;
   }
 
   function createSvgElement(name, attributes = {}) {
@@ -317,66 +377,68 @@
     const textY = 34;
     const accentNumber = getAccentNumber(variant.moras);
     const width = variant.moras.length * step + 28;
-    const svg = createSvgElement('svg', {
+    const svg = createSvgElement("svg", {
       viewBox: `0 0 ${width} 44`,
-      role: 'img',
-      'aria-label': `${variant.reading}, ${getPatternLabel(variant.moras)} pitch accent`
+      role: "img",
+      "aria-label": `${variant.reading}, ${getPatternLabel(variant.moras)} pitch accent`,
     });
 
     variant.moras.forEach((mora, index) => {
-      const character = createSvgElement('text', {
+      const character = createSvgElement("text", {
         x: step / 2 + index * step,
         y: textY,
-        class: 'wk-pitch-accent-character'
+        class: "wk-pitch-accent-character",
       });
       character.textContent = mora.text;
-      if (mora.unvoiced) {character.classList.add('wk-pitch-accent-unvoiced');}
+      if (mora.unvoiced) {
+        character.classList.add("wk-pitch-accent-unvoiced");
+      }
       svg.appendChild(character);
     });
 
     const points = variant.moras.map((mora, index) => ({
       x: step / 2 + index * step,
-      y: mora.high ? highY : lowY
+      y: mora.high ? highY : lowY,
     }));
 
     svg.appendChild(
-      createSvgElement('polyline', {
-        points: points.map(point => `${point.x},${point.y}`).join(' '),
-        fill: 'none',
-        stroke: 'var(--wk-pitch-accent-color)',
-        'stroke-width': 2.5,
-        'stroke-linecap': 'round',
-        'stroke-linejoin': 'round'
-      })
+      createSvgElement("polyline", {
+        points: points.map((point) => `${point.x},${point.y}`).join(" "),
+        fill: "none",
+        stroke: "var(--wk-pitch-accent-color)",
+        "stroke-width": 2.5,
+        "stroke-linecap": "round",
+        "stroke-linejoin": "round",
+      }),
     );
 
     variant.moras.forEach((mora, index) => {
       svg.appendChild(
-        createSvgElement('circle', {
+        createSvgElement("circle", {
           cx: step / 2 + index * step,
           cy: mora.high ? highY : lowY,
           r: 3,
-          fill: 'var(--wk-pitch-accent-color)'
-        })
+          fill: "var(--wk-pitch-accent-color)",
+        }),
       );
     });
 
     svg.appendChild(
-      createSvgElement('ellipse', {
+      createSvgElement("ellipse", {
         cx: variant.moras.length * step + 16,
         cy: textY,
         rx: 10,
         ry: 10,
-        fill: 'var(--wk-pitch-accent-color)',
-        'fill-opacity': 0.16
-      })
+        fill: "var(--wk-pitch-accent-color)",
+        "fill-opacity": 0.16,
+      }),
     );
 
-    const number = createSvgElement('text', {
+    const number = createSvgElement("text", {
       x: variant.moras.length * step + 16,
       y: textY,
-      class: 'wk-pitch-accent-number',
-      fill: 'var(--wk-pitch-accent-color)'
+      class: "wk-pitch-accent-number",
+      fill: "var(--wk-pitch-accent-color)",
     });
     number.textContent = String(accentNumber);
     svg.appendChild(number);
@@ -385,32 +447,32 @@
   }
 
   function createCredit() {
-    const credit = document.createElement('p');
-    credit.className = 'wk-pitch-accent-credit';
+    const credit = document.createElement("p");
+    credit.className = "wk-pitch-accent-credit";
 
-    credit.append('Pitch-accent data from ');
+    credit.append("Pitch-accent data from ");
 
-    const link = document.createElement('a');
+    const link = document.createElement("a");
     link.href = OJAD_BASE_URL;
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-    link.textContent = 'OJAD (Online Japanese Accent Dictionary)';
-    credit.append(link, '.');
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = "OJAD (Online Japanese Accent Dictionary)";
+    credit.append(link, ".");
 
     return credit;
   }
 
   function createPitchContent(variants, error = null) {
-    const visual = document.createElement('div');
-    const details = document.createElement('div');
+    const visual = document.createElement("div");
+    const details = document.createElement("div");
     visual.id = CONTENT_ID;
-    visual.className = 'wk-pitch-accent wk-pitch-accent-visual';
-    details.className = 'wk-pitch-accent wk-pitch-accent-details';
+    visual.className = "wk-pitch-accent wk-pitch-accent-visual";
+    details.className = "wk-pitch-accent wk-pitch-accent-details";
 
     if (error) {
       visual.hidden = true;
-      const message = document.createElement('p');
-      message.className = 'wk-pitch-accent-status';
+      const message = document.createElement("p");
+      message.className = "wk-pitch-accent-status";
       message.textContent = error;
       details.appendChild(message);
     } else {
@@ -419,16 +481,16 @@
       variants.forEach((variant, _index) => {
         let charts = chartsByReading.get(variant.reading);
         if (!charts) {
-          charts = document.createElement('span');
-          charts.className = 'wk-pitch-accent wk-pitch-accent-charts';
+          charts = document.createElement("span");
+          charts.className = "wk-pitch-accent wk-pitch-accent-charts";
           charts.dataset.reading = variant.reading;
           chartsByReading.set(variant.reading, charts);
           visual.appendChild(charts);
         }
 
         const variantClass = `wk-pitch-accent-variant-${PATTERN_VARIANT[getPatternName(variant.moras)] || 1}`;
-        const figure = document.createElement('figure');
-        const caption = document.createElement('figcaption');
+        const figure = document.createElement("figure");
+        const caption = document.createElement("figcaption");
 
         figure.className = variantClass;
         caption.textContent = getPatternName(variant.moras);
@@ -437,14 +499,18 @@
       });
     }
 
-    if (!error) {details.appendChild(createCredit());}
+    if (!error) {
+      details.appendChild(createCredit());
+    }
     return { visual, details, replacesReading: !error };
   }
 
   function injectStyles() {
-    if (document.getElementById(STYLE_ID)) {return;}
+    if (document.getElementById(STYLE_ID)) {
+      return;
+    }
 
-    const style = document.createElement('style');
+    const style = document.createElement("style");
     style.id = STYLE_ID;
     style.textContent = `
       .wk-pitch-accent-visual {
@@ -545,36 +611,36 @@
 
   function findReadingRow(readingContent) {
     return (
-      readingContent.querySelector('.subject-readings-with-audio') ||
-      readingContent.querySelector('.reading-with-audio') ||
-      readingContent.querySelector('.subject-section__subsection--reading')
+      readingContent.querySelector(".subject-readings-with-audio") ||
+      readingContent.querySelector(".reading-with-audio") ||
+      readingContent.querySelector(".subject-section__subsection--reading")
     );
   }
 
   function findReadingContainers(readingRow) {
-    const audioRows = readingRow.matches('.reading-with-audio')
+    const audioRows = readingRow.matches(".reading-with-audio")
       ? [readingRow]
-      : [...readingRow.querySelectorAll('.reading-with-audio')];
+      : [...readingRow.querySelectorAll(".reading-with-audio")];
     return audioRows.length ? audioRows : [readingRow];
   }
 
   function getContainerReading(container) {
     const reading = container.querySelector(
-      '.reading-with-audio__reading, [data-reading]'
+      ".reading-with-audio__reading, [data-reading]",
     );
     return normalizeJapanese(
-      reading?.getAttribute('data-reading') ||
-      reading?.textContent ||
-      container.dataset.reading ||
-      container.textContent
+      reading?.getAttribute("data-reading") ||
+        reading?.textContent ||
+        container.dataset.reading ||
+        container.textContent,
     );
   }
 
   function findReadingTarget(container) {
     return (
-      container.querySelector('.reading-with-audio__reading, [data-reading]') ||
+      container.querySelector(".reading-with-audio__reading, [data-reading]") ||
       [...container.childNodes].find(
-        node => node.nodeType === Node.TEXT_NODE && node.textContent.trim()
+        (node) => node.nodeType === Node.TEXT_NODE && node.textContent.trim(),
       )
     );
   }
@@ -582,22 +648,32 @@
   function insertPitchAroundReading(readingContent, content) {
     const readingRow = findReadingRow(readingContent);
 
-    if (!readingRow) {return false;}
+    if (!readingRow) {
+      return false;
+    }
 
     if (content.replacesReading) {
-      const charts = [...content.visual.querySelectorAll('.wk-pitch-accent-charts')];
+      const charts = [
+        ...content.visual.querySelectorAll(".wk-pitch-accent-charts"),
+      ];
       const usedCharts = new Set();
       let replacedReading = false;
 
-      findReadingContainers(readingRow).forEach(container => {
+      findReadingContainers(readingRow).forEach((container) => {
         const reading = getContainerReading(container);
-        const matchingCharts = charts.filter(chart => chart.dataset.reading === reading);
-        if (!matchingCharts.length) {return;}
+        const matchingCharts = charts.filter(
+          (chart) => chart.dataset.reading === reading,
+        );
+        if (!matchingCharts.length) {
+          return;
+        }
 
         const originalReading = findReadingTarget(container);
-        if (!originalReading) {return;}
+        if (!originalReading) {
+          return;
+        }
 
-        const replacementCharts = matchingCharts.map(chart => {
+        const replacementCharts = matchingCharts.map((chart) => {
           const replacement = usedCharts.has(chart)
             ? chart.cloneNode(true)
             : chart;
@@ -611,7 +687,7 @@
       });
 
       if (replacedReading) {
-        content.visual.removeAttribute('id');
+        content.visual.removeAttribute("id");
         content.details.id = CONTENT_ID;
       } else {
         readingRow.before(content.visual);
@@ -625,39 +701,45 @@
   }
 
   function restorePitchContent(root) {
-    root?.querySelectorAll('.wk-pitch-accent-charts').forEach(charts => {
+    root?.querySelectorAll(".wk-pitch-accent-charts").forEach((charts) => {
       const originalNodes = charts[ORIGINAL_READING_NODES];
-      if (originalNodes) {charts.replaceWith(...originalNodes);}
-      else {charts.remove();}
+      if (originalNodes) {
+        charts.replaceWith(...originalNodes);
+      } else {
+        charts.remove();
+      }
     });
-    root?.querySelectorAll('.wk-pitch-accent-visual, .wk-pitch-accent-details')
-      .forEach(element => {
+    root
+      ?.querySelectorAll(".wk-pitch-accent-visual, .wk-pitch-accent-details")
+      .forEach((element) => {
         element.remove();
       });
   }
 
   function getSubjectReadingContent() {
     return document.querySelector(
-      '.subject-section--reading > .subject-section__content'
+      ".subject-section--reading > .subject-section__content",
     );
   }
 
   function insertSubjectReading(content) {
     const readingContent = getSubjectReadingContent();
-    if (!readingContent) {return false;}
+    if (!readingContent) {
+      return false;
+    }
 
     insertPitchAroundReading(readingContent, content);
     return true;
   }
 
   function getLessonReadingContent() {
-    const readingSlide = document.querySelector('#reading.subject-slide');
+    const readingSlide = document.querySelector("#reading.subject-slide");
     return (
       readingSlide?.querySelector(
-        '.subject-section[title="Reading"] > .subject-section__content'
+        '.subject-section[title="Reading"] > .subject-section__content',
       ) ||
-      readingSlide?.querySelector('.subject-section__content') ||
-      readingSlide?.querySelector('.subject-slide__sections')
+      readingSlide?.querySelector(".subject-section__content") ||
+      readingSlide?.querySelector(".subject-slide__sections")
     );
   }
 
@@ -669,21 +751,25 @@
   function insertLessonReading(content) {
     const readingContent = getLessonReadingContent();
 
-    if (!readingContent) {return false;}
+    if (!readingContent) {
+      return false;
+    }
 
     insertPitchAroundReading(readingContent, content);
     return true;
   }
 
   async function runQuiz() {
-    if (!isQuizPage()) {return;}
+    if (!isQuizPage()) {
+      return;
+    }
 
     const subject = getQuizVocabulary();
-    const input = document.querySelector('.quiz-input__input-container');
+    const input = document.querySelector(".quiz-input__input-container");
     const frame = document.querySelector(
-      'turbo-frame#subject-info, turbo-frame.subject-info'
+      "turbo-frame#subject-info, turbo-frame.subject-info",
     );
-    const revealed = Boolean(subject && input?.hasAttribute('correct'));
+    const revealed = Boolean(subject && input?.hasAttribute("correct"));
 
     if (!revealed) {
       console.debug(`[${NAME}] Quiz not revealed yet, restoring`);
@@ -692,7 +778,7 @@
     }
 
     const readingContent = frame?.querySelector(
-      '.subject-section--reading > .subject-section__content'
+      ".subject-section--reading > .subject-section__content",
     );
     if (
       !readingContent ||
@@ -702,9 +788,11 @@
     ) {
       console.debug(`[${NAME}] Quiz not ready for insertion:`, {
         hasReadingContent: Boolean(readingContent),
-        hasReadingRow: Boolean(readingContent && findReadingRow(readingContent)),
+        hasReadingRow: Boolean(
+          readingContent && findReadingRow(readingContent),
+        ),
         hasContent: Boolean(document.getElementById(CONTENT_ID)),
-        isRunning
+        isRunning,
       });
       return;
     }
@@ -714,8 +802,8 @@
       const content = await loadPitchContent(subject);
       const currentSubject = getQuizVocabulary();
       const stillRevealed = document
-        .querySelector('.quiz-input__input-container')
-        ?.hasAttribute('correct');
+        .querySelector(".quiz-input__input-container")
+        ?.hasAttribute("correct");
 
       if (
         !stillRevealed ||
@@ -725,9 +813,10 @@
       ) {
         console.debug(`[${NAME}] Quiz state changed during fetch, aborting:`, {
           stillRevealed,
-          subjectChanged: vocabularyKey(currentSubject) !== vocabularyKey(subject),
+          subjectChanged:
+            vocabularyKey(currentSubject) !== vocabularyKey(subject),
           readingConnected: readingContent.isConnected,
-          hasContent: Boolean(document.getElementById(CONTENT_ID))
+          hasContent: Boolean(document.getElementById(CONTENT_ID)),
         });
         return;
       }
@@ -751,11 +840,14 @@
       const variants = parseOjadResults(html, subject);
       return createPitchContent(
         variants,
-        variants.length ? null : 'No exact OJAD pitch accent found.'
+        variants.length ? null : "No exact OJAD pitch accent found.",
       );
     } catch (error) {
       console.debug(`[${NAME}] Could not fetch OJAD:`, error);
-      return createPitchContent([], 'OJAD pitch accent is currently unavailable.');
+      return createPitchContent(
+        [],
+        "OJAD pitch accent is currently unavailable.",
+      );
     }
   }
 
@@ -765,15 +857,19 @@
       return;
     }
 
-    if (isRunning || document.getElementById(CONTENT_ID)) {return;}
+    if (isRunning || document.getElementById(CONTENT_ID)) {
+      return;
+    }
 
     const isLesson = isVocabularyLessonPage();
-    const subject = isLesson ? getLessonVocabulary() : getSubjectPageVocabulary();
+    const subject = isLesson
+      ? getLessonVocabulary()
+      : getSubjectPageVocabulary();
     const pageIsReady = isLesson
       ? lessonPageIsReady()
       : Boolean(
           getSubjectReadingContent() &&
-          findReadingRow(getSubjectReadingContent())
+          findReadingRow(getSubjectReadingContent()),
         );
 
     if (!subject) {
@@ -804,8 +900,11 @@
         return;
       }
       injectStyles();
-      if (isLesson) {insertLessonReading(content);}
-      else {insertSubjectReading(content);}
+      if (isLesson) {
+        insertLessonReading(content);
+      } else {
+        insertSubjectReading(content);
+      }
       console.debug(`[${NAME}] Inserted successfully`);
     } finally {
       isRunning = false;
@@ -814,10 +913,10 @@
   }
 
   function installNavigationWatcher() {
-    document.addEventListener('turbo:load', run);
-    document.addEventListener('turbo:render', run);
-    document.addEventListener('turbo:frame-load', run);
-    window.addEventListener('popstate', () => setTimeout(run, 0));
+    document.addEventListener("turbo:load", run);
+    document.addEventListener("turbo:render", run);
+    document.addEventListener("turbo:frame-load", run);
+    window.addEventListener("popstate", () => setTimeout(run, 0));
 
     const originalPushState = history.pushState;
     const originalReplaceState = history.replaceState;
@@ -837,9 +936,9 @@
     const observer = new MutationObserver(run);
     observer.observe(document.documentElement, {
       attributes: true,
-      attributeFilter: ['correct'],
+      attributeFilter: ["correct"],
       childList: true,
-      subtree: true
+      subtree: true,
     });
   }
 

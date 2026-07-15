@@ -15,13 +15,13 @@
 // ==/UserScript==
 
 (async function () {
-  'use strict';
+  "use strict";
 
-  const SECTION_ID = 'stroke-order';
-  const CONTENT_ID = 'wk-kanjivg-stroke-order';
-  const STYLE_ID = 'wk-kanjivg-style';
-  const RADICAL_COLOR = '#c586d7';
-  const GROUP_COLOR = '#86a8d7';
+  const SECTION_ID = "stroke-order";
+  const CONTENT_ID = "wk-kanjivg-stroke-order";
+  const STYLE_ID = "wk-kanjivg-style";
+  const RADICAL_COLOR = "#c586d7";
+  const GROUP_COLOR = "#86a8d7";
 
   let isPageRunning = false;
   let isQuizRunning = false;
@@ -44,7 +44,9 @@
   function isKanjiLessonPage() {
     return (
       isSubjectLessonPage() &&
-      Boolean(document.querySelector('.character-header.character-header--kanji'))
+      Boolean(
+        document.querySelector(".character-header.character-header--kanji"),
+      )
     );
   }
 
@@ -55,95 +57,112 @@
   function getKanji() {
     if (isKanjiLessonPage()) {
       const characters = document.querySelector(
-        '.character-header--kanji .character-header__characters'
+        ".character-header--kanji .character-header__characters",
       );
 
-      return Array.from(characters?.textContent.trim() || '')[0] || null;
+      return Array.from(characters?.textContent.trim() || "")[0] || null;
     }
 
-    if (!isKanjiSubjectPage()) {return null;}
+    if (!isKanjiSubjectPage()) {
+      return null;
+    }
 
-    const slug = decodeURIComponent(location.pathname.split('/').filter(Boolean).pop() || '');
+    const slug = decodeURIComponent(
+      location.pathname.split("/").filter(Boolean).pop() || "",
+    );
     return Array.from(slug)[0] || null;
   }
 
   function getQuizController() {
     const pageWindow =
-      typeof unsafeWindow === 'undefined' ? window : unsafeWindow;
+      typeof unsafeWindow === "undefined" ? window : unsafeWindow;
     const stimulus = pageWindow.Stimulus || window.Stimulus;
     const quizInput =
-      pageWindow.document?.querySelector('.quiz-input') ||
-      document.querySelector('.quiz-input');
+      pageWindow.document?.querySelector(".quiz-input") ||
+      document.querySelector(".quiz-input");
 
     return stimulus?.getControllerForElementAndIdentifier?.(
       quizInput,
-      'quiz-input'
+      "quiz-input",
     );
   }
 
   function getQuizKanjiSubject() {
     const subject = getQuizController()?.currentSubject;
-    if (!subject) {return null;}
+    if (!subject) {
+      return null;
+    }
 
     const type = String(
-      subject.object || subject.type || subject.subject_category || ''
+      subject.object || subject.type || subject.subject_category || "",
     )
       .toLowerCase()
-      .replace(/[_-]/g, '');
+      .replace(/[_-]/g, "");
 
-    if (type !== 'kanji') {return null;}
+    if (type !== "kanji") {
+      return null;
+    }
 
-    const kanji = Array.from((subject.characters || '').trim())[0] || null;
-    if (!kanji) {return null;}
+    const kanji = Array.from((subject.characters || "").trim())[0] || null;
+    if (!kanji) {
+      return null;
+    }
 
     return {
       kanji,
-      key: `${subject.id ?? kanji}:${kanji}`
+      key: `${subject.id ?? kanji}:${kanji}`,
     };
   }
 
   function kanjiToKanjiVGFilename(kanji) {
-    return `${kanji.codePointAt(0).toString(16).padStart(5, '0')}.svg`;
+    return `${kanji.codePointAt(0).toString(16).padStart(5, "0")}.svg`;
   }
 
   function randomKanjiVGViewerColor() {
-    let color = '#';
+    let color = "#";
     for (let i = 0; i < 3; i++) {
-      color += Math.floor(Math.random() * 12).toString(16).toUpperCase();
+      color += Math.floor(Math.random() * 12)
+        .toString(16)
+        .toUpperCase();
     }
     return color;
   }
 
   function findHeading(text) {
-    return [...document.querySelectorAll('h2, h3')].find(h =>
-      h.textContent.trim().toLowerCase().includes(text.toLowerCase())
+    return [...document.querySelectorAll("h2, h3")].find((h) =>
+      h.textContent.trim().toLowerCase().includes(text.toLowerCase()),
     );
   }
 
   function findGoToLink(text) {
-    return [...document.querySelectorAll('a')].find(a =>
-      a.textContent.trim() === text
+    return [...document.querySelectorAll("a")].find(
+      (a) => a.textContent.trim() === text,
     );
   }
 
   function fetchText(url) {
     return new Promise((resolve, reject) => {
       GM.xmlHttpRequest({
-        method: 'GET',
+        method: "GET",
         url,
-        onload: res => {
-          if (res.status >= 200 && res.status < 300) {resolve(res.responseText);}
-          else {reject(new Error(`HTTP ${res.status}`));}
+        onload: (res) => {
+          if (res.status >= 200 && res.status < 300) {
+            resolve(res.responseText);
+          } else {
+            reject(new Error(`HTTP ${res.status}`));
+          }
         },
-        onerror: reject
+        onerror: reject,
       });
     });
   }
 
   function injectStyles() {
-    if (document.getElementById(STYLE_ID)) {return;}
+    if (document.getElementById(STYLE_ID)) {
+      return;
+    }
 
-    const style = document.createElement('style');
+    const style = document.createElement("style");
     style.id = STYLE_ID;
     style.textContent = `
       #${CONTENT_ID} {
@@ -274,28 +293,32 @@
   }
 
   function prepareSvg(svg, kanji) {
-    svg.removeAttribute('width');
-    svg.removeAttribute('height');
-    svg.classList.add('wk-kanjivg-main');
-    svg.setAttribute('aria-label', `${kanji} stroke order`);
+    svg.removeAttribute("width");
+    svg.removeAttribute("height");
+    svg.classList.add("wk-kanjivg-main");
+    svg.setAttribute("aria-label", `${kanji} stroke order`);
   }
 
   function sanitizeSvg(svg) {
-    svg.querySelectorAll('script, foreignObject').forEach(element => {
+    svg.querySelectorAll("script, foreignObject").forEach((element) => {
       element.remove();
     });
 
-    [svg, ...svg.querySelectorAll('*')].forEach(element => {
-      [...element.attributes].forEach(attribute => {
+    [svg, ...svg.querySelectorAll("*")].forEach((element) => {
+      [...element.attributes].forEach((attribute) => {
         const name = attribute.name.toLowerCase();
         const value = attribute.value.trim().toLowerCase();
 
-        if (name.startsWith('on')) {
+        if (name.startsWith("on")) {
           element.removeAttribute(attribute.name);
           return;
         }
 
-        if ((name === 'href' || name === 'xlink:href') && value && !value.startsWith('#')) {
+        if (
+          (name === "href" || name === "xlink:href") &&
+          value &&
+          !value.startsWith("#")
+        ) {
           element.removeAttribute(attribute.name);
         }
       });
@@ -303,12 +326,12 @@
   }
 
   function animateSvg(svg) {
-    const paths = [...svg.querySelectorAll('path')];
-    const texts = [...svg.querySelectorAll('text')];
+    const paths = [...svg.querySelectorAll("path")];
+    const texts = [...svg.querySelectorAll("text")];
 
-    texts.forEach(text => {
-      text.style.opacity = '0';
-      text.style.animation = 'none';
+    texts.forEach((text) => {
+      text.style.opacity = "0";
+      text.style.animation = "none";
     });
 
     paths.forEach((path, index) => {
@@ -319,13 +342,13 @@
       path.style.stroke = color;
       path.style.strokeDasharray = String(length);
       path.style.strokeDashoffset = String(length);
-      path.style.animation = 'wkKanjiVGDraw 0.7s ease forwards';
+      path.style.animation = "wkKanjiVGDraw 0.7s ease forwards";
       path.style.animationDelay = delay;
 
       if (texts[index]) {
         texts[index].style.fill = color;
-        texts[index].style.opacity = '0';
-        texts[index].style.animation = 'wkKanjiVGFadeIn 0.15s ease forwards';
+        texts[index].style.opacity = "0";
+        texts[index].style.animation = "wkKanjiVGFadeIn 0.15s ease forwards";
         texts[index].style.animationDelay = delay;
       }
     });
@@ -333,83 +356,88 @@
 
   function getGroupLabel(group) {
     return (
-      group.getAttribute('kvg:element') ||
-      group.getAttribute('kvg:original') ||
+      group.getAttribute("kvg:element") ||
+      group.getAttribute("kvg:original") ||
       group.id ||
-      'Group'
+      "Group"
     );
   }
 
   function createHighlightedCopy(svg, matchingGroupIds, highlightColor, label) {
     const copy = svg.cloneNode(true);
-    copy.classList.remove('wk-kanjivg-main');
-    copy.setAttribute('aria-label', label);
+    copy.classList.remove("wk-kanjivg-main");
+    copy.setAttribute("aria-label", label);
 
-    [...copy.querySelectorAll('text')].forEach(text => {
-      text.style.display = 'none';
+    [...copy.querySelectorAll("text")].forEach((text) => {
+      text.style.display = "none";
     });
 
-    [...copy.querySelectorAll('path')].forEach(path => {
-      path.style.stroke = '#ddd';
-      path.style.strokeWidth = '2';
-      path.style.opacity = '0.35';
-      path.style.animation = 'none';
-      path.style.strokeDasharray = 'none';
-      path.style.strokeDashoffset = '0';
+    [...copy.querySelectorAll("path")].forEach((path) => {
+      path.style.stroke = "#ddd";
+      path.style.strokeWidth = "2";
+      path.style.opacity = "0.35";
+      path.style.animation = "none";
+      path.style.strokeDasharray = "none";
+      path.style.strokeDashoffset = "0";
     });
 
-    matchingGroupIds.forEach(groupId => {
+    matchingGroupIds.forEach((groupId) => {
       const group = copy.getElementById(groupId);
-      if (!group) {return;}
+      if (!group) {
+        return;
+      }
 
-      [...group.querySelectorAll('path')].forEach(path => {
+      [...group.querySelectorAll("path")].forEach((path) => {
         path.style.stroke = highlightColor;
-        path.style.strokeWidth = '4';
-        path.style.opacity = '1';
+        path.style.strokeWidth = "4";
+        path.style.opacity = "1";
       });
     });
 
-    [...copy.querySelectorAll('[id]')].forEach(element => {
-      element.removeAttribute('id');
+    [...copy.querySelectorAll("[id]")].forEach((element) => {
+      element.removeAttribute("id");
     });
 
     return copy;
   }
 
   function collectRadicals(svg) {
-    return [...svg.querySelectorAll('g')]
-      .filter(group => group.getAttribute('kvg:radical') && group.id)
-      .map(group => {
-        const radicalType = group.getAttribute('kvg:radical');
+    return [...svg.querySelectorAll("g")]
+      .filter((group) => group.getAttribute("kvg:radical") && group.id)
+      .map((group) => {
+        const radicalType = group.getAttribute("kvg:radical");
         return {
           id: group.id,
           label:
-            radicalType === 'general' || radicalType === 'tradit'
-              ? 'Radical'
-              : `${radicalType} radical`
+            radicalType === "general" || radicalType === "tradit"
+              ? "Radical"
+              : `${radicalType} radical`,
         };
       });
   }
 
   function collectComponentGroups(svg) {
-    return [...svg.querySelectorAll('g')]
-      .filter(group =>
-        group.getAttribute('kvg:element') &&
-        group.id &&
-        group.querySelectorAll('path').length
+    return [...svg.querySelectorAll("g")]
+      .filter(
+        (group) =>
+          group.getAttribute("kvg:element") &&
+          group.id &&
+          group.querySelectorAll("path").length,
       )
-      .map(group => ({
+      .map((group) => ({
         id: group.id,
-        label: getGroupLabel(group)
+        label: getGroupLabel(group),
       }));
   }
 
   function createFigure(svg, groupIds, color, captionText, className) {
-    const figure = document.createElement('figure');
-    const caption = document.createElement('figcaption');
+    const figure = document.createElement("figure");
+    const caption = document.createElement("figcaption");
     const copy = createHighlightedCopy(svg, groupIds, color, captionText);
 
-    if (className) {figure.className = className;}
+    if (className) {
+      figure.className = className;
+    }
 
     caption.textContent = captionText;
     figure.append(copy, caption);
@@ -418,10 +446,10 @@
   }
 
   function createCheckbox(labelText, checked) {
-    const label = document.createElement('label');
-    const checkbox = document.createElement('input');
+    const label = document.createElement("label");
+    const checkbox = document.createElement("input");
 
-    checkbox.type = 'checkbox';
+    checkbox.type = "checkbox";
     checkbox.checked = checked;
 
     label.append(checkbox, document.createTextNode(labelText));
@@ -430,75 +458,85 @@
   }
 
   function createSidePanel(svg) {
-    const side = document.createElement('div');
-    side.className = 'wk-kanjivg-side-column';
+    const side = document.createElement("div");
+    side.className = "wk-kanjivg-side-column";
 
-    const options = document.createElement('div');
-    options.className = 'wk-kanjivg-options';
+    const options = document.createElement("div");
+    options.className = "wk-kanjivg-options";
 
-    const figures = document.createElement('div');
-    figures.className = 'wk-kanjivg-figures';
+    const figures = document.createElement("div");
+    figures.className = "wk-kanjivg-figures";
 
     const radicals = collectRadicals(svg);
     const groups = collectComponentGroups(svg);
 
-    const radicalControl = createCheckbox('Show the radicals', true);
-    const groupControl = createCheckbox('Show the component groups', true);
+    const radicalControl = createCheckbox("Show the radicals", true);
+    const groupControl = createCheckbox("Show the component groups", true);
 
-    radicals.forEach(radical => {
+    radicals.forEach((radical) => {
       figures.appendChild(
         createFigure(
           svg,
           [radical.id],
           RADICAL_COLOR,
           radical.label,
-          'wk-kanjivg-radical-figure'
-        )
+          "wk-kanjivg-radical-figure",
+        ),
       );
     });
 
-    groups.forEach(group => {
+    groups.forEach((group) => {
       figures.appendChild(
         createFigure(
           svg,
           [group.id],
           GROUP_COLOR,
           group.label,
-          'wk-kanjivg-group-figure'
-        )
+          "wk-kanjivg-group-figure",
+        ),
       );
     });
 
-    if (radicals.length) {options.appendChild(radicalControl.label);}
-    if (groups.length) {options.appendChild(groupControl.label);}
+    if (radicals.length) {
+      options.appendChild(radicalControl.label);
+    }
+    if (groups.length) {
+      options.appendChild(groupControl.label);
+    }
 
-    radicalControl.checkbox.addEventListener('change', () => {
-      figures.querySelectorAll('.wk-kanjivg-radical-figure').forEach(figure => {
-        figure.hidden = !radicalControl.checkbox.checked;
-      });
+    radicalControl.checkbox.addEventListener("change", () => {
+      figures
+        .querySelectorAll(".wk-kanjivg-radical-figure")
+        .forEach((figure) => {
+          figure.hidden = !radicalControl.checkbox.checked;
+        });
     });
 
-    groupControl.checkbox.addEventListener('change', () => {
-      figures.querySelectorAll('.wk-kanjivg-group-figure').forEach(figure => {
+    groupControl.checkbox.addEventListener("change", () => {
+      figures.querySelectorAll(".wk-kanjivg-group-figure").forEach((figure) => {
         figure.hidden = !groupControl.checkbox.checked;
       });
     });
 
-    if (options.children.length) {side.appendChild(options);}
-    if (figures.children.length) {side.appendChild(figures);}
+    if (options.children.length) {
+      side.appendChild(options);
+    }
+    if (figures.children.length) {
+      side.appendChild(figures);
+    }
 
     return side;
   }
 
   function copyNavTextStyle(navTemplate, control) {
     const sourceText =
-      navTemplate.querySelector('.wk-nav__item-text') ||
-      navTemplate.querySelector('span') ||
+      navTemplate.querySelector(".wk-nav__item-text") ||
+      navTemplate.querySelector("span") ||
       navTemplate;
 
     const targetText =
-      control.querySelector('.wk-nav__item-text') ||
-      control.querySelector('span') ||
+      control.querySelector(".wk-nav__item-text") ||
+      control.querySelector("span") ||
       control;
 
     const computed = getComputedStyle(sourceText);
@@ -512,42 +550,42 @@
   function createReplayControl(onClick) {
     const navTemplate =
       !isReviewPage() &&
-      (document.querySelector('a.wk-nav__item') ||
+      (document.querySelector("a.wk-nav__item") ||
         (!isKanjiLessonPage() &&
-          (findGoToLink('Meaning') || findGoToLink('Stroke Order'))));
+          (findGoToLink("Meaning") || findGoToLink("Stroke Order"))));
 
     let control;
 
     if (isReviewPage()) {
-      control = document.createElement('button');
-      control.type = 'button';
-      control.className = 'wk-kanjivg-replay';
-      control.textContent = 'Replay animation';
+      control = document.createElement("button");
+      control.type = "button";
+      control.className = "wk-kanjivg-replay";
+      control.textContent = "Replay animation";
     } else if (navTemplate) {
       control = navTemplate.cloneNode(true);
-      control.classList.add('wk-kanjivg-replay');
-      control.href = '#';
-      control.removeAttribute('aria-current');
+      control.classList.add("wk-kanjivg-replay");
+      control.href = "#";
+      control.removeAttribute("aria-current");
 
       const text =
-        control.querySelector('.wk-nav__item-text') ||
-        control.querySelector('span') ||
+        control.querySelector(".wk-nav__item-text") ||
+        control.querySelector("span") ||
         control;
 
-      text.textContent = 'Replay animation';
+      text.textContent = "Replay animation";
       copyNavTextStyle(navTemplate, control);
     } else {
-      control = document.createElement('a');
-      control.href = '#';
-      control.className = 'wk-kanjivg-replay wk-nav__item';
+      control = document.createElement("a");
+      control.href = "#";
+      control.className = "wk-kanjivg-replay wk-nav__item";
 
-      const text = document.createElement('span');
-      text.className = 'wk-nav__item-text';
-      text.textContent = 'Replay animation';
+      const text = document.createElement("span");
+      text.className = "wk-nav__item-text";
+      text.textContent = "Replay animation";
       control.appendChild(text);
     }
 
-    control.addEventListener('click', event => {
+    control.addEventListener("click", (event) => {
       event.preventDefault();
       onClick();
     });
@@ -556,32 +594,36 @@
   }
 
   function addGoToNavigationItem() {
-    if (document.querySelector(`a[href="#${SECTION_ID}"]`)) {return;}
+    if (document.querySelector(`a[href="#${SECTION_ID}"]`)) {
+      return;
+    }
 
-    const meaningLink = findGoToLink('Meaning');
-    if (!meaningLink) {return;}
+    const meaningLink = findGoToLink("Meaning");
+    if (!meaningLink) {
+      return;
+    }
 
     const newLink = meaningLink.cloneNode(true);
-    newLink.textContent = 'Stroke Order';
+    newLink.textContent = "Stroke Order";
     newLink.href = `#${SECTION_ID}`;
 
-    const meaningLi = meaningLink.closest('li');
+    const meaningLi = meaningLink.closest("li");
 
     if (meaningLi) {
       const newLi = meaningLi.cloneNode(false);
       newLi.appendChild(newLink);
-      meaningLi.insertAdjacentElement('beforebegin', newLi);
+      meaningLi.insertAdjacentElement("beforebegin", newLi);
     } else {
-      meaningLink.insertAdjacentElement('beforebegin', newLink);
+      meaningLink.insertAdjacentElement("beforebegin", newLink);
     }
   }
 
   function createStrokeOrderContent(svg, kanji) {
-    const content = document.createElement('div');
+    const content = document.createElement("div");
     content.id = CONTENT_ID;
 
-    const mainColumn = document.createElement('div');
-    mainColumn.className = 'wk-kanjivg-main-column';
+    const mainColumn = document.createElement("div");
+    mainColumn.className = "wk-kanjivg-main-column";
 
     prepareSvg(svg, kanji);
 
@@ -593,8 +635,8 @@
       animateSvg(svg);
     });
 
-    const credit = document.createElement('p');
-    credit.className = 'wk-kanjivg-credit';
+    const credit = document.createElement("p");
+    credit.className = "wk-kanjivg-credit";
     credit.innerHTML = `
       Stroke, radical, and component data from
       <a href="https://kanjivg.tagaini.net/"
@@ -610,18 +652,20 @@
   }
 
   function insertStrokeOrderSection(svg, kanji) {
-    const radicalHeading = findHeading('Radical Combination');
-    const meaningHeading = findHeading('Meaning');
+    const radicalHeading = findHeading("Radical Combination");
+    const meaningHeading = findHeading("Meaning");
 
-    if (!radicalHeading || !meaningHeading) {return false;}
+    if (!radicalHeading || !meaningHeading) {
+      return false;
+    }
 
     const strokeHeading = radicalHeading.cloneNode(false);
     strokeHeading.id = SECTION_ID;
-    strokeHeading.textContent = 'Stroke Order';
+    strokeHeading.textContent = "Stroke Order";
     const content = createStrokeOrderContent(svg, kanji);
 
-    meaningHeading.insertAdjacentElement('beforebegin', content);
-    content.insertAdjacentElement('beforebegin', strokeHeading);
+    meaningHeading.insertAdjacentElement("beforebegin", content);
+    content.insertAdjacentElement("beforebegin", strokeHeading);
 
     animateSvg(svg);
 
@@ -630,21 +674,23 @@
 
   function insertStrokeOrderLessonTab(svg, kanji) {
     const radicalLink = document.querySelector(
-      '.subject-slides__navigation-link[href="#composition"]'
+      '.subject-slides__navigation-link[href="#composition"]',
     );
     const meaningLink = document.querySelector(
-      '.subject-slides__navigation-link[href="#meaning"]'
+      '.subject-slides__navigation-link[href="#meaning"]',
     );
-    const compositionSlide = document.querySelector('#composition.subject-slide');
-    const meaningSlide = document.querySelector('#meaning.subject-slide');
+    const compositionSlide = document.querySelector(
+      "#composition.subject-slide",
+    );
+    const meaningSlide = document.querySelector("#meaning.subject-slide");
     const radicalSection = compositionSlide?.querySelector(
-      '.subject-section[title="Radical Composition"]'
+      '.subject-section[title="Radical Composition"]',
     );
     const compositionNext = compositionSlide?.querySelector(
-      '.subject-slide__navigation[aria-label="next slide"]'
+      '.subject-slide__navigation[aria-label="next slide"]',
     );
     const meaningPrevious = meaningSlide?.querySelector(
-      '.subject-slide__navigation[aria-label="previous slide"]'
+      '.subject-slide__navigation[aria-label="previous slide"]',
     );
 
     if (
@@ -659,34 +705,35 @@
       return false;
     }
 
-    const navigationItem = radicalLink.closest('li').cloneNode(true);
-    const strokeLink = navigationItem.querySelector('a');
+    const navigationItem = radicalLink.closest("li").cloneNode(true);
+    const strokeLink = navigationItem.querySelector("a");
 
     strokeLink.href = `#${SECTION_ID}`;
-    strokeLink.setAttribute('aria-controls', SECTION_ID);
-    strokeLink.setAttribute('aria-selected', 'false');
-    strokeLink.textContent = 'Stroke Order';
-    radicalLink.closest('li').insertAdjacentElement('afterend', navigationItem);
+    strokeLink.setAttribute("aria-controls", SECTION_ID);
+    strokeLink.setAttribute("aria-selected", "false");
+    strokeLink.textContent = "Stroke Order";
+    radicalLink.closest("li").insertAdjacentElement("afterend", navigationItem);
 
     const strokeSlide = compositionSlide.cloneNode(false);
     const previousNavigation = meaningPrevious.cloneNode(true);
     const nextNavigation = compositionNext.cloneNode(true);
-    const slideContent = document.createElement('div');
-    const slideSections = document.createElement('div');
-    const section = document.createElement('section');
-    const sectionHeading = radicalSection.querySelector('h2').cloneNode(true);
-    const sectionContent = document.createElement('section');
+    const slideContent = document.createElement("div");
+    const slideSections = document.createElement("div");
+    const section = document.createElement("section");
+    const sectionHeading = radicalSection.querySelector("h2").cloneNode(true);
+    const sectionContent = document.createElement("section");
 
     strokeSlide.id = SECTION_ID;
     strokeSlide.hidden = true;
-    previousNavigation.href = '#composition';
-    nextNavigation.href = '#meaning';
-    slideContent.className = 'subject-slide__content';
-    slideSections.className = 'subject-slide__sections';
-    section.className = 'subject-section';
-    section.title = 'Stroke Order';
-    sectionHeading.querySelector('.subject-section__title-text').textContent = 'Stroke Order';
-    sectionContent.className = 'subject-section__content';
+    previousNavigation.href = "#composition";
+    nextNavigation.href = "#meaning";
+    slideContent.className = "subject-slide__content";
+    slideSections.className = "subject-slide__sections";
+    section.className = "subject-section";
+    section.title = "Stroke Order";
+    sectionHeading.querySelector(".subject-section__title-text").textContent =
+      "Stroke Order";
+    sectionContent.className = "subject-section__content";
     sectionContent.appendChild(createStrokeOrderContent(svg, kanji));
     section.append(sectionHeading, sectionContent);
     slideSections.appendChild(section);
@@ -695,7 +742,7 @@
 
     compositionNext.href = `#${SECTION_ID}`;
     meaningPrevious.href = `#${SECTION_ID}`;
-    compositionSlide.insertAdjacentElement('afterend', strokeSlide);
+    compositionSlide.insertAdjacentElement("afterend", strokeSlide);
 
     animateSvg(svg);
 
@@ -704,18 +751,20 @@
 
   function getQuizMeaningSection() {
     const frame = document.querySelector(
-      'turbo-frame#subject-info, turbo-frame.subject-info'
+      "turbo-frame#subject-info, turbo-frame.subject-info",
     );
 
     return (
-      frame?.querySelector('.subject-section--meaning') ||
+      frame?.querySelector(".subject-section--meaning") ||
       frame?.querySelector('.subject-section[title="Meaning"]') ||
-      [...(frame?.querySelectorAll('.subject-section') || [])].find(section =>
+      [...(frame?.querySelectorAll(".subject-section") || [])].find((section) =>
         section
-          .querySelector('.subject-section__title-text, .subject-section__title, h2')
+          .querySelector(
+            ".subject-section__title-text, .subject-section__title, h2",
+          )
           ?.textContent.trim()
           .toLowerCase()
-          .includes('meaning')
+          .includes("meaning"),
       ) ||
       null
     );
@@ -723,28 +772,34 @@
 
   function insertStrokeOrderQuizSection(svg, subject) {
     const meaningSection = getQuizMeaningSection();
-    if (!meaningSection) {return false;}
+    if (!meaningSection) {
+      return false;
+    }
 
     const section = meaningSection.cloneNode(false);
     const sourceHeading = meaningSection.querySelector(
-      '.subject-section__title, h2'
+      ".subject-section__title, h2",
     );
     const sourceContent = meaningSection.querySelector(
-      '.subject-section__content'
+      ".subject-section__content",
     );
-    const heading = sourceHeading?.cloneNode(true) || document.createElement('h2');
-    const content = sourceContent?.cloneNode(false) || document.createElement('section');
+    const heading =
+      sourceHeading?.cloneNode(true) || document.createElement("h2");
+    const content =
+      sourceContent?.cloneNode(false) || document.createElement("section");
     const headingText =
-      heading.querySelector('.subject-section__title-text') || heading;
+      heading.querySelector(".subject-section__title-text") || heading;
 
-    section.removeAttribute('id');
-    section.classList.remove('subject-section--meaning');
-    section.classList.add('subject-section--stroke-order');
-    section.title = 'Stroke Order';
-    heading.querySelectorAll('[id]').forEach(element => element.removeAttribute('id'));
-    heading.removeAttribute('id');
-    headingText.textContent = 'Stroke Order';
-    content.classList.add('subject-section__content');
+    section.removeAttribute("id");
+    section.classList.remove("subject-section--meaning");
+    section.classList.add("subject-section--stroke-order");
+    section.title = "Stroke Order";
+    heading
+      .querySelectorAll("[id]")
+      .forEach((element) => element.removeAttribute("id"));
+    heading.removeAttribute("id");
+    headingText.textContent = "Stroke Order";
+    content.classList.add("subject-section__content");
 
     const strokeOrder = createStrokeOrderContent(svg, subject.kanji);
     strokeOrder.dataset.quizSubjectKey = subject.key;
@@ -759,27 +814,33 @@
   function pageIsReady() {
     if (isKanjiLessonPage()) {
       return Boolean(
-        document.querySelector('.subject-slides__navigation-link[href="#composition"]') &&
-        document.querySelector('.subject-slides__navigation-link[href="#meaning"]') &&
         document.querySelector(
-          '#composition.subject-slide .subject-section[title="Radical Composition"]'
+          '.subject-slides__navigation-link[href="#composition"]',
         ) &&
         document.querySelector(
-          '#composition.subject-slide .subject-slide__navigation[aria-label="next slide"]'
+          '.subject-slides__navigation-link[href="#meaning"]',
         ) &&
         document.querySelector(
-          '#meaning.subject-slide .subject-slide__navigation[aria-label="previous slide"]'
-        )
+          '#composition.subject-slide .subject-section[title="Radical Composition"]',
+        ) &&
+        document.querySelector(
+          '#composition.subject-slide .subject-slide__navigation[aria-label="next slide"]',
+        ) &&
+        document.querySelector(
+          '#meaning.subject-slide .subject-slide__navigation[aria-label="previous slide"]',
+        ),
       );
     }
 
-    return Boolean(findHeading('Radical Combination') && findHeading('Meaning'));
+    return Boolean(
+      findHeading("Radical Combination") && findHeading("Meaning"),
+    );
   }
 
   async function runQuiz() {
     const existingContent = document.getElementById(CONTENT_ID);
     const existingSection = existingContent?.closest(
-      '.subject-section--stroke-order'
+      ".subject-section--stroke-order",
     );
     const subject = getQuizKanjiSubject();
     const subjectKey = subject?.key || null;
@@ -792,8 +853,8 @@
     const revealed = Boolean(
       subject &&
       document
-        .querySelector('.quiz-input__input-container')
-        ?.hasAttribute('correct')
+        .querySelector(".quiz-input__input-container")
+        ?.hasAttribute("correct"),
     );
 
     if (!revealed) {
@@ -801,11 +862,19 @@
       return;
     }
 
-    if (existingContent?.dataset.quizSubjectKey === subject.key) {return;}
+    if (existingContent?.dataset.quizSubjectKey === subject.key) {
+      return;
+    }
     existingSection?.remove();
 
     const meaningSection = getQuizMeaningSection();
-    if (!meaningSection || isQuizRunning || failedQuizSubjectKey === subject.key) {return;}
+    if (
+      !meaningSection ||
+      isQuizRunning ||
+      failedQuizSubjectKey === subject.key
+    ) {
+      return;
+    }
 
     isQuizRunning = true;
     try {
@@ -817,14 +886,14 @@
         svgText = await fetchText(svgUrl);
       } catch (error) {
         failedQuizSubjectKey = subject.key;
-        console.warn('[KanjiVG] Could not fetch SVG:', error);
+        console.warn("[KanjiVG] Could not fetch SVG:", error);
         return;
       }
 
       const currentSubject = getQuizKanjiSubject();
       const stillRevealed = document
-        .querySelector('.quiz-input__input-container')
-        ?.hasAttribute('correct');
+        .querySelector(".quiz-input__input-container")
+        ?.hasAttribute("correct");
 
       if (
         !stillRevealed ||
@@ -835,11 +904,11 @@
         return;
       }
 
-      const doc = new DOMParser().parseFromString(svgText, 'image/svg+xml');
-      const svg = doc.querySelector('svg');
+      const doc = new DOMParser().parseFromString(svgText, "image/svg+xml");
+      const svg = doc.querySelector("svg");
       if (!svg) {
         failedQuizSubjectKey = subject.key;
-        console.warn('[KanjiVG] Response did not contain an SVG');
+        console.warn("[KanjiVG] Response did not contain an SVG");
         return;
       }
 
@@ -853,18 +922,30 @@
   }
 
   async function runPage() {
-    if (isPageRunning) {return;}
-    if (!isKanjiPage()) {return;}
-    if (document.getElementById(CONTENT_ID)) {return;}
-    if (processedPaths.has(location.pathname)) {return;}
+    if (isPageRunning) {
+      return;
+    }
+    if (!isKanjiPage()) {
+      return;
+    }
+    if (document.getElementById(CONTENT_ID)) {
+      return;
+    }
+    if (processedPaths.has(location.pathname)) {
+      return;
+    }
 
-    if (!pageIsReady()) {return;}
+    if (!pageIsReady()) {
+      return;
+    }
 
     isPageRunning = true;
 
     try {
       const kanji = getKanji();
-      if (!kanji) {return;}
+      if (!kanji) {
+        return;
+      }
 
       const pagePath = location.pathname;
 
@@ -878,7 +959,7 @@
       try {
         svgText = await fetchText(svgUrl);
       } catch (err) {
-        console.warn('[KanjiVG] Could not fetch SVG:', err);
+        console.warn("[KanjiVG] Could not fetch SVG:", err);
         return;
       }
 
@@ -890,10 +971,12 @@
         return;
       }
 
-      const doc = new DOMParser().parseFromString(svgText, 'image/svg+xml');
-      const svg = doc.querySelector('svg');
+      const doc = new DOMParser().parseFromString(svgText, "image/svg+xml");
+      const svg = doc.querySelector("svg");
 
-      if (!svg) {return;}
+      if (!svg) {
+        return;
+      }
 
       sanitizeSvg(svg);
       injectStyles();
@@ -929,22 +1012,27 @@
     let previousPath = location.pathname;
 
     const checkPath = () => {
-      if (location.pathname === previousPath) {return;}
+      if (location.pathname === previousPath) {
+        return;
+      }
 
       previousPath = location.pathname;
       processedPaths.clear();
       run();
     };
 
-    if (window.navigation && typeof window.navigation.addEventListener === 'function') {
-      window.navigation.addEventListener('navigate', () => {
+    if (
+      window.navigation &&
+      typeof window.navigation.addEventListener === "function"
+    ) {
+      window.navigation.addEventListener("navigate", () => {
         setTimeout(checkPath, 0);
       });
     }
 
-    document.addEventListener('turbo:load', run);
-    document.addEventListener('turbo:render', run);
-    document.addEventListener('turbo:frame-load', run);
+    document.addEventListener("turbo:load", run);
+    document.addEventListener("turbo:render", run);
+    document.addEventListener("turbo:frame-load", run);
 
     const originalPushState = history.pushState;
     const originalReplaceState = history.replaceState;
@@ -961,7 +1049,7 @@
       return result;
     };
 
-    window.addEventListener('popstate', () => {
+    window.addEventListener("popstate", () => {
       setTimeout(checkPath, 0);
     });
 
@@ -971,9 +1059,9 @@
 
     observer.observe(document.documentElement, {
       attributes: true,
-      attributeFilter: ['correct'],
+      attributeFilter: ["correct"],
       childList: true,
-      subtree: true
+      subtree: true,
     });
   }
 
