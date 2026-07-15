@@ -4,7 +4,15 @@ import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 
 async function loadUserscript(dom, filename, globals = {}) {
-  Object.assign(dom.window, globals);
+  Object.assign(dom.window, {
+    GM_info: {
+      script: {
+        name: "Test Script",
+        version: "0.0.0-test",
+      },
+    },
+    ...globals
+  });
 
   const source = await readFile(new URL(`../${filename}`, import.meta.url), 'utf8');
   dom.window.eval(source);

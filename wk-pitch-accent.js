@@ -28,6 +28,8 @@
     Odaka: 4
   };
   const ORIGINAL_READING_NODES = Symbol('originalReadingNodes');
+  const NAME = GM_info.script.name;
+  const VERSION = GM_info.script.version;
 
   const responseCache = new Map();
   let isRunning = false;
@@ -83,8 +85,11 @@
     return `${subject.characters}\n${[...subject.readings].sort().join('\n')}`;
   }
 
-  function getSubjectPageVocabulary() {
-    if (!isVocabularySubjectPage()) return null;
+  function getSubjectPageVocabulary(quiet) {
+    if (!isVocabularySubjectPage()) {
+      if (!quiet) console.debug(`[${NAME}] Not a vocabulary subject page`);
+      return null;
+    }
 
     const characters = normalizeJapanese(
       decodeURIComponent(location.pathname.split('/').filter(Boolean).pop() || '')
@@ -96,16 +101,25 @@
       header?.getAttribute('title')
     ]);
 
-    if (!characters) return null;
+    if (!characters) {
+      if (!quiet) console.debug(`[${NAME}] No characters found for subject page`);
+      return null;
+    }
 
+    if (!quiet) {
+      console.debug(`[${NAME}] Subject page vocabulary:`, { characters, readings });
+    }
     return {
       characters,
       readings
     };
   }
 
-  function getLessonVocabulary() {
-    if (!isVocabularyLessonPage()) return null;
+  function getLessonVocabulary(quiet) {
+    if (!isVocabularyLessonPage()) {
+      if (!quiet) console.debug(`[${NAME}] Not a vocabulary lesson page`);
+      return null;
+    }
 
     const header = document.querySelector(
       '.character-header--vocabulary, .character-header--kana-vocabulary'
@@ -117,7 +131,13 @@
       header?.getAttribute('title')
     ]);
 
-    if (!characters) return null;
+    if (!characters) {
+      if (!quiet) console.debug(`[${NAME}] No characters found for lesson page`);
+      return null;
+    }
+    if (!quiet) {
+      console.debug(`[${NAME}] Lesson vocabulary:`, { characters, readings });
+    }
     return { characters, readings };
   }
 
@@ -137,7 +157,10 @@
 
   function getQuizVocabulary() {
     const subject = getQuizController()?.currentSubject;
-    if (!subject) return null;
+    if (!subject) {
+      console.debug(`[${NAME}] No quiz controller/subject found`);
+      return null;
+    }
 
     const type = normalizeJapanese(
       subject.object || subject.type || subject.subject_category
@@ -145,7 +168,10 @@
       .toLowerCase()
       .replace(/[_-]/g, '');
 
-    if (type !== 'vocabulary' && type !== 'kanavocabulary') return null;
+    if (type !== 'vocabulary' && type !== 'kanavocabulary') {
+      console.debug(`[${NAME}] Quiz subject is not vocabulary:`, type);
+      return null;
+    }
 
     const characters = normalizeJapanese(subject.characters);
     const readings = (subject.readings || [])
@@ -160,7 +186,11 @@
       .map(reading => normalizeJapanese(reading.reading || reading.text))
       .filter(Boolean);
 
-    if (!characters) return null;
+    if (!characters) {
+      console.debug(`[${NAME}] No characters found for quiz subject`);
+      return null;
+    }
+    console.debug(`[${NAME}] Quiz vocabulary:`, { characters, readings });
     return {
       characters,
       readings: readings.length ? readings : [characters]
@@ -211,30 +241,47 @@
     const variants = [];
     const seen = new Set();
 
+    const rows = document.querySelectorAll('#word_table tbody tr');
+    console.debug(`[${NAME}] OJAD rows found:`, rows.length, 'for', subject.characters);
+
     document.querySelectorAll('#word_table tbody tr').forEach(row => {
       const headword = normalizeJapanese(
         row.querySelector('.midashi_word')?.textContent.split('・')[0]
       );
 
-      if (headword !== subject.characters) return;
+      if (headword !== subject.characters) {
+        console.debug(`[${NAME}] Skipping row, headword mismatch:`, headword, '!=', subject.characters);
+        return;
+      }
 
       row.querySelectorAll('.katsuyo_jisho_js .accented_word').forEach(word => {
         const moras = parseAccentWord(word);
-        if (!moras) return;
+        if (!moras) {
+          console.debug(`[${NAME}] Could not parse accent word`);
+          return;
+        }
 
         const reading = moras.map(mora => mora.text).join('');
-        if (acceptedReadings.size && !acceptedReadings.has(reading)) return;
+        if (acceptedReadings.size && !acceptedReadings.has(reading)) {
+          console.debug(`[${NAME}] Skipping reading not in accepted:`, reading, 'accepted:', [...acceptedReadings]);
+          return;
+        }
 
         const key = moras
           .map(mora => `${mora.text}:${mora.high ? 1 : 0}:${mora.drop ? 1 : 0}`)
           .join('|');
 
-        if (seen.has(key)) return;
+        if (seen.has(key)) {
+          console.debug(`[${NAME}] Skipping duplicate variant:`, key);
+          return;
+        }
         seen.add(key);
+        console.debug(`[${NAME}] Adding variant:`, reading, key);
         variants.push({ reading, moras });
       });
     });
 
+    console.debug(`[${NAME}] Total variants:`, variants.length);
     return variants;
   }
 
@@ -639,6 +686,7 @@
     const revealed = Boolean(subject && input?.hasAttribute('correct'));
 
     if (!revealed) {
+      console.debug(`[${NAME}] Quiz not revealed yet, restoring`);
       restorePitchContent(frame);
       return;
     }
@@ -652,6 +700,12 @@
       document.getElementById(CONTENT_ID) ||
       isRunning
     ) {
+      console.debug(`[${NAME}] Quiz not ready for insertion:`, {
+        hasReadingContent: Boolean(readingContent),
+        hasReadingRow: Boolean(readingContent && findReadingRow(readingContent)),
+        hasContent: Boolean(document.getElementById(CONTENT_ID)),
+        isRunning
+      });
       return;
     }
 
@@ -669,11 +723,18 @@
         !readingContent.isConnected ||
         document.getElementById(CONTENT_ID)
       ) {
+        console.debug(`[${NAME}] Quiz state changed during fetch, aborting:`, {
+          stillRevealed,
+          subjectChanged: vocabularyKey(currentSubject) !== vocabularyKey(subject),
+          readingConnected: readingContent.isConnected,
+          hasContent: Boolean(document.getElementById(CONTENT_ID))
+        });
         return;
       }
 
       injectStyles();
       insertPitchAroundReading(readingContent, content);
+      console.debug(`[${NAME}] Quiz inserted successfully`);
     } finally {
       isRunning = false;
       setTimeout(run, 0);
@@ -682,16 +743,18 @@
 
   async function loadPitchContent(subject) {
     const searchUrl = `${OJAD_BASE_URL}/search/index/word:${encodeURIComponent(subject.characters)}`;
+    console.debug(`[${NAME}] Fetching OJAD:`, searchUrl);
 
     try {
       const html = await fetchText(searchUrl);
+      console.debug(`[${NAME}] OJAD response length:`, html.length);
       const variants = parseOjadResults(html, subject);
       return createPitchContent(
         variants,
         variants.length ? null : 'No exact OJAD pitch accent found.'
       );
     } catch (error) {
-      console.warn('[WaniKani Pitch Accent] Could not fetch OJAD:', error);
+      console.debug(`[${NAME}] Could not fetch OJAD:`, error);
       return createPitchContent([], 'OJAD pitch accent is currently unavailable.');
     }
   }
@@ -713,20 +776,37 @@
           findReadingRow(getSubjectReadingContent())
         );
 
-    if (!subject || !pageIsReady) return;
+    if (!subject) {
+      console.debug(`[${NAME}] No subject detected, skipping`);
+      return;
+    }
+    if (!pageIsReady) {
+      console.debug(`[${NAME}] Page not ready yet, skipping`);
+      return;
+    }
 
     isRunning = true;
     try {
       const content = await loadPitchContent(subject);
-      if (document.getElementById(CONTENT_ID)) return;
-      if (isLesson ? !isVocabularyLessonPage() : !isVocabularySubjectPage()) return;
+      if (document.getElementById(CONTENT_ID)) {
+        console.debug(`[${NAME}] Content already present, aborting`);
+        return;
+      }
+      if (isLesson ? !isVocabularyLessonPage() : !isVocabularySubjectPage()) {
+        console.debug(`[${NAME}] Page changed during fetch, aborting`);
+        return;
+      }
       const currentSubject = isLesson
-        ? getLessonVocabulary()
-        : getSubjectPageVocabulary();
-      if (vocabularyKey(currentSubject) !== vocabularyKey(subject)) return;
+        ? getLessonVocabulary(true)
+        : getSubjectPageVocabulary(true);
+      if (vocabularyKey(currentSubject) !== vocabularyKey(subject)) {
+        console.debug(`[${NAME}] Subject changed during fetch, aborting`);
+        return;
+      }
       injectStyles();
       if (isLesson) insertLessonReading(content);
       else insertSubjectReading(content);
+      console.debug(`[${NAME}] Inserted successfully`);
     } finally {
       isRunning = false;
       setTimeout(run, 0);
@@ -763,6 +843,7 @@
     });
   }
 
+  console.debug(`[${NAME}] Script loaded, version ${VERSION}`);
   injectStyles();
   installNavigationWatcher();
   run();
