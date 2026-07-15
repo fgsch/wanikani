@@ -49,6 +49,57 @@ function createDom(html, url) {
   });
 }
 
+function resolveCustomProperty(dom, element, property) {
+  let value = dom.window
+    .getComputedStyle(element)
+    .getPropertyValue(property)
+    .trim();
+
+  while (value.startsWith("var(")) {
+    const referencedProperty = value.slice(4, -1).trim();
+    value = dom.window
+      .getComputedStyle(element)
+      .getPropertyValue(referencedProperty)
+      .trim();
+  }
+
+  return value;
+}
+
+function parseColor(value) {
+  const hex = value.match(/^#([0-9a-f]{6})$/i)?.[1];
+  if (hex) {
+    return [0, 2, 4].map((offset) =>
+      Number.parseInt(hex.slice(offset, offset + 2), 16),
+    );
+  }
+
+  return value.match(/\d+/g).slice(0, 3).map(Number);
+}
+
+function contrastRatio(firstColor, secondColor) {
+  const luminance = (color) =>
+    color
+      .map((channel) => channel / 255)
+      .map((channel) =>
+        channel <= 0.04045
+          ? channel / 12.92
+          : ((channel + 0.055) / 1.055) ** 2.4,
+      )
+      .reduce(
+        (total, channel, index) =>
+          total + channel * [0.2126, 0.7152, 0.0722][index],
+        0,
+      );
+  const firstLuminance = luminance(firstColor);
+  const secondLuminance = luminance(secondColor);
+
+  return (
+    (Math.max(firstLuminance, secondLuminance) + 0.05) /
+    (Math.min(firstLuminance, secondLuminance) + 0.05)
+  );
+}
+
 test("redo answer inserts a disabled redo control before last items", async () => {
   const dom = createDom(
     `
@@ -2596,6 +2647,97 @@ test("dark theme uses a lighter neutral surface palette", async () => {
     "#333844",
   );
   assert.equal(styles.getPropertyValue("--wk-dark-border").trim(), "#424957");
+});
+
+test("dark theme keeps sitemap section headers readable", async () => {
+  const dom = createDom(
+    `<style>
+      :root { --color-global-header-background: #fff; }
+      .sitemap__section-header { color: #333; }
+    </style>
+    <header class="global-header">
+      <button class="sitemap__section-header">Levels</button>
+    </header>`,
+    "https://www.wanikani.com/",
+  );
+
+  await loadUserscript(dom, "wk-dark-theme.js", {
+    matchMedia() {
+      return {
+        matches: true,
+        addEventListener() {},
+      };
+    },
+  });
+
+  const root = dom.window.document.documentElement;
+  const sectionHeader = dom.window.document.querySelector(
+    ".sitemap__section-header",
+  );
+  const computedColor = dom.window.getComputedStyle(sectionHeader).color;
+  const foreground = parseColor(
+    computedColor.startsWith("var(")
+      ? resolveCustomProperty(
+          dom,
+          sectionHeader,
+          computedColor.slice(4, -1),
+        )
+      : computedColor,
+  );
+  const background = parseColor(
+    resolveCustomProperty(
+      dom,
+      root,
+      "--color-global-header-background",
+    ),
+  );
+
+  assert.ok(contrastRatio(foreground, background) >= 4.5);
+});
+
+test("dark theme keeps completed lesson and review widgets readable", async () => {
+  const dom = createDom(
+    `<style>
+      :root {
+        --color-widget-background: #fff;
+        --color-widget-primary-text: #333;
+        --color-widget-secondary-text: #6b7079;
+      }
+      .todays-lessons-widget--complete,
+      .reviews-widget--complete {
+        --color-widget-background: #e8ecf0;
+      }
+    </style>
+    <section class="todays-lessons-widget--complete">
+      <h2>Today's Lessons</h2>
+    </section>
+    <section class="reviews-widget--complete">
+      <h2>Reviews</h2>
+    </section>`,
+    "https://www.wanikani.com/",
+  );
+
+  await loadUserscript(dom, "wk-dark-theme.js", {
+    matchMedia() {
+      return {
+        matches: true,
+        addEventListener() {},
+      };
+    },
+  });
+
+  for (const widget of dom.window.document.querySelectorAll(
+    ".todays-lessons-widget--complete, .reviews-widget--complete",
+  )) {
+    const foreground = parseColor(
+      resolveCustomProperty(dom, widget, "--color-widget-primary-text"),
+    );
+    const background = parseColor(
+      resolveCustomProperty(dom, widget, "--color-widget-background"),
+    );
+
+    assert.ok(contrastRatio(foreground, background) >= 4.5);
+  }
 });
 
 test("dark theme disables text shadows globally", async () => {

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WaniKani Dark Theme
 // @namespace    wk-dark-theme
-// @version      0.3.0
+// @version      0.3.1
 // @author       Federico G. Schwindt <fgsch@lodoss.net>
 // @description  Adds a neutral dark theme to WaniKani with system and manual modes.
 // @license      MIT
@@ -176,6 +176,15 @@
     html[data-wk-dark-theme="dark"] .site-container {
       background-color: var(--wk-dark-background);
       color: var(--wk-dark-text);
+    }
+
+    html[data-wk-dark-theme="dark"] .sitemap__section-header {
+      color: var(--wk-dark-text);
+    }
+
+    html[data-wk-dark-theme="dark"] .todays-lessons-widget--complete,
+    html[data-wk-dark-theme="dark"] .reviews-widget--complete {
+      --color-widget-background: var(--wk-dark-surface);
     }
 
     html[data-wk-dark-theme="dark"] input,
