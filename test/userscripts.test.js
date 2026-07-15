@@ -2107,6 +2107,54 @@ test('pitch accent waits for the Reading row before lookup and insertion', async
   });
 });
 
+test('pitch accent parses moras with multiple char elements like じょ', async () => {
+  const ojadHtml = `<table id="word_table"><tbody><tr>
+    <td class="midashi"><p class="midashi_word">工場</p></td>
+    <td class="katsuyo_jisho_js"><span class="accented_word">
+      <span class="mola_-4"><span class="inner"><span class="char">こ</span></span></span>
+      <span class="accent_plain mola_-3"><span class="inner"><span class="char">う</span></span></span>
+      <span class="accent_top mola_-2"><span class="inner"><span class="char">じ</span><span class="char">ょ</span></span></span>
+      <span class="mola_-1"><span class="inner"><span class="char">う</span></span></span>
+    </span></td>
+  </tr></tbody></table>`;
+  const dom = createDom(
+    `
+      <span class="subject-character subject-character--vocabulary" title="こうじょう"></span>
+      <main><section class="subject-section subject-section--reading">
+        <section class="subject-section__content">
+          <div class="reading-with-audio">
+            <span class="reading-with-audio__reading">こうじょう</span>
+            <button class="reading-with-audio__audio">Play audio</button>
+          </div>
+        </section>
+      </section></main>
+    `,
+    'https://www.wanikani.com/vocabulary/%E5%B7%A5%E5%A0%B4'
+  );
+
+  await loadUserscript(dom, 'wk-pitch-accent.js', {
+    GM: {
+      xmlHttpRequest({ onload }) {
+        onload({ status: 200, responseText: ojadHtml });
+      }
+    }
+  });
+
+  await waitFor(() => {
+    assert.ok(dom.window.document.querySelector('.wk-pitch-accent-charts svg'));
+  });
+
+  assert.deepEqual(
+    [...dom.window.document.querySelectorAll('.wk-pitch-accent-charts svg text')]
+      .map(node => node.textContent),
+    ['こ', 'う', 'じょ', 'う', '3']
+  );
+  assert.equal(
+    dom.window.document.querySelector('.wk-pitch-accent-charts figcaption')?.textContent,
+    'Nakadaka'
+  );
+});
+
 test('dark theme follows a dark system preference by default', async () => {
   const dom = createDom('<main>Dashboard</main>', 'https://www.wanikani.com/');
 

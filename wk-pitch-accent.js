@@ -191,7 +191,9 @@
 
   function parseAccentWord(accentedWord) {
     const moras = [...accentedWord.children].map(element => ({
-      text: normalizeJapanese(element.querySelector('.char')?.textContent),
+      text: normalizeJapanese(
+        [...element.querySelectorAll('.char')].map(char => char.textContent).join('')
+      ),
       high:
         element.classList.contains('accent_plain') ||
         element.classList.contains('accent_top'),
