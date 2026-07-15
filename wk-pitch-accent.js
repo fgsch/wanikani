@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WaniKani Pitch Accent
 // @namespace    wk-pitch-accent
-// @version      0.3.0
+// @version      0.3.1
 // @author       Federico G. Schwindt <fgsch@lodoss.net>
 // @description  Adds OJAD pitch-accent diagrams to WaniKani vocabulary pages, lessons, and quizzes.
 // @license      MIT
@@ -375,8 +375,13 @@
     const highY = 3;
     const lowY = 16;
     const textY = 34;
+    const particleRadius = 2.5;
+    const particleStrokeWidth = 1.5;
     const accentNumber = getAccentNumber(variant.moras);
-    const width = variant.moras.length * step + 28;
+    const particleX = step / 2 + variant.moras.length * step;
+    const particleY = accentNumber === 0 ? highY : lowY;
+    const badgeX = (variant.moras.length + 1) * step + 16;
+    const width = (variant.moras.length + 1) * step + 28;
     const svg = createSvgElement("svg", {
       viewBox: `0 0 ${width} 44`,
       role: "img",
@@ -400,6 +405,19 @@
       x: step / 2 + index * step,
       y: mora.high ? highY : lowY,
     }));
+    const previousPoint = points.at(-1);
+    const deltaX = particleX - previousPoint.x;
+    const deltaY = particleY - previousPoint.y;
+    const distance = Math.hypot(deltaX, deltaY);
+    const particleOuterRadius = particleRadius + particleStrokeWidth / 2;
+    points.push({
+      x: Number(
+        (particleX - (deltaX / distance) * particleOuterRadius).toFixed(2),
+      ),
+      y: Number(
+        (particleY - (deltaY / distance) * particleOuterRadius).toFixed(2),
+      ),
+    });
 
     svg.appendChild(
       createSvgElement("polyline", {
@@ -424,8 +442,20 @@
     });
 
     svg.appendChild(
+      createSvgElement("circle", {
+        cx: particleX,
+        cy: particleY,
+        r: particleRadius,
+        fill: "none",
+        stroke: "currentColor",
+        "stroke-width": particleStrokeWidth,
+        class: "wk-pitch-accent-particle",
+      }),
+    );
+
+    svg.appendChild(
       createSvgElement("ellipse", {
-        cx: variant.moras.length * step + 16,
+        cx: badgeX,
         cy: textY,
         rx: 10,
         ry: 10,
@@ -435,7 +465,7 @@
     );
 
     const number = createSvgElement("text", {
-      x: variant.moras.length * step + 16,
+      x: badgeX,
       y: textY,
       class: "wk-pitch-accent-number",
       fill: "var(--wk-pitch-accent-color)",

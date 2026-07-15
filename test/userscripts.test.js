@@ -1719,13 +1719,13 @@ test("pitch accent inserts an exact OJAD result inside Reading", async () => {
     dom.window.document
       .querySelector(".wk-pitch-accent-charts svg")
       ?.getAttribute("viewBox"),
-    "0 0 100 44",
+    "0 0 124 44",
   );
   assert.equal(
     dom.window.document
       .querySelector(".wk-pitch-accent-charts svg polyline")
       ?.getAttribute("points"),
-    "12,16 36,3 60,16",
+    "12,16 36,3 60,16 80.75,16",
   );
   assert.deepEqual(
     [
@@ -1733,7 +1733,7 @@ test("pitch accent inserts an exact OJAD result inside Reading", async () => {
         ".wk-pitch-accent-charts svg circle",
       ),
     ].map((circle) => circle.getAttribute("cx")),
-    ["12", "36", "60"],
+    ["12", "36", "60", "84"],
   );
   assert.deepEqual(
     [
@@ -1741,7 +1741,7 @@ test("pitch accent inserts an exact OJAD result inside Reading", async () => {
         ".wk-pitch-accent-charts svg circle",
       ),
     ].map((circle) => circle.getAttribute("cy")),
-    ["16", "3", "16"],
+    ["16", "3", "16", "16"],
   );
   assert.equal(
     dom.window.document.querySelectorAll(".wk-pitch-accent-charts svg ellipse")
@@ -1855,7 +1855,63 @@ test("pitch accent shows all exact variants and rejects other headwords and read
     dom.window.document
       .querySelectorAll(".wk-pitch-accent-charts polyline")[1]
       ?.getAttribute("points"),
-    "12,16 36,3 60,3",
+    "12,16 36,3 60,3 80.75,3",
+  );
+});
+
+test("pitch accent shows a terminal drop on a virtual following particle", async () => {
+  const dom = createDom(
+    `
+      <span class="subject-character subject-character--vocabulary" title="じ">
+        <span class="subject-character__characters-text">字</span>
+      </span>
+      <main><section class="subject-section subject-section--reading">
+        <section class="subject-section__content">
+          <div class="reading-with-audio">じ</div>
+        </section>
+      </section></main>
+    `,
+    "https://www.wanikani.com/vocabulary/%E5%AD%97",
+  );
+
+  await loadUserscript(dom, "wk-pitch-accent.js", {
+    GM: {
+      xmlHttpRequest({ onload }) {
+        onload({
+          status: 200,
+          responseText: `
+            <table id="word_table"><tbody><tr>
+              <td><p class="midashi_word">字</p></td>
+              <td class="katsuyo_jisho_js"><span class="accented_word">
+                <span class="accent_top"><span class="char">じ</span></span>
+              </span></td>
+            </tr></tbody></table>
+          `,
+        });
+      },
+    },
+  });
+
+  await waitFor(() => {
+    assert.ok(dom.window.document.querySelector(".wk-pitch-accent-charts svg"));
+  });
+
+  const chart = dom.window.document.querySelector(".wk-pitch-accent-charts");
+  assert.equal(chart.querySelector("figcaption")?.textContent, "Atamadaka");
+  assert.equal(
+    chart.querySelector("polyline")?.getAttribute("points"),
+    "12,3 33.14,14.45",
+  );
+  const particle = chart.querySelector(".wk-pitch-accent-particle");
+  assert.equal(particle?.getAttribute("cx"), "36");
+  assert.equal(particle?.getAttribute("cy"), "16");
+  assert.equal(particle?.getAttribute("r"), "2.5");
+  assert.equal(particle?.getAttribute("fill"), "none");
+  assert.equal(particle?.getAttribute("stroke"), "currentColor");
+  assert.equal(particle?.getAttribute("stroke-width"), "1.5");
+  assert.deepEqual(
+    [...chart.querySelectorAll("svg text")].map((node) => node.textContent),
+    ["じ", "1"],
   );
 });
 
