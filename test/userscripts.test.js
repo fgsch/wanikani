@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { JSDOM } from "jsdom";
+import { JSDOM, VirtualConsole } from "jsdom";
 
 async function loadUserscript(dom, filename, globals = {}) {
   Object.assign(dom.window, {
@@ -41,11 +41,12 @@ async function waitFor(assertion, { attempts = 20 } = {}) {
   throw lastError;
 }
 
-function createDom(html, url) {
+function createDom(html, url, options = {}) {
   return new JSDOM(html, {
     url,
     runScripts: "outside-only",
     pretendToBeVisual: true,
+    ...options,
   });
 }
 
@@ -1763,6 +1764,33 @@ test("stroke order does not repeatedly fetch a failed KanjiVG file", async () =>
   await new Promise((resolve) => setTimeout(resolve, 0));
 
   assert.equal(fetchCount, 1);
+});
+
+test("pitch accent silently ignores dashboard mutations", async () => {
+  const messages = [];
+  const virtualConsole = new VirtualConsole();
+  virtualConsole.on("debug", (...args) => messages.push(args.join(" ")));
+  const dom = createDom(
+    "<main></main>",
+    "https://www.wanikani.com/dashboard",
+    { virtualConsole },
+  );
+
+  await loadUserscript(dom, "wk-pitch-accent.js");
+
+  dom.window.document
+    .querySelector("main")
+    .append(dom.window.document.createElement("div"));
+  await flushMutationObservers();
+
+  assert.deepEqual(
+    messages.filter(
+      (message) =>
+        message.includes("Not a vocabulary subject page") ||
+        message.includes("No subject detected, skipping"),
+    ),
+    [],
+  );
 });
 
 test("pitch accent inserts an exact OJAD result inside Reading", async () => {

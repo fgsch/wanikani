@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WaniKani Pitch Accent
 // @namespace    wk-pitch-accent
-// @version      0.4.0
+// @version      0.5.0
 // @author       Federico G. Schwindt <fgsch@lodoss.net>
 // @description  Adds OJAD pitch-accent diagrams to WaniKani vocabulary pages, lessons, and quizzes.
 // @license      MIT
@@ -896,6 +896,10 @@
   async function run() {
     if (isQuizPage()) {
       runQuiz();
+      return;
+    }
+
+    if (!isVocabularySubjectPage() && !isSubjectLessonPage()) {
       return;
     }
 
