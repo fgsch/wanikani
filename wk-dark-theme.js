@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         WaniKani Dark Theme
 // @namespace    wk-dark-theme
-// @version      0.3.2
+// @version      0.4.0
 // @author       Federico G. Schwindt <fgsch@lodoss.net>
-// @description  Adds a neutral dark theme to WaniKani with system and manual modes.
+// @description  Adds a Catppuccin Mocha dark theme to WaniKani with system and manual modes.
 // @license      MIT
 // @homepageURL  https://github.com/fgsch/wanikani
 // @updateURL    https://raw.githubusercontent.com/fgsch/wanikani/main/wk-dark-theme.js
@@ -29,29 +29,44 @@
     : "system";
 
   const styles = `
+    :root {
+      --ctp-mocha-blue: #89b4fa;
+      --ctp-mocha-sky: #89dceb;
+      --ctp-mocha-text: #cdd6f4;
+      --ctp-mocha-subtext-0: #a6adc8;
+      --ctp-mocha-overlay-1: #7f849c;
+      --ctp-mocha-overlay-0: #6c7086;
+      --ctp-mocha-surface-2: #585b70;
+      --ctp-mocha-surface-1: #45475a;
+      --ctp-mocha-surface-0: #313244;
+      --ctp-mocha-base: #1e1e2e;
+      --ctp-mocha-mantle: #181825;
+      --ctp-mocha-crust: #11111b;
+    }
+
     html[data-wk-dark-theme="dark"] {
       color-scheme: dark;
 
-      --wk-dark-background: #17191f;
-      --wk-dark-surface: #20232b;
-      --wk-dark-surface-raised: #292d37;
-      --wk-dark-surface-hover: #333844;
-      --wk-dark-border: #424957;
-      --wk-dark-text: #e7eaf0;
-      --wk-dark-text-muted: #a9b0bc;
+      --wk-dark-background: var(--ctp-mocha-base);
+      --wk-dark-surface: var(--ctp-mocha-mantle);
+      --wk-dark-surface-raised: var(--ctp-mocha-surface-0);
+      --wk-dark-surface-hover: var(--ctp-mocha-surface-1);
+      --wk-dark-border: var(--ctp-mocha-surface-2);
+      --wk-dark-text: var(--ctp-mocha-text);
+      --wk-dark-text-muted: var(--ctp-mocha-subtext-0);
 
       --color-app-background: var(--wk-dark-background);
       --color-text: var(--wk-dark-text);
       --color-title-underline: var(--wk-dark-border);
-      --color-link: #70c7ff;
-      --color-link-hover: #a6ddff;
-      --color-link-active: #a6ddff;
+      --color-link: var(--ctp-mocha-blue);
+      --color-link-hover: var(--ctp-mocha-sky);
+      --color-link-active: var(--ctp-mocha-sky);
       --color-text-shadow-light: transparent;
       --color-input-text: var(--wk-dark-text);
       --color-input-background: var(--wk-dark-surface);
       --color-input-border: var(--wk-dark-border);
       --color-quiz-input-background: var(--wk-dark-surface);
-      --color-quiz-input-focus: #29485c;
+      --color-quiz-input-focus: var(--ctp-mocha-surface-0);
       --color-hint-background: var(--wk-dark-surface-raised);
       --color-code-background: var(--wk-dark-surface-raised);
       --color-code-border: var(--wk-dark-border);
@@ -66,7 +81,7 @@
 
       --color-global-header-background: var(--wk-dark-surface);
       --color-global-header-border: var(--wk-dark-border);
-      --color-grouped-navigation-background: #1c1f26;
+      --color-grouped-navigation-background: var(--ctp-mocha-crust);
       --color-grouped-navigation-link-background: var(--wk-dark-surface-raised);
       --color-grouped-navigation-link-active-background: var(--wk-dark-background);
       --color-grouped-navigation-link-active-border: var(--wk-dark-border);
@@ -83,20 +98,20 @@
       --color-wk-panel-content-background: var(--wk-dark-surface);
       --color-wk-panel-content-title-underline: var(--wk-dark-border);
       --color-modal-background: var(--wk-dark-surface-raised);
-      --color-modal-mask: rgb(0 0 0 / 75%);
+      --color-modal-mask: color-mix(in srgb, var(--ctp-mocha-crust) 75%, transparent);
       --color-lesson-modal-text: var(--wk-dark-text);
       --color-new-user-modal-background: var(--wk-dark-surface-raised);
       --color-new-user-modal-text: var(--wk-dark-text);
 
       --color-button-primary-background: var(--wk-dark-surface-raised);
       --color-button-primary-hover-background: var(--wk-dark-surface-hover);
-      --color-button-primary-active-background: #3b4250;
-      --color-button-primary-border: #596170;
+      --color-button-primary-active-background: var(--ctp-mocha-surface-2);
+      --color-button-primary-border: var(--ctp-mocha-overlay-0);
       --color-button-primary-text: var(--wk-dark-text);
       --color-button-primary-icon: var(--wk-dark-text-muted);
       --color-button-secondary-background: var(--wk-dark-surface-raised);
       --color-button-secondary-hover-background: var(--wk-dark-surface-hover);
-      --color-button-secondary-active-background: #3b4250;
+      --color-button-secondary-active-background: var(--ctp-mocha-surface-2);
       --color-button-secondary-border: var(--wk-dark-border);
       --color-button-secondary-text: var(--wk-dark-text);
       --color-button-secondary-icon: var(--wk-dark-text-muted);
@@ -110,10 +125,10 @@
       --color-chip-border: var(--wk-dark-border);
       --color-chip-text: var(--wk-dark-text);
       --color-chip-hover-background: var(--wk-dark-surface-hover);
-      --color-chip-hover-border: #596170;
+      --color-chip-hover-border: var(--ctp-mocha-overlay-0);
       --color-chip-hover-text: var(--wk-dark-text);
-      --color-chip-active-background: #596170;
-      --color-chip-active-border: #707989;
+      --color-chip-active-background: var(--ctp-mocha-overlay-0);
+      --color-chip-active-border: var(--ctp-mocha-overlay-1);
 
       --color-count-bubble-background: var(--wk-dark-surface-raised);
       --color-count-bubble-border: var(--wk-dark-border);
@@ -165,7 +180,7 @@
       --color-subscription-plan-background: var(--wk-dark-surface);
       --color-subscription-plan-border: var(--wk-dark-border);
       --color-subscription-plan-divider: var(--wk-dark-border);
-      --color-lesson-picker-footer-background: rgb(32 35 43 / 92%);
+      --color-lesson-picker-footer-background: color-mix(in srgb, var(--ctp-mocha-mantle) 92%, transparent);
       --color-lesson-picker-footer-border: 1px solid var(--wk-dark-border);
       --color-recent-mistakes-intro-divider: var(--wk-dark-border);
     }
@@ -201,6 +216,10 @@
       --color-widget-background: var(--wk-dark-surface);
     }
 
+    html[data-wk-dark-theme="dark"] .review-forecast-widget:not(.review-forecast-widget--loading) {
+      --color-review-forecast-header-background: var(--wk-dark-surface-raised);
+    }
+
     html[data-wk-dark-theme="dark"] input,
     html[data-wk-dark-theme="dark"] textarea,
     html[data-wk-dark-theme="dark"] select {
@@ -226,12 +245,12 @@
     #${TOGGLE_ID} {
       all: initial;
       align-items: center;
-      background: #292d37;
-      border: 1px solid #596170;
+      background: var(--ctp-mocha-surface-0);
+      border: 1px solid var(--ctp-mocha-overlay-0);
       border-radius: 999px;
       bottom: 16px;
-      box-shadow: 0 4px 16px rgb(0 0 0 / 35%);
-      color: #e7eaf0;
+      box-shadow: 0 4px 16px color-mix(in srgb, var(--ctp-mocha-crust) 35%, transparent);
+      color: var(--ctp-mocha-text);
       cursor: pointer;
       display: flex;
       font: 600 12px/1 system-ui, sans-serif;
@@ -245,11 +264,11 @@
     }
 
     #${TOGGLE_ID}:hover {
-      background: #333844;
+      background: var(--ctp-mocha-surface-1);
     }
 
     #${TOGGLE_ID}:focus-visible {
-      outline: 3px solid #70c7ff;
+      outline: 3px solid var(--ctp-mocha-blue);
       outline-offset: 2px;
     }
   `;

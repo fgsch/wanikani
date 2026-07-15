@@ -2673,7 +2673,7 @@ test("dark theme applies at document start and adds its control when the body ar
   assert.ok(dom.window.document.querySelector("#wk-dark-theme-toggle"));
 });
 
-test("dark theme uses a lighter neutral surface palette", async () => {
+test("dark theme uses the Catppuccin Mocha palette", async () => {
   const dom = createDom("<main>Dashboard</main>", "https://www.wanikani.com/");
 
   await loadUserscript(dom, "wk-dark-theme.js", {
@@ -2690,19 +2690,37 @@ test("dark theme uses a lighter neutral surface palette", async () => {
   );
 
   assert.equal(
-    styles.getPropertyValue("--wk-dark-background").trim(),
-    "#17191f",
-  );
-  assert.equal(styles.getPropertyValue("--wk-dark-surface").trim(), "#20232b");
-  assert.equal(
-    styles.getPropertyValue("--wk-dark-surface-raised").trim(),
-    "#292d37",
+    resolveCustomProperty(dom, dom.window.document.documentElement, "--wk-dark-background"),
+    "#1e1e2e",
   );
   assert.equal(
-    styles.getPropertyValue("--wk-dark-surface-hover").trim(),
-    "#333844",
+    resolveCustomProperty(dom, dom.window.document.documentElement, "--wk-dark-surface"),
+    "#181825",
   );
-  assert.equal(styles.getPropertyValue("--wk-dark-border").trim(), "#424957");
+  assert.equal(
+    resolveCustomProperty(dom, dom.window.document.documentElement, "--wk-dark-surface-raised"),
+    "#313244",
+  );
+  assert.equal(
+    resolveCustomProperty(dom, dom.window.document.documentElement, "--wk-dark-surface-hover"),
+    "#45475a",
+  );
+  assert.equal(
+    resolveCustomProperty(dom, dom.window.document.documentElement, "--wk-dark-border"),
+    "#585b70",
+  );
+  assert.equal(
+    resolveCustomProperty(dom, dom.window.document.documentElement, "--wk-dark-text"),
+    "#cdd6f4",
+  );
+  assert.equal(
+    resolveCustomProperty(dom, dom.window.document.documentElement, "--wk-dark-text-muted"),
+    "#a6adc8",
+  );
+  assert.equal(
+    resolveCustomProperty(dom, dom.window.document.documentElement, "--color-link"),
+    "#89b4fa",
+  );
 });
 
 test("dark theme replaces light collocation pattern backgrounds", async () => {
@@ -2825,6 +2843,59 @@ test("dark theme keeps completed lesson and review widgets readable", async () =
     );
     const background = parseColor(
       resolveCustomProperty(dom, widget, "--color-widget-background"),
+    );
+
+    assert.ok(contrastRatio(foreground, background) >= 4.5);
+  }
+});
+
+test("dark theme keeps review forecast header text readable", async () => {
+  const dom = createDom(
+    `<style>
+      :root {
+        --color-widget-primary-text: #333;
+        --color-widget-secondary-text: #6b7079;
+        --color-review-forecast-header-background: #e7e9eb;
+      }
+      .review-forecast-widget--50.review-forecast-widget:not(.review-forecast-widget--loading) {
+        --color-review-forecast-header-background: #d2e8ff;
+      }
+    </style>
+    <section class="review-forecast-widget review-forecast-widget--50">
+      <header class="review-forecast-widget__header">
+        <div class="review-forecast-widget__header-text">Next 24 Hours:</div>
+        <div class="review-forecast-widget__header-count">+46 Items</div>
+      </header>
+    </section>`,
+    "https://www.wanikani.com/",
+  );
+
+  await loadUserscript(dom, "wk-dark-theme.js", {
+    matchMedia() {
+      return {
+        matches: true,
+        addEventListener() {},
+      };
+    },
+  });
+
+  const header = dom.window.document.querySelector(
+    ".review-forecast-widget__header",
+  );
+  const background = parseColor(
+    resolveCustomProperty(
+      dom,
+      header,
+      "--color-review-forecast-header-background",
+    ),
+  );
+
+  for (const property of [
+    "--color-widget-primary-text",
+    "--color-widget-secondary-text",
+  ]) {
+    const foreground = parseColor(
+      resolveCustomProperty(dom, header, property),
     );
 
     assert.ok(contrastRatio(foreground, background) >= 4.5);
