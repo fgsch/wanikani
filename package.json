@@ -5,7 +5,11 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write *.js",
+    "format:check": "prettier --check *.js"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

@@ -22,6 +22,8 @@
   const STYLE_ID = "wk-kanjivg-style";
   const RADICAL_COLOR = "#c586d7";
   const GROUP_COLOR = "#86a8d7";
+  const NAME = GM_info.script.name;
+  const VERSION = GM_info.script.version;
 
   let isPageRunning = false;
   let isQuizRunning = false;
@@ -1065,6 +1067,7 @@
     });
   }
 
+  console.debug(`[${NAME}] Script loaded, version ${VERSION}`);
   injectStyles();
   installNavigationWatcher();
   run();

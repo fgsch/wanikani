@@ -21,6 +21,9 @@
   const STORAGE_KEY = "wk-dark-theme-mode";
   const modes = ["system", "dark", "light"];
   const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+  const NAME = GM_info.script.name;
+  const VERSION = GM_info.script.version;
+
   let mode = modes.includes(localStorage.getItem(STORAGE_KEY))
     ? localStorage.getItem(STORAGE_KEY)
     : "system";
@@ -303,5 +306,6 @@
     }
   });
   document.addEventListener("turbo:load", run);
+  console.debug(`[${NAME}] Script loaded, version ${VERSION}`);
   run();
 })();

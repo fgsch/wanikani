@@ -17,6 +17,8 @@
 
   const REDO_SELECTOR = ".additional-content__item--redo-answer";
   const DISABLED_CLASS = "additional-content__item--disabled";
+  const NAME = GM_info.script.name;
+  const VERSION = GM_info.script.version;
 
   let pendingAnswerTransaction = null;
 
@@ -417,6 +419,7 @@
     subtree: true,
   });
 
+  console.debug(`[${NAME}] Script loaded, version ${VERSION}`);
   installNavigationWatcher();
   run();
 })();

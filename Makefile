@@ -10,13 +10,13 @@ help: ## Show available targets
 check: format-check lint test ## Run formatting check, lint and tests
 
 format: node_modules ## Format code
-	node_modules/.bin/prettier --write wk-*.js
+	npm run format
 
 format-check: node_modules ## Check formatting
-	node_modules/.bin/prettier --check wk-*.js
+	npm run format:check
 
 lint: node_modules ## Run eslint
-	node_modules/.bin/eslint
+	npm run lint
 
 test: node_modules ## Run tests
 	npm test
