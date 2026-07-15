@@ -263,7 +263,7 @@
         },
       });
     } catch (error) {
-      console.error("Redo failed:", error);
+      console.error(`[${NAME}] Redo failed:`, error);
       return;
     }
 

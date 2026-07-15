@@ -888,7 +888,7 @@
         svgText = await fetchText(svgUrl);
       } catch (error) {
         failedQuizSubjectKey = subject.key;
-        console.warn("[KanjiVG] Could not fetch SVG:", error);
+        console.warn(`[${NAME}] Could not fetch SVG:`, error);
         return;
       }
 
@@ -910,7 +910,7 @@
       const svg = doc.querySelector("svg");
       if (!svg) {
         failedQuizSubjectKey = subject.key;
-        console.warn("[KanjiVG] Response did not contain an SVG");
+        console.warn(`[${NAME}] Response did not contain an SVG`);
         return;
       }
 
@@ -960,8 +960,8 @@
 
       try {
         svgText = await fetchText(svgUrl);
-      } catch (err) {
-        console.warn("[KanjiVG] Could not fetch SVG:", err);
+      } catch (error) {
+        console.warn(`[${NAME}] Could not fetch SVG:`, error);
         return;
       }
 
