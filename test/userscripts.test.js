@@ -2754,6 +2754,36 @@ test("dark theme replaces light collocation pattern backgrounds", async () => {
   );
 });
 
+test("dark theme replaces the light subject lesson slide", async () => {
+  const dom = createDom(
+    `<style>
+      .subject-slide {
+        background-color: #fafafa;
+        border: 2px solid #d4d4d4;
+        box-shadow: 2px 2px 4px #e3e3e3;
+      }
+    </style>
+    <div class="subject-slides">
+      <section class="subject-slide">Lesson content</section>
+    </div>`,
+    "https://www.wanikani.com/subject-lessons/920088919089344908/95",
+  );
+
+  await loadUserscript(dom, "wk-dark-theme.js", {
+    matchMedia() {
+      return {
+        matches: true,
+        addEventListener() {},
+      };
+    },
+  });
+
+  const slide = dom.window.document.querySelector(".subject-slide");
+  const slideStyles = dom.window.getComputedStyle(slide);
+
+  assert.equal(slideStyles.backgroundColor, "var(--wk-dark-surface)");
+});
+
 test("dark theme keeps sitemap section headers readable", async () => {
   const dom = createDom(
     `<style>

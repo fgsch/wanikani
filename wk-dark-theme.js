@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WaniKani Dark Theme
 // @namespace    wk-dark-theme
-// @version      0.4.0
+// @version      0.4.1
 // @author       Federico G. Schwindt <fgsch@lodoss.net>
 // @description  Adds a Catppuccin Mocha dark theme to WaniKani with system and manual modes.
 // @license      MIT
@@ -78,6 +78,9 @@
       --color-section-header-border: var(--wk-dark-border);
       --color-setting-divider: var(--wk-dark-border);
       --color-authentication-footer-divider: var(--wk-dark-border);
+      --color-subject-slide-navigation-background: var(--ctp-mocha-crust);
+      --color-subject-slide-navigation-text: var(--wk-dark-text);
+      --color-subject-slide-navigation-button-hover: var(--wk-dark-surface-hover);
 
       --color-global-header-background: var(--wk-dark-surface);
       --color-global-header-border: var(--wk-dark-border);
@@ -209,6 +212,16 @@
     html[data-wk-dark-theme="dark"] .subject-info .subject-collocations__pattern-name[aria-selected="true"]::after {
       background-color: var(--wk-dark-background);
       background-image: none;
+    }
+
+    html[data-wk-dark-theme="dark"] .subject-slide {
+      background-color: var(--wk-dark-surface);
+      border-color: var(--wk-dark-border);
+      box-shadow: 2px 2px 4px color-mix(in srgb, var(--ctp-mocha-crust) 50%, transparent);
+    }
+
+    html[data-wk-dark-theme="dark"] .subject-slides__navigation-link[aria-selected="true"]::after {
+      border-bottom-color: var(--wk-dark-border);
     }
 
     html[data-wk-dark-theme="dark"] .todays-lessons-widget--complete,
