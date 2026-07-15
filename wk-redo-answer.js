@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WaniKani Redo Answer
 // @namespace    wk-redo-answer
-// @version      0.3.0
+// @version      0.4.0
 // @author       Federico G. Schwindt <fgsch@lodoss.net>
 // @description  Adds a Redo button to WaniKani review and extra study quizzes.
 // @license      MIT
@@ -166,10 +166,10 @@
         }
 
         const { answer, results } = pendingAnswer;
-        pendingAnswer = null;
         withoutDidAnswerQuestion(() => {
           submitAnswer.call(quizQueue, answer, results);
         });
+        pendingAnswer = null;
       },
       hasPendingAnswer() {
         return pendingAnswer !== null;
@@ -245,15 +245,22 @@
       return;
     }
 
-    installPendingAnswerTransaction(controller)?.discard();
+    const transaction = installPendingAnswerTransaction(controller);
+    const inputContainer = document.querySelector(
+      ".quiz-input__input-container",
+    );
+    const previousState = {
+      lastAnswer: controller.lastAnswer,
+      inputChars: controller.inputChars,
+      inputEnabled: controller.inputEnabled,
+      correct: inputContainer?.getAttribute("correct"),
+    };
 
     controller.lastAnswer = null;
     controller.inputChars = "";
     controller.inputEnabled = true;
 
-    document
-      .querySelector(".quiz-input__input-container")
-      ?.removeAttribute("correct");
+    inputContainer?.removeAttribute("correct");
 
     try {
       controller.updateQuestion({
@@ -263,9 +270,21 @@
         },
       });
     } catch (error) {
+      controller.lastAnswer = previousState.lastAnswer;
+      controller.inputChars = previousState.inputChars;
+      controller.inputEnabled = previousState.inputEnabled;
+
+      if (previousState.correct === null) {
+        inputContainer?.removeAttribute("correct");
+      } else {
+        inputContainer?.setAttribute("correct", previousState.correct);
+      }
+
       console.error(`[${NAME}] Redo failed:`, error);
       return;
     }
+
+    transaction?.discard();
 
     requestAnimationFrame(() => {
       resetItemInfo();

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WaniKani Pitch Accent
 // @namespace    wk-pitch-accent
-// @version      0.3.1
+// @version      0.4.0
 // @author       Federico G. Schwindt <fgsch@lodoss.net>
 // @description  Adds OJAD pitch-accent diagrams to WaniKani vocabulary pages, lessons, and quizzes.
 // @license      MIT
@@ -20,6 +20,7 @@
   const CONTENT_ID = "wk-pitch-accent";
   const STYLE_ID = "wk-pitch-accent-style";
   const OJAD_BASE_URL = "https://www.gavo.t.u-tokyo.ac.jp/ojad";
+  const RESPONSE_CACHE_LIMIT = 100;
   const SVG_NS = "http://www.w3.org/2000/svg";
   const PATTERN_VARIANT = {
     Heiban: 1,
@@ -227,7 +228,10 @@
 
   function fetchText(url) {
     if (responseCache.has(url)) {
-      return responseCache.get(url);
+      const response = responseCache.get(url);
+      responseCache.delete(url);
+      responseCache.set(url, response);
+      return response;
     }
 
     const request = new Promise((resolve, reject) => {
@@ -246,6 +250,14 @@
     });
 
     responseCache.set(url, request);
+    request.catch(() => {
+      if (responseCache.get(url) === request) {
+        responseCache.delete(url);
+      }
+    });
+    if (responseCache.size > RESPONSE_CACHE_LIMIT) {
+      responseCache.delete(responseCache.keys().next().value);
+    }
     return request;
   }
 

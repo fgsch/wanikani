@@ -27,7 +27,7 @@ Install:
 
 ### WaniKani Pitch Accent
 
-Adds compact pitch-pattern diagrams from OJAD to Reading content on WaniKani vocabulary subject pages and lessons, including Item Info during reviews and extra study. Quiz diagrams remain hidden until the current answer has been submitted.
+Adds compact pitch-pattern diagrams from [OJAD](https://www.gavo.t.u-tokyo.ac.jp/ojad/eng/pages/home) to Reading content on WaniKani vocabulary subject pages and lessons, including Item Info during reviews and extra study. Vocabulary terms and readings are sent to this third-party service to retrieve pitch-accent data. Quiz diagrams remain hidden until the current answer has been submitted.
 
 Install:
 <https://raw.githubusercontent.com/fgsch/wanikani/main/wk-pitch-accent.js>
@@ -50,10 +50,10 @@ Run only the tests:
 make test
 ```
 
-Run only syntax checks:
+Run only lint checks:
 
 ```sh
-make check-syntax
+make lint
 ```
 
 ## Credits

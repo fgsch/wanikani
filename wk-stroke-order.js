@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WaniKani Stroke Order
 // @namespace    wk-stroke-order
-// @version      0.4.0
+// @version      0.5.0
 // @author       Federico G. Schwindt <fgsch@lodoss.net>
 // @description  Adds animated KanjiVG stroke order, radicals, and component groups to WaniKani kanji pages, lessons, and reviews.
 // @license      MIT
@@ -22,6 +22,7 @@
   const STYLE_ID = "wk-kanjivg-style";
   const RADICAL_COLOR = "#c586d7";
   const GROUP_COLOR = "#86a8d7";
+  const STROKE_COLORS = ["#0072b2", "#7a6f00", "#007f5f", "#536aa8"];
   const NAME = GM_info.script.name;
   const VERSION = GM_info.script.version;
 
@@ -31,8 +32,14 @@
   let previousQuizSubjectKey = null;
   const processedPaths = new Set();
 
-  function isReviewPage() {
-    return /^\/subjects\/review(?:\/|$)/.test(location.pathname);
+  function isQuizPage() {
+    return (
+      /^\/subjects\/(?:review|extra_study)(?:\/|$)/.test(location.pathname) ||
+      Boolean(
+        document.querySelector(".quiz-input") &&
+        document.querySelector(".additional-content__item--last-items"),
+      )
+    );
   }
 
   function isKanjiSubjectPage() {
@@ -121,13 +128,7 @@
   }
 
   function randomKanjiVGViewerColor() {
-    let color = "#";
-    for (let i = 0; i < 3; i++) {
-      color += Math.floor(Math.random() * 12)
-        .toString(16)
-        .toUpperCase();
-    }
-    return color;
+    return STROKE_COLORS[Math.floor(Math.random() * STROKE_COLORS.length)];
   }
 
   function findHeading(text) {
@@ -302,7 +303,7 @@
   }
 
   function sanitizeSvg(svg) {
-    svg.querySelectorAll("script, foreignObject").forEach((element) => {
+    svg.querySelectorAll("script, style, foreignObject").forEach((element) => {
       element.remove();
     });
 
@@ -312,6 +313,11 @@
         const value = attribute.value.trim().toLowerCase();
 
         if (name.startsWith("on")) {
+          element.removeAttribute(attribute.name);
+          return;
+        }
+
+        if (name === "style" || /url\s*\(/i.test(attribute.value)) {
           element.removeAttribute(attribute.name);
           return;
         }
@@ -551,14 +557,14 @@
 
   function createReplayControl(onClick) {
     const navTemplate =
-      !isReviewPage() &&
+      !isQuizPage() &&
       (document.querySelector("a.wk-nav__item") ||
         (!isKanjiLessonPage() &&
           (findGoToLink("Meaning") || findGoToLink("Stroke Order"))));
 
     let control;
 
-    if (isReviewPage()) {
+    if (isQuizPage()) {
       control = document.createElement("button");
       control.type = "button";
       control.className = "wk-kanjivg-replay";
@@ -1002,7 +1008,7 @@
   }
 
   function run() {
-    if (isReviewPage()) {
+    if (isQuizPage()) {
       runQuiz();
       return;
     }

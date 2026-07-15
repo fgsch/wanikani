@@ -560,6 +560,118 @@ test("redo answer commits a pending answer before Turbo navigation", async () =>
   assert.deepEqual(calls, ["answer"]);
 });
 
+test("redo answer retries a pending answer after submit fails", async () => {
+  const dom = createDom(
+    `
+      <div class="quiz-input"><div class="quiz-input__input-container"></div></div>
+      <ul><li><a class="additional-content__item additional-content__item--last-items"></a></li></ul>
+    `,
+    "https://www.wanikani.com/subjects/review",
+  );
+  const calls = [];
+  let shouldFail = true;
+  const quizQueueController = {
+    submitAnswer(answer) {
+      calls.push(["submit", answer]);
+      if (shouldFail) {
+        shouldFail = false;
+        throw new Error("submit failed");
+      }
+    },
+    nextItem() {
+      calls.push(["next"]);
+    },
+  };
+
+  await loadUserscript(dom, "wk-redo-answer.js", {
+    Stimulus: {
+      getControllerForElementAndIdentifier() {
+        return { quizQueueOutlet: quizQueueController };
+      },
+    },
+  });
+
+  quizQueueController.submitAnswer("answer", { action: "pass" });
+
+  assert.throws(() => quizQueueController.nextItem(), /submit failed/);
+  quizQueueController.nextItem();
+
+  assert.deepEqual(calls, [
+    ["submit", "answer"],
+    ["submit", "answer"],
+    ["next"],
+  ]);
+});
+
+test("redo answer restores quiz state when updating the question fails", async () => {
+  const dom = createDom(
+    `
+      <div class="quiz-input">
+        <div class="quiz-input__input-container" correct="false">
+          <input id="user-response" value="wrong">
+        </div>
+      </div>
+      <ul><li><a class="additional-content__item additional-content__item--last-items"></a></li></ul>
+    `,
+    "https://www.wanikani.com/subjects/review",
+  );
+  const calls = [];
+  const originalInputChars = ["w"];
+  const quizQueueController = {
+    submitAnswer(answer, results) {
+      calls.push([answer, results]);
+    },
+    nextItem() {},
+  };
+  const controller = {
+    currentSubject: { id: 1 },
+    currentQuestionType: "meaning",
+    lastAnswer: "wrong",
+    inputChars: originalInputChars,
+    inputEnabled: false,
+    quizQueueOutlet: quizQueueController,
+    updateQuestion() {
+      throw new Error("update failed");
+    },
+  };
+  dom.window.console.error = () => {};
+
+  await loadUserscript(dom, "wk-redo-answer.js", {
+    Stimulus: {
+      getControllerForElementAndIdentifier() {
+        return controller;
+      },
+    },
+  });
+
+  const results = { action: "fail" };
+  quizQueueController.submitAnswer("wrong", results);
+  dom.window.document
+    .querySelector(".quiz-input__input-container")
+    .setAttribute("correct", "false");
+  const redoButton = dom.window.document.querySelector(
+    ".additional-content__item--redo-answer",
+  );
+
+  await waitFor(() => {
+    assert.equal(redoButton.getAttribute("aria-disabled"), "false");
+  });
+  redoButton.click();
+
+  assert.equal(controller.lastAnswer, "wrong");
+  assert.equal(controller.inputChars, originalInputChars);
+  assert.equal(controller.inputEnabled, false);
+  assert.equal(
+    dom.window.document
+      .querySelector(".quiz-input__input-container")
+      .getAttribute("correct"),
+    "false",
+  );
+
+  quizQueueController.nextItem();
+  assert.deepEqual(calls, [["wrong", results]]);
+});
+
 test("redo answer moves its transaction when the queue outlet changes", async () => {
   const dom = createDom(
     `
@@ -718,6 +830,59 @@ test("stroke order inserts a KanjiVG section and navigation link on kanji pages"
     document.querySelector(".wk-kanjivg-credit a")?.href,
     "https://kanjivg.tagaini.net/",
   );
+});
+
+test("stroke order animated colors contrast with light and dark backgrounds", async () => {
+  const svgText = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 109 109">
+      <path d="M10 20 L90 20"></path>
+      <path d="M10 40 L90 40"></path>
+      <path d="M10 60 L90 60"></path>
+      <path d="M10 80 L90 80"></path>
+    </svg>
+  `;
+  const dom = createDom(
+    `
+      <nav><a href="#meaning">Meaning</a></nav>
+      <main><h2>Radical Combination</h2><h2>Meaning</h2></main>
+    `,
+    "https://www.wanikani.com/kanji/%E4%B8%80",
+  );
+  const randomValues = [0, 0.25, 0.5, 0.99];
+  let randomIndex = 0;
+
+  dom.window.Math.random = () =>
+    randomValues[randomIndex++ % randomValues.length];
+  dom.window.SVGElement.prototype.getTotalLength = () => 100;
+
+  await loadUserscript(dom, "wk-stroke-order.js", {
+    GM: {
+      xmlHttpRequest({ onload }) {
+        onload({ status: 200, responseText: svgText });
+      },
+    },
+  });
+
+  await waitFor(() => {
+    assert.equal(
+      dom.window.document.querySelectorAll(
+        "#wk-kanjivg-stroke-order svg.wk-kanjivg-main path",
+      ).length,
+      4,
+    );
+  });
+
+  const strokes = [
+    ...dom.window.document.querySelectorAll(
+      "#wk-kanjivg-stroke-order svg.wk-kanjivg-main path",
+    ),
+  ].map((path) => parseColor(path.style.stroke));
+
+  assert.equal(new Set(strokes.map(String)).size, 4);
+  for (const stroke of strokes) {
+    assert.ok(contrastRatio(stroke, parseColor("#ffffff")) >= 3);
+    assert.ok(contrastRatio(stroke, parseColor("#1e1e2e")) >= 3);
+  }
 });
 
 test("stroke order inserts a lesson tab after Radicals on kanji lessons", async () => {
@@ -900,6 +1065,63 @@ test("stroke order inserts before Meaning in review Item Info after answering", 
     sections[0].querySelector("#wk-kanjivg-stroke-order svg.wk-kanjivg-main"),
   );
 });
+
+for (const [quizName, quizUrl] of [
+  ["extra study", "https://www.wanikani.com/subjects/extra_study"],
+  [
+    "a non-standard URL",
+    "https://www.wanikani.com/subject-lessons/session/quiz",
+  ],
+]) {
+  test(`stroke order recognizes ${quizName} quizzes`, async () => {
+    const svgText = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 109 109">
+        <path d="M10 50 L90 50"></path>
+      </svg>
+    `;
+    const dom = createDom(
+      `
+        <div class="quiz-input"><div class="quiz-input__input-container" correct></div></div>
+        <turbo-frame id="subject-info">
+          <section class="subject-section subject-section--meaning" title="Meaning">
+            <h2>Meaning</h2>
+            <section class="subject-section__content"></section>
+          </section>
+        </turbo-frame>
+        <ul><li><a class="additional-content__item--last-items"></a></li></ul>
+      `,
+      quizUrl,
+    );
+
+    dom.window.SVGElement.prototype.getTotalLength = () => 100;
+
+    await loadUserscript(dom, "wk-stroke-order.js", {
+      GM: {
+        xmlHttpRequest({ onload }) {
+          onload({ status: 200, responseText: svgText });
+        },
+      },
+      Stimulus: {
+        getControllerForElementAndIdentifier() {
+          return {
+            currentSubject: { id: 1, object: "kanji", characters: "一" },
+          };
+        },
+      },
+    });
+
+    await waitFor(() => {
+      assert.ok(
+        dom.window.document.querySelector(".subject-section--stroke-order"),
+      );
+    });
+
+    assert.equal(
+      dom.window.document.querySelector(".wk-kanjivg-replay").tagName,
+      "BUTTON",
+    );
+  });
+}
 
 test("stroke order reads the review subject from the userscript page window", async () => {
   const svgText = `
@@ -1325,10 +1547,12 @@ test("stroke order sanitizes fetched SVG before insertion", async () => {
   const svgText = `
     <svg xmlns="http://www.w3.org/2000/svg" xmlns:kvg="http://kanjivg.tagaini.net" viewBox="0 0 109 109" onload="alert(1)">
       <script>alert(1)</script>
+      <style>@import url("https://attacker.example/styles.css");</style>
       <foreignObject><div>unsafe</div></foreignObject>
+      <use href="#safe"></use>
       <a href="javascript:alert(1)">
-        <g id="kvg:kanji_4e00" kvg:element="一" kvg:radical="general" onclick="alert(1)">
-          <path id="kvg:4e00-s1" d="M10 50 L90 50" onmouseover="alert(1)"></path>
+        <g id="kvg:kanji_4e00" kvg:element="一" kvg:radical="general" onclick="alert(1)" style="background: url(https://attacker.example/image.png)">
+          <path id="kvg:4e00-s1" d="M10 50 L90 50" onmouseover="alert(1)" fill="url(https://attacker.example/fill.svg)" filter="url('https://attacker.example/filter.svg')"></path>
           <text x="12" y="45">1</text>
         </g>
       </a>
@@ -1367,10 +1591,15 @@ test("stroke order sanitizes fetched SVG before insertion", async () => {
 
   assert.equal(insertedSvg.hasAttribute("onload"), false);
   assert.equal(insertedSvg.querySelector("script"), null);
+  assert.equal(insertedSvg.querySelector("style"), null);
   assert.equal(insertedSvg.querySelector("foreignObject"), null);
   assert.equal(insertedSvg.querySelector("[onclick]"), null);
   assert.equal(insertedSvg.querySelector("[onmouseover]"), null);
+  assert.equal(insertedSvg.querySelector("g[style]"), null);
+  assert.equal(insertedSvg.querySelector("[fill]"), null);
+  assert.equal(insertedSvg.querySelector("[filter]"), null);
   assert.equal(insertedSvg.querySelector("a[href]"), null);
+  assert.ok(insertedSvg.querySelector('use[href="#safe"]'));
 });
 
 test("stroke order can reinsert after navigating away and back to a kanji page", async () => {
@@ -2378,7 +2607,7 @@ test("pitch accent omits the OJAD credit when no exact result is found", async (
   );
 });
 
-test("pitch accent shows an unavailable state without repeatedly requesting OJAD", async () => {
+test("pitch accent shows an unavailable state when OJAD fails", async () => {
   const page = `
     <span class="subject-character subject-character--vocabulary" title="たべる"></span>
     <main><section class="subject-section subject-section--reading">
@@ -2411,16 +2640,107 @@ test("pitch accent shows an unavailable state without repeatedly requesting OJAD
     dom.window.document.querySelector(".wk-pitch-accent-credit"),
     null,
   );
+  assert.equal(fetchCount, 1);
+});
+
+test("pitch accent retries an OJAD request after it fails", async () => {
+  const page = `
+    <span class="subject-character subject-character--vocabulary" title="たべる"></span>
+    <main><section class="subject-section subject-section--reading">
+      <section class="subject-section__content"><div class="reading-with-audio">WaniKani reading</div></section>
+    </section></main>
+  `;
+  const dom = createDom(
+    page,
+    "https://www.wanikani.com/vocabulary/%E9%A3%9F%E3%81%B9%E3%82%8B",
+  );
+  let fetchCount = 0;
+
+  await loadUserscript(dom, "wk-pitch-accent.js", {
+    GM: {
+      xmlHttpRequest({ onload }) {
+        fetchCount += 1;
+        onload({
+          status: fetchCount === 1 ? 503 : 200,
+          responseText: '<table id="word_table"><tbody></tbody></table>',
+        });
+      },
+    },
+  });
+
+  await waitFor(() => {
+    assert.equal(
+      dom.window.document.querySelector(".wk-pitch-accent-status")
+        ?.textContent,
+      "OJAD pitch accent is currently unavailable.",
+    );
+  });
 
   dom.window.document.body.innerHTML = page;
 
   await waitFor(() => {
+    assert.equal(fetchCount, 2);
     assert.equal(
-      dom.window.document.querySelector(".wk-pitch-accent-status")?.textContent,
-      "OJAD pitch accent is currently unavailable.",
+      dom.window.document.querySelector(".wk-pitch-accent-status")
+        ?.textContent,
+      "No exact OJAD pitch accent found.",
     );
   });
-  assert.equal(fetchCount, 1);
+});
+
+test("pitch accent keeps only the 100 most recently used OJAD responses", async () => {
+  const page = (word) => `
+    <span class="subject-character subject-character--vocabulary" title="${word}"></span>
+    <main><section class="subject-section subject-section--reading">
+      <section class="subject-section__content"><div class="reading-with-audio">${word}</div></section>
+    </section></main>
+  `;
+  const dom = createDom(
+    page("word-0"),
+    "https://www.wanikani.com/vocabulary/word-0",
+  );
+  const requestCounts = new Map();
+
+  await loadUserscript(dom, "wk-pitch-accent.js", {
+    GM: {
+      xmlHttpRequest({ url, onload }) {
+        requestCounts.set(url, (requestCounts.get(url) || 0) + 1);
+        onload({
+          status: 200,
+          responseText: '<table id="word_table"><tbody></tbody></table>',
+        });
+      },
+    },
+  });
+
+  const visit = async (word) => {
+    dom.window.history.pushState({}, "", `/vocabulary/${word}`);
+    dom.window.document.body.innerHTML = page(word);
+    await waitFor(() => {
+      assert.equal(
+        dom.window.document.querySelector(".wk-pitch-accent-status")
+          ?.textContent,
+        "No exact OJAD pitch accent found.",
+      );
+    });
+  };
+
+  await waitFor(() => {
+    assert.equal(requestCounts.size, 1);
+  });
+  for (let index = 1; index < 100; index += 1) {
+    await visit(`word-${index}`);
+  }
+
+  await visit("word-0");
+  await visit("word-100");
+  await visit("word-1");
+  await visit("word-0");
+
+  const requestUrl = (word) =>
+    `https://www.gavo.t.u-tokyo.ac.jp/ojad/search/index/word:${word}`;
+  assert.equal(requestCounts.get(requestUrl("word-1")), 2);
+  assert.equal(requestCounts.get(requestUrl("word-0")), 1);
 });
 
 test("pitch accent waits for the Reading row before lookup and insertion", async () => {
@@ -2543,6 +2863,58 @@ test("dark theme follows a dark system preference by default", async () => {
     toggle?.getAttribute("aria-label"),
     "Theme: System. Click for Dark.",
   );
+});
+
+test("dark theme defaults to system mode when storage reads fail", async () => {
+  const dom = createDom("<main>Dashboard</main>", "https://www.wanikani.com/");
+  Object.defineProperty(dom.window.Storage.prototype, "getItem", {
+    configurable: true,
+    value() {
+      throw new dom.window.DOMException("Storage denied", "SecurityError");
+    },
+  });
+
+  await loadUserscript(dom, "wk-dark-theme.js", {
+    matchMedia() {
+      return {
+        matches: true,
+        addEventListener() {},
+      };
+    },
+  });
+
+  assert.equal(
+    dom.window.document.documentElement.dataset.wkDarkThemeMode,
+    "system",
+  );
+  assert.equal(dom.window.document.documentElement.dataset.wkDarkTheme, "dark");
+});
+
+test("dark theme applies a selected mode when storage writes fail", async () => {
+  const dom = createDom("<main>Dashboard</main>", "https://www.wanikani.com/");
+  Object.defineProperty(dom.window.Storage.prototype, "setItem", {
+    configurable: true,
+    value() {
+      throw new dom.window.DOMException("Storage denied", "SecurityError");
+    },
+  });
+
+  await loadUserscript(dom, "wk-dark-theme.js", {
+    matchMedia() {
+      return {
+        matches: false,
+        addEventListener() {},
+      };
+    },
+  });
+
+  const root = dom.window.document.documentElement;
+  const toggle = dom.window.document.querySelector("#wk-dark-theme-toggle");
+  toggle.click();
+
+  assert.equal(root.dataset.wkDarkThemeMode, "dark");
+  assert.equal(root.dataset.wkDarkTheme, "dark");
+  assert.equal(toggle.textContent.trim(), "Dark");
 });
 
 test("dark theme toggle stays in the lower-left corner in light mode", async () => {
@@ -2782,6 +3154,34 @@ test("dark theme replaces the light subject lesson slide", async () => {
   const slideStyles = dom.window.getComputedStyle(slide);
 
   assert.equal(slideStyles.backgroundColor, "var(--wk-dark-surface)");
+});
+
+test("dark theme replaces the light review item info background", async () => {
+  const dom = createDom(
+    `<style>
+      .subject-info { background-color: #fafafa; }
+    </style>
+    <turbo-frame class="subject-info" id="subject-info">
+      <section class="subject-section">Item information</section>
+    </turbo-frame>`,
+    "https://www.wanikani.com/subjects/review",
+  );
+
+  await loadUserscript(dom, "wk-dark-theme.js", {
+    matchMedia() {
+      return {
+        matches: true,
+        addEventListener() {},
+      };
+    },
+  });
+
+  const itemInfo = dom.window.document.querySelector("#subject-info");
+
+  assert.equal(
+    dom.window.getComputedStyle(itemInfo).backgroundColor,
+    "var(--wk-dark-surface)",
+  );
 });
 
 test("dark theme keeps sitemap section headers readable", async () => {

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WaniKani Dark Theme
 // @namespace    wk-dark-theme
-// @version      0.4.1
+// @version      0.5.0
 // @author       Federico G. Schwindt <fgsch@lodoss.net>
 // @description  Adds a Catppuccin Mocha dark theme to WaniKani with system and manual modes.
 // @license      MIT
@@ -24,9 +24,16 @@
   const NAME = GM_info.script.name;
   const VERSION = GM_info.script.version;
 
-  let mode = modes.includes(localStorage.getItem(STORAGE_KEY))
-    ? localStorage.getItem(STORAGE_KEY)
-    : "system";
+  let mode = "system";
+
+  try {
+    const storedMode = localStorage.getItem(STORAGE_KEY);
+    if (modes.includes(storedMode)) {
+      mode = storedMode;
+    }
+  } catch (error) {
+    void error;
+  }
 
   const styles = `
     :root {
@@ -220,6 +227,10 @@
       box-shadow: 2px 2px 4px color-mix(in srgb, var(--ctp-mocha-crust) 50%, transparent);
     }
 
+    html[data-wk-dark-theme="dark"] .subject-info {
+      background-color: var(--wk-dark-surface);
+    }
+
     html[data-wk-dark-theme="dark"] .subject-slides__navigation-link[aria-selected="true"]::after {
       border-bottom-color: var(--wk-dark-border);
     }
@@ -318,7 +329,13 @@
 
   function selectNextMode(toggle) {
     mode = modes[(modes.indexOf(mode) + 1) % modes.length];
-    localStorage.setItem(STORAGE_KEY, mode);
+
+    try {
+      localStorage.setItem(STORAGE_KEY, mode);
+    } catch (error) {
+      void error;
+    }
+
     applyTheme();
     updateToggle(toggle);
   }
