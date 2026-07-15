@@ -6,7 +6,7 @@ Small userscripts for improving WaniKani study and review pages.
 
 ### WaniKani Dark Theme
 
-Adds a neutral near-black theme across WaniKani while preserving the existing radical, kanji, vocabulary, and quiz-state colors. It follows the system color scheme by default; use the control in the lower-left corner to cycle through **System**, **Dark**, and **Light** modes.
+Adds a dark theme based on [Catppuccin Mocha](https://github.com/catppuccin/catppuccin) across WaniKani while preserving the existing radical, kanji, vocabulary, and quiz-state colors. It follows the system color scheme by default; use the control in the lower-left corner to cycle through **System**, **Dark**, and **Light** modes.
 
 Install:
 <https://raw.githubusercontent.com/fgsch/wanikani/main/wk-dark-theme.js>
@@ -55,6 +55,10 @@ Run only syntax checks:
 ```sh
 make check-syntax
 ```
+
+## Credits
+
+The dark theme uses the [Catppuccin](https://github.com/catppuccin/catppuccin) color palette, copyright (c) 2021 Catppuccin and licensed under the [MIT License](https://github.com/catppuccin/catppuccin/blob/main/LICENSE).
 
 ## License
 
