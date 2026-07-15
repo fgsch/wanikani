@@ -1,6 +1,6 @@
-.PHONY: check check-syntax ci clean test
+.PHONY: check check-syntax lint ci clean test
 
-check: node_modules check-syntax test
+check: check-syntax lint test
 
 check-syntax:
 	node --check wk-dark-theme.js
@@ -12,6 +12,9 @@ ci:
 	npm ci
 	$(MAKE) check-syntax
 	npm test
+
+lint: node_modules
+	node_modules/.bin/eslint
 
 clean:
 	rm -rf node_modules

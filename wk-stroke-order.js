@@ -61,7 +61,7 @@
       return Array.from(characters?.textContent.trim() || '')[0] || null;
     }
 
-    if (!isKanjiSubjectPage()) return null;
+    if (!isKanjiSubjectPage()) {return null;}
 
     const slug = decodeURIComponent(location.pathname.split('/').filter(Boolean).pop() || '');
     return Array.from(slug)[0] || null;
@@ -83,7 +83,7 @@
 
   function getQuizKanjiSubject() {
     const subject = getQuizController()?.currentSubject;
-    if (!subject) return null;
+    if (!subject) {return null;}
 
     const type = String(
       subject.object || subject.type || subject.subject_category || ''
@@ -91,10 +91,10 @@
       .toLowerCase()
       .replace(/[_-]/g, '');
 
-    if (type !== 'kanji') return null;
+    if (type !== 'kanji') {return null;}
 
     const kanji = Array.from((subject.characters || '').trim())[0] || null;
-    if (!kanji) return null;
+    if (!kanji) {return null;}
 
     return {
       kanji,
@@ -132,8 +132,8 @@
         method: 'GET',
         url,
         onload: res => {
-          if (res.status >= 200 && res.status < 300) resolve(res.responseText);
-          else reject(new Error(`HTTP ${res.status}`));
+          if (res.status >= 200 && res.status < 300) {resolve(res.responseText);}
+          else {reject(new Error(`HTTP ${res.status}`));}
         },
         onerror: reject
       });
@@ -141,7 +141,7 @@
   }
 
   function injectStyles() {
-    if (document.getElementById(STYLE_ID)) return;
+    if (document.getElementById(STYLE_ID)) {return;}
 
     const style = document.createElement('style');
     style.id = STYLE_ID;
@@ -360,7 +360,7 @@
 
     matchingGroupIds.forEach(groupId => {
       const group = copy.getElementById(groupId);
-      if (!group) return;
+      if (!group) {return;}
 
       [...group.querySelectorAll('path')].forEach(path => {
         path.style.stroke = highlightColor;
@@ -409,7 +409,7 @@
     const caption = document.createElement('figcaption');
     const copy = createHighlightedCopy(svg, groupIds, color, captionText);
 
-    if (className) figure.className = className;
+    if (className) {figure.className = className;}
 
     caption.textContent = captionText;
     figure.append(copy, caption);
@@ -469,8 +469,8 @@
       );
     });
 
-    if (radicals.length) options.appendChild(radicalControl.label);
-    if (groups.length) options.appendChild(groupControl.label);
+    if (radicals.length) {options.appendChild(radicalControl.label);}
+    if (groups.length) {options.appendChild(groupControl.label);}
 
     radicalControl.checkbox.addEventListener('change', () => {
       figures.querySelectorAll('.wk-kanjivg-radical-figure').forEach(figure => {
@@ -484,8 +484,8 @@
       });
     });
 
-    if (options.children.length) side.appendChild(options);
-    if (figures.children.length) side.appendChild(figures);
+    if (options.children.length) {side.appendChild(options);}
+    if (figures.children.length) {side.appendChild(figures);}
 
     return side;
   }
@@ -556,10 +556,10 @@
   }
 
   function addGoToNavigationItem() {
-    if (document.querySelector(`a[href="#${SECTION_ID}"]`)) return;
+    if (document.querySelector(`a[href="#${SECTION_ID}"]`)) {return;}
 
     const meaningLink = findGoToLink('Meaning');
-    if (!meaningLink) return;
+    if (!meaningLink) {return;}
 
     const newLink = meaningLink.cloneNode(true);
     newLink.textContent = 'Stroke Order';
@@ -613,7 +613,7 @@
     const radicalHeading = findHeading('Radical Combination');
     const meaningHeading = findHeading('Meaning');
 
-    if (!radicalHeading || !meaningHeading) return false;
+    if (!radicalHeading || !meaningHeading) {return false;}
 
     const strokeHeading = radicalHeading.cloneNode(false);
     strokeHeading.id = SECTION_ID;
@@ -723,7 +723,7 @@
 
   function insertStrokeOrderQuizSection(svg, subject) {
     const meaningSection = getQuizMeaningSection();
-    if (!meaningSection) return false;
+    if (!meaningSection) {return false;}
 
     const section = meaningSection.cloneNode(false);
     const sourceHeading = meaningSection.querySelector(
@@ -801,11 +801,11 @@
       return;
     }
 
-    if (existingContent?.dataset.quizSubjectKey === subject.key) return;
+    if (existingContent?.dataset.quizSubjectKey === subject.key) {return;}
     existingSection?.remove();
 
     const meaningSection = getQuizMeaningSection();
-    if (!meaningSection || isQuizRunning || failedQuizSubjectKey === subject.key) return;
+    if (!meaningSection || isQuizRunning || failedQuizSubjectKey === subject.key) {return;}
 
     isQuizRunning = true;
     try {
@@ -853,18 +853,18 @@
   }
 
   async function runPage() {
-    if (isPageRunning) return;
-    if (!isKanjiPage()) return;
-    if (document.getElementById(CONTENT_ID)) return;
-    if (processedPaths.has(location.pathname)) return;
+    if (isPageRunning) {return;}
+    if (!isKanjiPage()) {return;}
+    if (document.getElementById(CONTENT_ID)) {return;}
+    if (processedPaths.has(location.pathname)) {return;}
 
-    if (!pageIsReady()) return;
+    if (!pageIsReady()) {return;}
 
     isPageRunning = true;
 
     try {
       const kanji = getKanji();
-      if (!kanji) return;
+      if (!kanji) {return;}
 
       const pagePath = location.pathname;
 
@@ -893,7 +893,7 @@
       const doc = new DOMParser().parseFromString(svgText, 'image/svg+xml');
       const svg = doc.querySelector('svg');
 
-      if (!svg) return;
+      if (!svg) {return;}
 
       sanitizeSvg(svg);
       injectStyles();
@@ -929,7 +929,7 @@
     let previousPath = location.pathname;
 
     const checkPath = () => {
-      if (location.pathname === previousPath) return;
+      if (location.pathname === previousPath) {return;}
 
       previousPath = location.pathname;
       processedPaths.clear();

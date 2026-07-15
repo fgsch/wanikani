@@ -74,20 +74,20 @@
       const reading = normalizeJapanese(
         element.getAttribute('data-reading') || element.textContent
       );
-      if (reading) readings.add(reading);
+      if (reading) {readings.add(reading);}
     });
 
     return [...readings];
   }
 
   function vocabularyKey(subject) {
-    if (!subject) return null;
+    if (!subject) {return null;}
     return `${subject.characters}\n${[...subject.readings].sort().join('\n')}`;
   }
 
   function getSubjectPageVocabulary(quiet) {
     if (!isVocabularySubjectPage()) {
-      if (!quiet) console.debug(`[${NAME}] Not a vocabulary subject page`);
+      if (!quiet) {console.debug(`[${NAME}] Not a vocabulary subject page`);}
       return null;
     }
 
@@ -102,7 +102,7 @@
     ]);
 
     if (!characters) {
-      if (!quiet) console.debug(`[${NAME}] No characters found for subject page`);
+      if (!quiet) {console.debug(`[${NAME}] No characters found for subject page`);}
       return null;
     }
 
@@ -117,7 +117,7 @@
 
   function getLessonVocabulary(quiet) {
     if (!isVocabularyLessonPage()) {
-      if (!quiet) console.debug(`[${NAME}] Not a vocabulary lesson page`);
+      if (!quiet) {console.debug(`[${NAME}] Not a vocabulary lesson page`);}
       return null;
     }
 
@@ -132,7 +132,7 @@
     ]);
 
     if (!characters) {
-      if (!quiet) console.debug(`[${NAME}] No characters found for lesson page`);
+      if (!quiet) {console.debug(`[${NAME}] No characters found for lesson page`);}
       return null;
     }
     if (!quiet) {
@@ -178,7 +178,7 @@
       .filter(reading => {
         const accepted =
           reading.acceptedAnswer ?? reading.accepted_answer ?? reading.primary;
-        if (accepted !== undefined) return accepted;
+        if (accepted !== undefined) {return accepted;}
 
         const kind = normalizeJapanese(reading.kind).toLowerCase();
         return !kind || kind === 'primary' || kind === 'alternative';
@@ -198,7 +198,7 @@
   }
 
   function fetchText(url) {
-    if (responseCache.has(url)) return responseCache.get(url);
+    if (responseCache.has(url)) {return responseCache.get(url);}
 
     const request = new Promise((resolve, reject) => {
       GM.xmlHttpRequest({
@@ -231,7 +231,7 @@
       unvoiced: element.classList.contains('unvoiced')
     }));
 
-    if (!moras.length || moras.some(mora => !mora.text)) return null;
+    if (!moras.length || moras.some(mora => !mora.text)) {return null;}
     return moras;
   }
 
@@ -292,9 +292,9 @@
   function getPatternName(moras) {
     const dropIndex = getAccentNumber(moras);
 
-    if (!dropIndex) return 'Heiban';
-    if (dropIndex === 1) return 'Atamadaka';
-    if (dropIndex === moras.length) return 'Odaka';
+    if (!dropIndex) {return 'Heiban';}
+    if (dropIndex === 1) {return 'Atamadaka';}
+    if (dropIndex === moras.length) {return 'Odaka';}
     return 'Nakadaka';
   }
 
@@ -330,7 +330,7 @@
         class: 'wk-pitch-accent-character'
       });
       character.textContent = mora.text;
-      if (mora.unvoiced) character.classList.add('wk-pitch-accent-unvoiced');
+      if (mora.unvoiced) {character.classList.add('wk-pitch-accent-unvoiced');}
       svg.appendChild(character);
     });
 
@@ -416,7 +416,7 @@
     } else {
       const chartsByReading = new Map();
 
-      variants.forEach((variant, index) => {
+      variants.forEach((variant, _index) => {
         let charts = chartsByReading.get(variant.reading);
         if (!charts) {
           charts = document.createElement('span');
@@ -437,12 +437,12 @@
       });
     }
 
-    if (!error) details.appendChild(createCredit());
+    if (!error) {details.appendChild(createCredit());}
     return { visual, details, replacesReading: !error };
   }
 
   function injectStyles() {
-    if (document.getElementById(STYLE_ID)) return;
+    if (document.getElementById(STYLE_ID)) {return;}
 
     const style = document.createElement('style');
     style.id = STYLE_ID;
@@ -582,7 +582,7 @@
   function insertPitchAroundReading(readingContent, content) {
     const readingRow = findReadingRow(readingContent);
 
-    if (!readingRow) return false;
+    if (!readingRow) {return false;}
 
     if (content.replacesReading) {
       const charts = [...content.visual.querySelectorAll('.wk-pitch-accent-charts')];
@@ -592,10 +592,10 @@
       findReadingContainers(readingRow).forEach(container => {
         const reading = getContainerReading(container);
         const matchingCharts = charts.filter(chart => chart.dataset.reading === reading);
-        if (!matchingCharts.length) return;
+        if (!matchingCharts.length) {return;}
 
         const originalReading = findReadingTarget(container);
-        if (!originalReading) return;
+        if (!originalReading) {return;}
 
         const replacementCharts = matchingCharts.map(chart => {
           const replacement = usedCharts.has(chart)
@@ -627,8 +627,8 @@
   function restorePitchContent(root) {
     root?.querySelectorAll('.wk-pitch-accent-charts').forEach(charts => {
       const originalNodes = charts[ORIGINAL_READING_NODES];
-      if (originalNodes) charts.replaceWith(...originalNodes);
-      else charts.remove();
+      if (originalNodes) {charts.replaceWith(...originalNodes);}
+      else {charts.remove();}
     });
     root?.querySelectorAll('.wk-pitch-accent-visual, .wk-pitch-accent-details')
       .forEach(element => {
@@ -644,7 +644,7 @@
 
   function insertSubjectReading(content) {
     const readingContent = getSubjectReadingContent();
-    if (!readingContent) return false;
+    if (!readingContent) {return false;}
 
     insertPitchAroundReading(readingContent, content);
     return true;
@@ -669,14 +669,14 @@
   function insertLessonReading(content) {
     const readingContent = getLessonReadingContent();
 
-    if (!readingContent) return false;
+    if (!readingContent) {return false;}
 
     insertPitchAroundReading(readingContent, content);
     return true;
   }
 
   async function runQuiz() {
-    if (!isQuizPage()) return;
+    if (!isQuizPage()) {return;}
 
     const subject = getQuizVocabulary();
     const input = document.querySelector('.quiz-input__input-container');
@@ -765,7 +765,7 @@
       return;
     }
 
-    if (isRunning || document.getElementById(CONTENT_ID)) return;
+    if (isRunning || document.getElementById(CONTENT_ID)) {return;}
 
     const isLesson = isVocabularyLessonPage();
     const subject = isLesson ? getLessonVocabulary() : getSubjectPageVocabulary();
@@ -804,8 +804,8 @@
         return;
       }
       injectStyles();
-      if (isLesson) insertLessonReading(content);
-      else insertSubjectReading(content);
+      if (isLesson) {insertLessonReading(content);}
+      else {insertSubjectReading(content);}
       console.debug(`[${NAME}] Inserted successfully`);
     } finally {
       isRunning = false;

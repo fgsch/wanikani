@@ -8,6 +8,9 @@
     "test": "node --test"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.7.0",
     "jsdom": "^29.1.1"
   }
 }

@@ -39,7 +39,7 @@
     const subject = quizQueue.currentItem ?? controller.currentSubject;
     const questionType = quizQueue.questionType ?? controller.currentQuestionType;
 
-    if (!subject || !questionType) return null;
+    if (!subject || !questionType) {return null;}
 
     let stats;
 
@@ -87,7 +87,7 @@
     const dispatchEvent = window.dispatchEvent;
 
     window.dispatchEvent = function (event) {
-      if (event?.type === "didAnswerQuestion") return true;
+      if (event?.type === "didAnswerQuestion") {return true;}
       return dispatchEvent.call(this, event);
     };
 
@@ -99,7 +99,7 @@
   }
 
   function installPendingAnswerTransaction(controller) {
-    if (!controller) return null;
+    if (!controller) {return null;}
 
     let quizQueue;
 
@@ -127,7 +127,7 @@
     const submitAnswer = quizQueue.submitAnswer;
     const nextItem = quizQueue.nextItem;
     let pendingAnswer = null;
-    let transaction;
+    let transaction = null;
 
     const wrappedSubmitAnswer = (answer, results) => {
       pendingAnswer = { answer, results };
@@ -146,7 +146,7 @@
         pendingAnswer = null;
       },
       flush() {
-        if (!pendingAnswer) return;
+        if (!pendingAnswer) {return;}
 
         const { answer, results } = pendingAnswer;
         pendingAnswer = null;
@@ -182,7 +182,7 @@
     const redoButton = getRedoButton();
     const inputContainer = document.querySelector(".quiz-input__input-container");
 
-    if (!redoButton || !inputContainer) return;
+    if (!redoButton || !inputContainer) {return;}
 
     const transaction = installPendingAnswerTransaction(getQuizInputController());
     const canRedo =
@@ -219,7 +219,7 @@
 
   function redoAnswer() {
     const controller = getQuizInputController();
-    if (!controller) return;
+    if (!controller) {return;}
 
     installPendingAnswerTransaction(controller)?.discard();
 
@@ -247,7 +247,7 @@
       resetItemInfo();
 
       const input = document.querySelector("#user-response");
-      if (!input) return;
+      if (!input) {return;}
 
       input.value = "";
       input.setAttribute("enabled", "true");
@@ -288,7 +288,7 @@
     });
 
     button.addEventListener("keydown", (event) => {
-      if (event.key !== "Enter" && event.key !== " ") return;
+      if (event.key !== "Enter" && event.key !== " ") {return;}
 
       event.preventDefault();
 
@@ -301,20 +301,20 @@
   }
 
   function injectRedoButton() {
-    if (!isQuizPage()) return;
-    if (getRedoButton()) return;
+    if (!isQuizPage()) {return;}
+    if (getRedoButton()) {return;}
 
     const lastItemsLi = document
       .querySelector(".additional-content__item--last-items")
       ?.closest("li");
 
-    if (!lastItemsLi) return;
+    if (!lastItemsLi) {return;}
 
     lastItemsLi.before(createRedoButton());
   }
 
   function run() {
-    if (!isQuizPage()) return;
+    if (!isQuizPage()) {return;}
 
     installPendingAnswerTransaction(getQuizInputController());
     injectRedoButton();
@@ -325,7 +325,7 @@
     let previousPath = location.pathname;
 
     const checkPath = () => {
-      if (location.pathname === previousPath) return;
+      if (location.pathname === previousPath) {return;}
 
       previousPath = location.pathname;
       run();
