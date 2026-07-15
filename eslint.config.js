@@ -4,7 +4,7 @@ import globals from "globals";
 
 export default [
   {
-    ignores: ["node_modules/", "test/"],
+    ignores: ["node_modules/"],
   },
 
   js.configs.recommended,

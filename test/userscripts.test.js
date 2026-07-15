@@ -2685,10 +2685,6 @@ test("dark theme uses the Catppuccin Mocha palette", async () => {
     },
   });
 
-  const styles = dom.window.getComputedStyle(
-    dom.window.document.documentElement,
-  );
-
   assert.equal(
     resolveCustomProperty(dom, dom.window.document.documentElement, "--wk-dark-background"),
     "#1e1e2e",
