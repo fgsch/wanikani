@@ -21,6 +21,17 @@ async function loadUserscript(dom, filename, globals = {}) {
   dom.window.eval(source);
 }
 
+async function loadDarkTheme(dom, matches = true) {
+  await loadUserscript(dom, "wk-dark-theme.js", {
+    matchMedia() {
+      return {
+        matches,
+        addEventListener() {},
+      };
+    },
+  });
+}
+
 async function flushMutationObservers() {
   await Promise.resolve();
 }
@@ -50,6 +61,25 @@ function createDom(html, url, options = {}) {
   });
 }
 
+const MINIMAL_KANJIVG_SVG = `
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 109 109">
+    <path d="M10 50 L90 50"></path>
+  </svg>
+`;
+
+const SIMPLE_TABERU_OJAD_HTML = `<table id="word_table"><tbody><tr>
+    <td class="midashi"><p class="midashi_word">食べる・食べます</p></td>
+    <td class="katsuyo_jisho_js"><span class="accented_word">
+      <span><span class="char">た</span></span>
+      <span class="accent_top"><span class="char">べ</span></span>
+      <span><span class="char">る</span></span>
+    </span></td>
+  </tr></tbody></table>`;
+
+function stubSvgPathLength(dom) {
+  dom.window.SVGElement.prototype.getTotalLength = () => 100;
+}
+
 function resolveCustomProperty(dom, element, property) {
   let value = dom.window
     .getComputedStyle(element)
@@ -65,6 +95,16 @@ function resolveCustomProperty(dom, element, property) {
   }
 
   return value;
+}
+
+function assertCustomProperties(dom, element, expected) {
+  for (const [property, value] of Object.entries(expected)) {
+    assert.equal(
+      resolveCustomProperty(dom, element, property),
+      value,
+      `unexpected value for ${property}`,
+    );
+  }
 }
 
 function parseColor(value) {
@@ -523,8 +563,9 @@ test("redo answer commits a pending answer when the page exits", async () => {
   assert.deepEqual(calls, []);
 
   dom.window.dispatchEvent(new dom.window.Event("pagehide"));
-  dom.window.dispatchEvent(new dom.window.Event("pagehide"));
+  assert.deepEqual(calls, [["answer", results]]);
 
+  dom.window.dispatchEvent(new dom.window.Event("pagehide"));
   assert.deepEqual(calls, [["answer", results]]);
 });
 
@@ -733,6 +774,67 @@ test("redo answer moves its transaction when the queue outlet changes", async ()
   assert.deepEqual(secondCalls, [["submit", "second"], ["next"]]);
 });
 
+test("redo answer restores the old queue when flushing it during an outlet switch fails", async () => {
+  const dom = createDom(
+    `
+      <div class="quiz-input"><div class="quiz-input__input-container"></div></div>
+      <ul><li><a class="additional-content__item additional-content__item--last-items"></a></li></ul>
+    `,
+    "https://www.wanikani.com/subjects/review",
+  );
+  const calls = [];
+  let shouldFail = true;
+  const originalSubmitAnswer = (answer) => {
+    calls.push(["submit", answer]);
+    if (shouldFail) {
+      shouldFail = false;
+      throw new Error("submit failed");
+    }
+  };
+  const originalNextItem = () => {
+    calls.push(["next"]);
+  };
+  const firstQueue = {
+    submitAnswer: originalSubmitAnswer,
+    nextItem: originalNextItem,
+  };
+  const secondQueue = {
+    submitAnswer() {},
+    nextItem() {},
+  };
+  const controller = { quizQueueOutlet: firstQueue };
+
+  await loadUserscript(dom, "wk-redo-answer.js", {
+    Stimulus: {
+      getControllerForElementAndIdentifier() {
+        return controller;
+      },
+    },
+  });
+
+  firstQueue.submitAnswer("pending", { action: "pass" });
+  controller.quizQueueOutlet = secondQueue;
+  let thrown;
+  dom.window.addEventListener("error", (event) => {
+    thrown = event.error;
+    event.preventDefault();
+  });
+
+  dom.window.document.dispatchEvent(new dom.window.Event("turbo:load"));
+
+  assert.match(thrown?.message, /submit failed/);
+  assert.equal(firstQueue.submitAnswer, originalSubmitAnswer);
+  assert.equal(firstQueue.nextItem, originalNextItem);
+
+  firstQueue.submitAnswer("after uninstall", { action: "pass" });
+  firstQueue.nextItem();
+  assert.deepEqual(calls, [
+    ["submit", "pending"],
+    ["submit", "after uninstall"],
+    ["next"],
+  ]);
+});
+
 test("redo answer reuses its transaction when the input controller changes", async () => {
   const dom = createDom(
     `
@@ -775,14 +877,6 @@ test("redo answer reuses its transaction when the input controller changes", asy
 });
 
 test("stroke order inserts a KanjiVG section and navigation link on kanji pages", async () => {
-  const svgText = `
-    <svg xmlns="http://www.w3.org/2000/svg" xmlns:kvg="http://kanjivg.tagaini.net" viewBox="0 0 109 109">
-      <g id="kvg:kanji_4e00" kvg:element="一" kvg:radical="general">
-        <path id="kvg:4e00-s1" d="M10 50 L90 50"></path>
-        <text x="12" y="45">1</text>
-      </g>
-    </svg>
-  `;
   const dom = createDom(
     `
       <nav><ul><li><a class="wk-nav__item" href="#meaning"><span class="wk-nav__item-text">Meaning</span></a></li></ul></nav>
@@ -796,13 +890,13 @@ test("stroke order inserts a KanjiVG section and navigation link on kanji pages"
   );
   let fetchedUrl = null;
 
-  dom.window.SVGElement.prototype.getTotalLength = () => 100;
+  stubSvgPathLength(dom);
 
   await loadUserscript(dom, "wk-stroke-order.js", {
     GM: {
       xmlHttpRequest({ url, onload }) {
         fetchedUrl = url;
-        onload({ status: 200, responseText: svgText });
+        onload({ status: 200, responseText: MINIMAL_KANJIVG_SVG });
       },
     },
   });
@@ -854,7 +948,7 @@ test("stroke order animated colors contrast with light and dark backgrounds", as
 
   dom.window.Math.random = () =>
     randomValues[randomIndex++ % randomValues.length];
-  dom.window.SVGElement.prototype.getTotalLength = () => 100;
+  stubSvgPathLength(dom);
 
   await loadUserscript(dom, "wk-stroke-order.js", {
     GM: {
@@ -887,14 +981,6 @@ test("stroke order animated colors contrast with light and dark backgrounds", as
 });
 
 test("stroke order inserts a lesson tab after Radicals on kanji lessons", async () => {
-  const svgText = `
-    <svg xmlns="http://www.w3.org/2000/svg" xmlns:kvg="http://kanjivg.tagaini.net" viewBox="0 0 109 109">
-      <g id="kvg:kanji_5148" kvg:element="先" kvg:radical="general">
-        <path id="kvg:5148-s1" d="M10 50 L90 50"></path>
-        <text x="12" y="45">1</text>
-      </g>
-    </svg>
-  `;
   const dom = createDom(
     `
       <div class="lesson-container">
@@ -934,13 +1020,13 @@ test("stroke order inserts a lesson tab after Radicals on kanji lessons", async 
   );
   let fetchedUrl = null;
 
-  dom.window.SVGElement.prototype.getTotalLength = () => 100;
+  stubSvgPathLength(dom);
 
   await loadUserscript(dom, "wk-stroke-order.js", {
     GM: {
       xmlHttpRequest({ url, onload }) {
         fetchedUrl = url;
-        onload({ status: 200, responseText: svgText });
+        onload({ status: 200, responseText: MINIMAL_KANJIVG_SVG });
       },
     },
   });
@@ -989,14 +1075,6 @@ test("stroke order inserts a lesson tab after Radicals on kanji lessons", async 
 });
 
 test("stroke order inserts before Meaning in review Item Info after answering", async () => {
-  const svgText = `
-    <svg xmlns="http://www.w3.org/2000/svg" xmlns:kvg="http://kanjivg.tagaini.net" viewBox="0 0 109 109">
-      <g id="kvg:kanji_4e00" kvg:element="一" kvg:radical="general">
-        <path id="kvg:4e00-s1" d="M10 50 L90 50"></path>
-        <text x="12" y="45">1</text>
-      </g>
-    </svg>
-  `;
   const dom = createDom(
     `
       <div class="quiz-input">
@@ -1021,13 +1099,13 @@ test("stroke order inserts before Meaning in review Item Info after answering", 
     },
   };
 
-  dom.window.SVGElement.prototype.getTotalLength = () => 100;
+  stubSvgPathLength(dom);
 
   await loadUserscript(dom, "wk-stroke-order.js", {
     GM: {
       xmlHttpRequest({ onload }) {
         fetchCount += 1;
-        onload({ status: 200, responseText: svgText });
+        onload({ status: 200, responseText: MINIMAL_KANJIVG_SVG });
       },
     },
     Stimulus: {
@@ -1075,11 +1153,6 @@ for (const [quizName, quizUrl] of [
   ],
 ]) {
   test(`stroke order recognizes ${quizName} quizzes`, async () => {
-    const svgText = `
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 109 109">
-        <path d="M10 50 L90 50"></path>
-      </svg>
-    `;
     const dom = createDom(
       `
         <div class="quiz-input"><div class="quiz-input__input-container" correct></div></div>
@@ -1094,12 +1167,12 @@ for (const [quizName, quizUrl] of [
       quizUrl,
     );
 
-    dom.window.SVGElement.prototype.getTotalLength = () => 100;
+    stubSvgPathLength(dom);
 
     await loadUserscript(dom, "wk-stroke-order.js", {
       GM: {
         xmlHttpRequest({ onload }) {
-          onload({ status: 200, responseText: svgText });
+          onload({ status: 200, responseText: MINIMAL_KANJIVG_SVG });
         },
       },
       Stimulus: {
@@ -1125,11 +1198,6 @@ for (const [quizName, quizUrl] of [
 }
 
 test("stroke order reads the review subject from the userscript page window", async () => {
-  const svgText = `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 109 109">
-      <path d="M10 50 L90 50"></path>
-    </svg>
-  `;
   const dom = createDom(
     `
       <div class="quiz-input"><div class="quiz-input__input-container" correct="true"></div></div>
@@ -1157,12 +1225,12 @@ test("stroke order reads the review subject from the userscript page window", as
     },
   };
 
-  dom.window.SVGElement.prototype.getTotalLength = () => 100;
+  stubSvgPathLength(dom);
 
   await loadUserscript(dom, "wk-stroke-order.js", {
     GM: {
       xmlHttpRequest({ onload }) {
-        onload({ status: 200, responseText: svgText });
+        onload({ status: 200, responseText: MINIMAL_KANJIVG_SVG });
       },
     },
     unsafeWindow: {
@@ -1262,7 +1330,7 @@ test("stroke order discards a stale review lookup when the subject changes", asy
     currentSubject: { id: 1, object: "kanji", characters: "一" },
   };
 
-  dom.window.SVGElement.prototype.getTotalLength = () => 100;
+  stubSvgPathLength(dom);
 
   await loadUserscript(dom, "wk-stroke-order.js", {
     GM: {
@@ -1363,11 +1431,6 @@ test("stroke order retries a failed kanji only after the review subject changes"
 });
 
 test("stroke order starts a review lookup while a subject-page lookup is pending", async () => {
-  const svgText = `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 109 109">
-      <path d="M10 50 L90 50"></path>
-    </svg>
-  `;
   const dom = createDom(
     `
       <main>
@@ -1382,7 +1445,7 @@ test("stroke order starts a review lookup while a subject-page lookup is pending
     currentSubject: { id: 2, object: "kanji", characters: "二" },
   };
 
-  dom.window.SVGElement.prototype.getTotalLength = () => 100;
+  stubSvgPathLength(dom);
 
   await loadUserscript(dom, "wk-stroke-order.js", {
     GM: {
@@ -1417,7 +1480,7 @@ test("stroke order starts a review lookup while a subject-page lookup is pending
     assert.equal(requests.length, 2);
   });
 
-  requests[1].onload({ status: 200, responseText: svgText });
+  requests[1].onload({ status: 200, responseText: MINIMAL_KANJIVG_SVG });
 
   await waitFor(() => {
     assert.equal(
@@ -1428,7 +1491,7 @@ test("stroke order starts a review lookup while a subject-page lookup is pending
     );
   });
 
-  requests[0].onload({ status: 200, responseText: svgText });
+  requests[0].onload({ status: 200, responseText: MINIMAL_KANJIVG_SVG });
 
   await new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -1442,6 +1505,54 @@ test("stroke order starts a review lookup while a subject-page lookup is pending
       ?.getAttribute("aria-label"),
     "二 stroke order",
   );
+});
+
+test("stroke order starts the destination kanji lookup after a pending page lookup settles", async () => {
+  const page = `
+    <nav><ul><li><a class="wk-nav__item" href="#meaning"><span class="wk-nav__item-text">Meaning</span></a></li></ul></nav>
+    <main>
+      <h2>Radical Combination</h2>
+      <h2 id="meaning">Meaning</h2>
+    </main>
+  `;
+  const dom = createDom(page, "https://www.wanikani.com/kanji/%E4%B8%80");
+  const requests = [];
+
+  stubSvgPathLength(dom);
+
+  await loadUserscript(dom, "wk-stroke-order.js", {
+    GM: {
+      xmlHttpRequest(request) {
+        requests.push(request);
+      },
+    },
+  });
+
+  assert.equal(requests.length, 1);
+
+  dom.window.history.pushState({}, "", "/kanji/%E4%BA%8C");
+  dom.window.document.body.innerHTML = page;
+  dom.window.document.dispatchEvent(new dom.window.Event("turbo:load"));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  assert.equal(requests.length, 1);
+
+  requests[0].onload({ status: 200, responseText: MINIMAL_KANJIVG_SVG });
+
+  await waitFor(() => {
+    assert.equal(requests.length, 2);
+  });
+
+  requests[1].onload({ status: 200, responseText: MINIMAL_KANJIVG_SVG });
+
+  await waitFor(() => {
+    assert.equal(
+      dom.window.document
+        .querySelector("#wk-kanjivg-stroke-order svg")
+        ?.getAttribute("aria-label"),
+      "二 stroke order",
+    );
+  });
 });
 
 test("stroke order reinserts after a same-path lesson render", async () => {
@@ -1471,24 +1582,19 @@ test("stroke order reinserts after a same-path lesson render", async () => {
       </div>
     </div>
   `;
-  const svgText = `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 109 109">
-      <path d="M10 50 L90 50"></path>
-    </svg>
-  `;
   const dom = createDom(
     lessonHtml,
     "https://www.wanikani.com/subject-lessons/-4190889689937224551/543",
   );
   let fetchCount = 0;
 
-  dom.window.SVGElement.prototype.getTotalLength = () => 100;
+  stubSvgPathLength(dom);
 
   await loadUserscript(dom, "wk-stroke-order.js", {
     GM: {
       xmlHttpRequest({ onload }) {
         fetchCount += 1;
-        onload({ status: 200, responseText: svgText });
+        onload({ status: 200, responseText: MINIMAL_KANJIVG_SVG });
       },
     },
   });
@@ -1551,6 +1657,11 @@ test("stroke order sanitizes fetched SVG before insertion", async () => {
       <style>@import url("https://attacker.example/styles.css");</style>
       <foreignObject><div>unsafe</div></foreignObject>
       <use href="#safe"></use>
+      <set attributeName="href" to="javascript:alert(1)"></set>
+      <animate attributeName="href" values="#safe;javascript:alert(1)"></animate>
+      <animateMotion path="M0,0 L100,100"></animateMotion>
+      <animateTransform attributeName="transform" type="scale" values="1;2"></animateTransform>
+      <discard begin="0s"></discard>
       <a href="javascript:alert(1)">
         <g id="kvg:kanji_4e00" kvg:element="一" kvg:radical="general" onclick="alert(1)" style="background: url(https://attacker.example/image.png)">
           <path id="kvg:4e00-s1" d="M10 50 L90 50" onmouseover="alert(1)" fill="url(https://attacker.example/fill.svg)" filter="url('https://attacker.example/filter.svg')"></path>
@@ -1570,7 +1681,7 @@ test("stroke order sanitizes fetched SVG before insertion", async () => {
     "https://www.wanikani.com/kanji/%E4%B8%80",
   );
 
-  dom.window.SVGElement.prototype.getTotalLength = () => 100;
+  stubSvgPathLength(dom);
 
   await loadUserscript(dom, "wk-stroke-order.js", {
     GM: {
@@ -1600,18 +1711,16 @@ test("stroke order sanitizes fetched SVG before insertion", async () => {
   assert.equal(insertedSvg.querySelector("[fill]"), null);
   assert.equal(insertedSvg.querySelector("[filter]"), null);
   assert.equal(insertedSvg.querySelector("a[href]"), null);
+  assert.equal(
+    insertedSvg.querySelector(
+      "set, animate, animateMotion, animateTransform, discard",
+    ),
+    null,
+  );
   assert.ok(insertedSvg.querySelector('use[href="#safe"]'));
 });
 
 test("stroke order can reinsert after navigating away and back to a kanji page", async () => {
-  const svgText = `
-    <svg xmlns="http://www.w3.org/2000/svg" xmlns:kvg="http://kanjivg.tagaini.net" viewBox="0 0 109 109">
-      <g id="kvg:kanji_4e00" kvg:element="一" kvg:radical="general">
-        <path id="kvg:4e00-s1" d="M10 50 L90 50"></path>
-        <text x="12" y="45">1</text>
-      </g>
-    </svg>
-  `;
   const kanjiPage = `
     <nav><ul><li><a class="wk-nav__item" href="#meaning"><span class="wk-nav__item-text">Meaning</span></a></li></ul></nav>
     <main>
@@ -1622,13 +1731,13 @@ test("stroke order can reinsert after navigating away and back to a kanji page",
   const dom = createDom(kanjiPage, "https://www.wanikani.com/kanji/%E4%B8%80");
   let fetchCount = 0;
 
-  dom.window.SVGElement.prototype.getTotalLength = () => 100;
+  stubSvgPathLength(dom);
 
   await loadUserscript(dom, "wk-stroke-order.js", {
     GM: {
       xmlHttpRequest({ onload }) {
         fetchCount += 1;
-        onload({ status: 200, responseText: svgText });
+        onload({ status: 200, responseText: MINIMAL_KANJIVG_SVG });
       },
     },
   });
@@ -1680,7 +1789,7 @@ test("stroke order does not duplicate SVG ids in generated figures", async () =>
     "https://www.wanikani.com/kanji/%E4%B8%80",
   );
 
-  dom.window.SVGElement.prototype.getTotalLength = () => 100;
+  stubSvgPathLength(dom);
 
   await loadUserscript(dom, "wk-stroke-order.js", {
     GM: {
@@ -1764,6 +1873,51 @@ test("stroke order does not repeatedly fetch a failed KanjiVG file", async () =>
   await new Promise((resolve) => setTimeout(resolve, 0));
 
   assert.equal(fetchCount, 1);
+});
+
+test("stroke order times out a stalled request and processes the destination page", async () => {
+  const page = `
+    <nav><ul><li><a class="wk-nav__item" href="#meaning"><span class="wk-nav__item-text">Meaning</span></a></li></ul></nav>
+    <main>
+      <h2>Radical Combination</h2>
+      <h2 id="meaning">Meaning</h2>
+    </main>
+  `;
+  const dom = createDom(page, "https://www.wanikani.com/kanji/%E4%B8%80");
+  const requests = [];
+
+  stubSvgPathLength(dom);
+  dom.window.console.warn = () => {};
+
+  await loadUserscript(dom, "wk-stroke-order.js", {
+    GM: {
+      xmlHttpRequest(request) {
+        requests.push(request);
+      },
+    },
+  });
+
+  assert.equal(Number.isFinite(requests[0].timeout), true);
+  assert.ok(requests[0].timeout > 0);
+
+  dom.window.history.pushState({}, "", "/kanji/%E4%BA%8C");
+  dom.window.document.body.innerHTML = page;
+  requests[0].ontimeout();
+
+  await waitFor(() => {
+    assert.equal(requests.length, 2);
+  });
+
+  requests[1].onload({ status: 200, responseText: MINIMAL_KANJIVG_SVG });
+
+  await waitFor(() => {
+    assert.equal(
+      dom.window.document
+        .querySelector("#wk-kanjivg-stroke-order svg")
+        ?.getAttribute("aria-label"),
+      "二 stroke order",
+    );
+  });
 });
 
 test("pitch accent silently ignores dashboard mutations", async () => {
@@ -1854,14 +2008,8 @@ test("pitch accent inserts an exact OJAD result inside Reading", async () => {
     `,
     "https://www.wanikani.com/vocabulary/%E9%A3%9F%E3%81%B9%E3%82%8B",
   );
-  const readingRow = dom.window.document.querySelector(
-    ".subject-readings-with-audio",
-  );
   const readingItem = dom.window.document.querySelector(
     ".subject-readings-with-audio__item",
-  );
-  const originalReading = dom.window.document.querySelector(
-    ".reading-with-audio__reading",
   );
   const audioControl = dom.window.document.querySelector(
     ".reading-with-audio__audio",
@@ -1906,24 +2054,12 @@ test("pitch accent inserts an exact OJAD result inside Reading", async () => {
     dom.window.document.querySelector(".wk-pitch-accent-heading"),
     null,
   );
-  assert.equal(originalReading.isConnected, false);
-  assert.equal(originalReading.className, "reading-with-audio__reading");
-  assert.equal(originalReading.textContent, "たべる");
   assert.notEqual(dom.window.getComputedStyle(audioControl).display, "none");
   assert.equal(
     dom.window.getComputedStyle(
       audioControl.querySelector(".reading-with-audio__audio-icon"),
     ).height,
     "16px",
-  );
-  assert.equal(
-    dom.window.document.querySelector(".wk-pitch-accent-charts")?.parentElement
-      .className,
-    "reading-with-audio",
-  );
-  assert.equal(
-    audioControl.previousElementSibling,
-    dom.window.document.querySelector(".wk-pitch-accent-charts"),
   );
   assert.equal(
     dom.window.getComputedStyle(
@@ -2005,6 +2141,20 @@ test("pitch accent inserts an exact OJAD result inside Reading", async () => {
       .length,
     1,
   );
+  const accentNumber = dom.window.document.querySelector(
+    ".wk-pitch-accent-number",
+  );
+  const pitchFigure = dom.window.document.querySelector(
+    ".wk-pitch-accent-charts figure",
+  );
+  const pitchCaption = pitchFigure.querySelector("figcaption");
+  assert.equal(
+    dom.window.getComputedStyle(accentNumber).dominantBaseline,
+    "central",
+  );
+  assert.equal(dom.window.getComputedStyle(pitchFigure).alignItems, "flex-start");
+  assert.equal(dom.window.getComputedStyle(pitchCaption).lineHeight, "16px");
+  assert.equal(dom.window.getComputedStyle(pitchCaption).marginTop, "26px");
   assert.deepEqual(
     [
       ...dom.window.document.querySelectorAll(
@@ -2024,8 +2174,6 @@ test("pitch accent inserts an exact OJAD result inside Reading", async () => {
     ].map((element) => element.className),
     ["subject-readings-with-audio", "wk-pitch-accent wk-pitch-accent-details"],
   );
-  assert.equal(readingRow.className, "subject-readings-with-audio");
-  assert.equal(readingItem.className, "subject-readings-with-audio__item");
 });
 
 test("pitch accent shows all exact variants and rejects other headwords and readings", async () => {
@@ -2271,14 +2419,6 @@ test("pitch accent replaces each reading beside its own audio control", async ()
 });
 
 test("pitch accent inserts inside the vocabulary lesson Reading slide", async () => {
-  const ojadHtml = `<table id="word_table"><tbody><tr>
-    <td class="midashi"><p class="midashi_word">食べる・食べます</p></td>
-    <td class="katsuyo_jisho_js"><span class="accented_word">
-      <span><span class="char">た</span></span>
-      <span class="accent_top"><span class="char">べ</span></span>
-      <span><span class="char">る</span></span>
-    </span></td>
-  </tr></tbody></table>`;
   const dom = createDom(
     `
       <div class="character-header character-header--vocabulary">
@@ -2315,7 +2455,7 @@ test("pitch accent inserts inside the vocabulary lesson Reading slide", async ()
   await loadUserscript(dom, "wk-pitch-accent.js", {
     GM: {
       xmlHttpRequest({ onload }) {
-        onload({ status: 200, responseText: ojadHtml });
+        onload({ status: 200, responseText: SIMPLE_TABERU_OJAD_HTML });
       },
     },
   });
@@ -2373,15 +2513,58 @@ test("pitch accent inserts inside the vocabulary lesson Reading slide", async ()
   );
 });
 
+test("pitch accent replaces a kanji lesson reading", async () => {
+  const dom = createDom(
+    `
+      <div class="character-header character-header--kanji">
+        <div class="character-header__characters">村</div>
+      </div>
+      <div class="subject-slide" id="reading">
+        <section class="subject-section" title="Readings (kun’yomi)">
+          <section class="subject-section__content">
+            <p class="wk-text" lang="ja">むら</p>
+          </section>
+        </section>
+      </div>
+    `,
+    "https://www.wanikani.com/subject-lessons/930252633918130599/554#reading",
+  );
+
+  await loadUserscript(dom, "wk-pitch-accent.js", {
+    GM: {
+      xmlHttpRequest({ onload }) {
+        onload({
+          status: 200,
+          responseText: `<table id="word_table"><tbody><tr>
+            <td class="midashi"><p class="midashi_word">村</p></td>
+            <td class="katsuyo_jisho_js"><span class="accented_word">
+              <span class="accent_top"><span class="char">む</span></span>
+              <span><span class="char">ら</span></span>
+            </span></td>
+          </tr></tbody></table>`,
+        });
+      },
+    },
+  });
+
+  await waitFor(() => {
+    assert.equal(
+      dom.window.document
+        .querySelector("#reading .wk-pitch-accent-charts svg text")
+        ?.textContent,
+      "む",
+    );
+  });
+
+  assert.equal(
+    dom.window.document.querySelector("#reading .wk-pitch-accent-charts")
+      ?.dataset.reading,
+    "むら",
+  );
+  assert.ok(dom.window.document.querySelector("#reading #wk-pitch-accent"));
+});
+
 test("pitch accent waits for a revealed quiz answer and Reading item info", async () => {
-  const ojadHtml = `<table id="word_table"><tbody><tr>
-    <td class="midashi"><p class="midashi_word">食べる・食べます</p></td>
-    <td class="katsuyo_jisho_js"><span class="accented_word">
-      <span><span class="char">た</span></span>
-      <span class="accent_top"><span class="char">べ</span></span>
-      <span><span class="char">る</span></span>
-    </span></td>
-  </tr></tbody></table>`;
   const dom = createDom(
     `
       <div class="quiz-input"><div class="quiz-input__input-container"><input id="user-response"></div></div>
@@ -2414,7 +2597,7 @@ test("pitch accent waits for a revealed quiz answer and Reading item info", asyn
     GM: {
       xmlHttpRequest({ onload }) {
         fetchCount += 1;
-        onload({ status: 200, responseText: ojadHtml });
+        onload({ status: 200, responseText: SIMPLE_TABERU_OJAD_HTML });
       },
     },
   });
@@ -2597,6 +2780,51 @@ test("pitch accent does not insert a stale lookup after vocabulary navigation", 
       dom.window.document.querySelector(".wk-pitch-accent-charts figcaption")
         ?.textContent,
       "Heiban",
+    );
+  });
+});
+
+test("pitch accent times out a stalled request and processes the destination page", async () => {
+  const page = (reading) => `
+    <span class="subject-character subject-character--vocabulary" title="${reading}"></span>
+    <main><section class="subject-section subject-section--reading">
+      <section class="subject-section__content"><div class="reading-with-audio">${reading}</div></section>
+    </section></main>
+  `;
+  const dom = createDom(
+    page("たべる"),
+    "https://www.wanikani.com/vocabulary/%E9%A3%9F%E3%81%B9%E3%82%8B",
+  );
+  const requests = [];
+
+  await loadUserscript(dom, "wk-pitch-accent.js", {
+    GM: {
+      xmlHttpRequest(request) {
+        requests.push(request);
+      },
+    },
+  });
+
+  assert.equal(Number.isFinite(requests[0].timeout), true);
+  assert.ok(requests[0].timeout > 0);
+
+  dom.window.history.pushState({}, "", "/vocabulary/%E9%A3%B2%E3%82%80");
+  dom.window.document.body.innerHTML = page("のむ");
+  requests[0].ontimeout();
+
+  await waitFor(() => {
+    assert.equal(requests.length, 2);
+  });
+
+  requests[1].onload({
+    status: 200,
+    responseText: '<table id="word_table"><tbody></tbody></table>',
+  });
+
+  await waitFor(() => {
+    assert.equal(
+      dom.window.document.querySelector(".wk-pitch-accent-status")?.textContent,
+      "No exact OJAD pitch accent found.",
     );
   });
 });
@@ -2870,14 +3098,7 @@ test("pitch accent parses moras with multiple char elements like じょ", async 
 test("dark theme follows a dark system preference by default", async () => {
   const dom = createDom("<main>Dashboard</main>", "https://www.wanikani.com/");
 
-  await loadUserscript(dom, "wk-dark-theme.js", {
-    matchMedia() {
-      return {
-        matches: true,
-        addEventListener() {},
-      };
-    },
-  });
+  await loadDarkTheme(dom);
 
   const toggle = dom.window.document.querySelector("#wk-dark-theme-toggle");
 
@@ -2902,14 +3123,7 @@ test("dark theme defaults to system mode when storage reads fail", async () => {
     },
   });
 
-  await loadUserscript(dom, "wk-dark-theme.js", {
-    matchMedia() {
-      return {
-        matches: true,
-        addEventListener() {},
-      };
-    },
-  });
+  await loadDarkTheme(dom);
 
   assert.equal(
     dom.window.document.documentElement.dataset.wkDarkThemeMode,
@@ -2927,14 +3141,7 @@ test("dark theme applies a selected mode when storage writes fail", async () => 
     },
   });
 
-  await loadUserscript(dom, "wk-dark-theme.js", {
-    matchMedia() {
-      return {
-        matches: false,
-        addEventListener() {},
-      };
-    },
-  });
+  await loadDarkTheme(dom, false);
 
   const root = dom.window.document.documentElement;
   const toggle = dom.window.document.querySelector("#wk-dark-theme-toggle");
@@ -2948,14 +3155,7 @@ test("dark theme applies a selected mode when storage writes fail", async () => 
 test("dark theme toggle stays in the lower-left corner in light mode", async () => {
   const dom = createDom("<main>Dashboard</main>", "https://www.wanikani.com/");
 
-  await loadUserscript(dom, "wk-dark-theme.js", {
-    matchMedia() {
-      return {
-        matches: false,
-        addEventListener() {},
-      };
-    },
-  });
+  await loadDarkTheme(dom, false);
 
   const toggle = dom.window.document.querySelector("#wk-dark-theme-toggle");
   const toggleStyle = dom.window.getComputedStyle(toggle);
@@ -2968,14 +3168,7 @@ test("dark theme toggle stays in the lower-left corner in light mode", async () 
 test("dark theme toggle cycles through and persists manual overrides", async () => {
   const dom = createDom("<main>Dashboard</main>", "https://www.wanikani.com/");
 
-  await loadUserscript(dom, "wk-dark-theme.js", {
-    matchMedia() {
-      return {
-        matches: false,
-        addEventListener() {},
-      };
-    },
-  });
+  await loadDarkTheme(dom, false);
 
   const root = dom.window.document.documentElement;
   const toggle = dom.window.document.querySelector("#wk-dark-theme-toggle");
@@ -3003,14 +3196,7 @@ test("dark theme restores a saved override instead of the system preference", as
   const dom = createDom("<main>Dashboard</main>", "https://www.wanikani.com/");
   dom.window.localStorage.setItem("wk-dark-theme-mode", "light");
 
-  await loadUserscript(dom, "wk-dark-theme.js", {
-    matchMedia() {
-      return {
-        matches: true,
-        addEventListener() {},
-      };
-    },
-  });
+  await loadDarkTheme(dom);
 
   const root = dom.window.document.documentElement;
   const toggle = dom.window.document.querySelector("#wk-dark-theme-toggle");
@@ -3023,14 +3209,7 @@ test("dark theme restores a saved override instead of the system preference", as
 test("dark theme restores its control after Turbo replaces the page body", async () => {
   const dom = createDom("<main>Dashboard</main>", "https://www.wanikani.com/");
 
-  await loadUserscript(dom, "wk-dark-theme.js", {
-    matchMedia() {
-      return {
-        matches: true,
-        addEventListener() {},
-      };
-    },
-  });
+  await loadDarkTheme(dom);
 
   dom.window.document.body.innerHTML = "<main>Kanji</main>";
   dom.window.document.dispatchEvent(new dom.window.Event("turbo:load"));
@@ -3050,14 +3229,7 @@ test("dark theme applies at document start and adds its control when the body ar
   const dom = createDom("<main>Dashboard</main>", "https://www.wanikani.com/");
   dom.window.document.body.remove();
 
-  await loadUserscript(dom, "wk-dark-theme.js", {
-    matchMedia() {
-      return {
-        matches: true,
-        addEventListener() {},
-      };
-    },
-  });
+  await loadDarkTheme(dom);
 
   assert.equal(dom.window.document.documentElement.dataset.wkDarkTheme, "dark");
   assert.equal(
@@ -3076,47 +3248,191 @@ test("dark theme applies at document start and adds its control when the body ar
 test("dark theme uses the Catppuccin Mocha palette", async () => {
   const dom = createDom("<main>Dashboard</main>", "https://www.wanikani.com/");
 
-  await loadUserscript(dom, "wk-dark-theme.js", {
-    matchMedia() {
-      return {
-        matches: true,
-        addEventListener() {},
-      };
-    },
+  await loadDarkTheme(dom);
+
+  assertCustomProperties(dom, dom.window.document.documentElement, {
+    "--wk-dark-background": "#1e1e2e",
+    "--wk-dark-surface": "#181825",
+    "--wk-dark-surface-raised": "#313244",
+    "--wk-dark-surface-hover": "#45475a",
+    "--wk-dark-border": "#585b70",
+    "--wk-dark-text": "#cdd6f4",
+    "--wk-dark-text-muted": "#a6adc8",
+    "--color-link": "#89b4fa",
   });
+});
+
+test("dark theme adds Catppuccin accents to browser interaction states", async () => {
+  const dom = createDom(
+    '<a href="/subjects">Subjects</a><input value="search">',
+    "https://www.wanikani.com/",
+  );
+
+  await loadDarkTheme(dom);
+
+  const root = dom.window.document.documentElement;
+  const styles = dom.window.document.querySelector(
+    "#wk-dark-theme-styles",
+  ).textContent;
+
+  assertCustomProperties(dom, root, {
+    "--ctp-mocha-rosewater": "#f5e0dc",
+    "--ctp-mocha-lavender": "#b4befe",
+    "--ctp-mocha-overlay-2": "#9399b2",
+    "--color-quiz-input-focus": "#b4befe",
+    "--color-modal-button-edge": "#6c7086",
+  });
+  assert.match(styles, /::selection[^}]+--ctp-mocha-overlay-2/s);
+  assert.match(styles, /input,[^{]+textarea,[^{]+select[^}]+caret-color:[^;]+--ctp-mocha-rosewater/s);
+  assert.doesNotMatch(styles, /a:visited[^}]+--ctp-mocha-lavender/s);
+  assert.match(styles, /:focus-visible[^}]+--ctp-mocha-lavender/s);
+});
+
+test("dark theme replaces light quiz chrome with Mocha surfaces", async () => {
+  const dom = createDom(
+    `<style>
+      .quiz-input__question-type-container { background: #eee; color: #555; }
+      .additional-content__item { background: #fbfbfb; color: #999; }
+      .additional-content__item--disabled { background: #f5f5f5; color: #c3c3c3; }
+      .additional-content__item--active { background: #a2a2a2; color: #eee; }
+    </style>
+    <div class="quiz-input__question-type-container" data-question-type="meaning">Meaning</div>
+    <div class="quiz-input__question-type-container" data-question-type="reading">Reading</div>
+    <a class="additional-content__item">Last 10</a>
+    <a class="additional-content__item additional-content__item--disabled">Item Info</a>
+    <a class="additional-content__item additional-content__item--active">Kana Chart</a>`,
+    "https://www.wanikani.com/subjects/review",
+  );
+
+  await loadDarkTheme(dom);
+
+  const [meaning, reading] = dom.window.document.querySelectorAll(
+    ".quiz-input__question-type-container",
+  );
+  const [item, disabledItem, activeItem] = dom.window.document.querySelectorAll(
+    ".additional-content__item",
+  );
 
   assert.equal(
-    resolveCustomProperty(dom, dom.window.document.documentElement, "--wk-dark-background"),
-    "#1e1e2e",
+    dom.window.getComputedStyle(meaning).backgroundColor,
+    "var(--wk-dark-surface-raised)",
   );
   assert.equal(
-    resolveCustomProperty(dom, dom.window.document.documentElement, "--wk-dark-surface"),
-    "#181825",
+    dom.window.getComputedStyle(reading).backgroundColor,
+    "var(--wk-dark-surface)",
   );
   assert.equal(
-    resolveCustomProperty(dom, dom.window.document.documentElement, "--wk-dark-surface-raised"),
-    "#313244",
+    dom.window.getComputedStyle(item).backgroundColor,
+    "var(--wk-dark-surface-raised)",
   );
   assert.equal(
-    resolveCustomProperty(dom, dom.window.document.documentElement, "--wk-dark-surface-hover"),
-    "#45475a",
+    dom.window.getComputedStyle(disabledItem).backgroundColor,
+    "var(--wk-dark-surface)",
   );
   assert.equal(
-    resolveCustomProperty(dom, dom.window.document.documentElement, "--wk-dark-border"),
-    "#585b70",
+    dom.window.getComputedStyle(activeItem).backgroundColor,
+    "var(--ctp-mocha-overlay-0)",
   );
-  assert.equal(
-    resolveCustomProperty(dom, dom.window.document.documentElement, "--wk-dark-text"),
-    "#cdd6f4",
+});
+
+test("dark theme uses deliberate quiz input borders without light shadows", async () => {
+  const dom = createDom(
+    `<style>
+      .quiz-input__input { border: 2px solid transparent; box-shadow: 2px 2px 0 #fff; }
+      .quiz-input__input:focus { border-color: #b4befe; }
+    </style>
+    <div class="quiz-input__input-container" correct="true">
+      <input class="quiz-input__input">
+    </div>
+    <div class="quiz-input__input-container" correct="false">
+      <input class="quiz-input__input">
+    </div>
+    <div class="quiz-input__input-container">
+      <input class="quiz-input__input">
+    </div>`,
+    "https://www.wanikani.com/subjects/review",
   );
-  assert.equal(
-    resolveCustomProperty(dom, dom.window.document.documentElement, "--wk-dark-text-muted"),
-    "#a6adc8",
+
+  await loadDarkTheme(dom);
+
+  const inputs = dom.window.document.querySelectorAll(".quiz-input__input");
+
+  for (const [index, input] of inputs.entries()) {
+    input.focus();
+    assert.equal(
+      dom.window.getComputedStyle(input).borderColor,
+      [
+        "rgb(166, 227, 161)",
+        "rgba(0, 0, 0, 0)",
+        "rgb(180, 190, 254)",
+      ][index],
+    );
+    assert.equal(dom.window.getComputedStyle(input).boxShadow, "none");
+  }
+});
+
+test("dark theme uses Mocha colors for correct quiz answers", async () => {
+  const dom = createDom(
+    `<style>
+      :root {
+        --color-white: #fff;
+        --color-quiz-correct-background: #88cc00;
+        --color-quiz-correct-text-color: var(--color-white);
+      }
+    </style>
+    <div class="quiz-input__input-container" correct="true">
+      <input class="quiz-input__input" value="foot">
+      <button class="quiz-input__submit-button">Next</button>
+    </div>`,
+    "https://www.wanikani.com/subjects/review",
   );
-  assert.equal(
-    resolveCustomProperty(dom, dom.window.document.documentElement, "--color-link"),
-    "#89b4fa",
+
+  await loadDarkTheme(dom);
+
+  const root = dom.window.document.documentElement;
+
+  assertCustomProperties(dom, root, {
+    "--color-quiz-correct-background":
+      "color-mix(in srgb,var(--ctp-mocha-green) 18%,var(--wk-dark-surface))",
+    "--color-quiz-correct-text-color": "#cdd6f4",
+  });
+});
+
+test("dark theme replaces light Extra Study controls with Mocha colors", async () => {
+  const dom = createDom(
+    `<style>
+      :root {
+        --color-extra-study-button-background: #f4f4f4;
+        --color-extra-study-button-hover-background: #e7e9eb;
+        --color-extra-study-button-active-background: #cad0d6;
+        --color-extra-study-button-disabled-background: #f4f4f4;
+        --color-extra-study-button-border: #cad0d6;
+        --color-extra-study-button-text: #333;
+        --color-extra-study-button-icon: #6b7079;
+        --color-extra-study-button-remaining-text: #6b7079;
+        --color-focus: #00aaff;
+      }
+    </style>
+    <a class="extra-study-multi-button-widget__button">Recent Lessons</a>`,
+    "https://www.wanikani.com/dashboard",
   );
+
+  await loadDarkTheme(dom);
+
+  const root = dom.window.document.documentElement;
+  const expected = {
+    "--color-extra-study-button-background": "#313244",
+    "--color-extra-study-button-hover-background": "#45475a",
+    "--color-extra-study-button-active-background": "#585b70",
+    "--color-extra-study-button-disabled-background": "#181825",
+    "--color-extra-study-button-border": "#585b70",
+    "--color-extra-study-button-text": "#cdd6f4",
+    "--color-extra-study-button-icon": "#a6adc8",
+    "--color-extra-study-button-remaining-text": "#a6adc8",
+    "--color-focus": "#b4befe",
+  };
+
+  assertCustomProperties(dom, root, expected);
 });
 
 test("dark theme replaces light collocation pattern backgrounds", async () => {
@@ -3131,14 +3447,7 @@ test("dark theme replaces light collocation pattern backgrounds", async () => {
     "https://www.wanikani.com/vocabulary/%E5%AD%97",
   );
 
-  await loadUserscript(dom, "wk-dark-theme.js", {
-    matchMedia() {
-      return {
-        matches: true,
-        addEventListener() {},
-      };
-    },
-  });
+  await loadDarkTheme(dom);
 
   const patterns = dom.window.document.querySelectorAll(
     ".subject-collocations__pattern-name",
@@ -3152,6 +3461,136 @@ test("dark theme replaces light collocation pattern backgrounds", async () => {
     dom.window.getComputedStyle(patterns[1]).backgroundColor,
     "var(--wk-dark-surface)",
   );
+});
+
+test("dark theme keeps mnemonic highlights readable", async () => {
+  const dom = createDom(
+    `<style>
+      :root {
+        --color-text-highlight-radical-background: var(--color-blue-light);
+        --color-text-highlight-radical-text: var(--color-blue-dark);
+        --color-text-highlight-kanji-background: var(--color-pink-light);
+        --color-text-highlight-kanji-text: var(--color-pink-dark);
+        --color-text-highlight-vocabulary-background: var(--color-purple-light);
+        --color-text-highlight-vocabulary-text: var(--color-purple-dark);
+        --color-text-highlight-meaning-background: #cad0d6;
+        --color-text-highlight-meaning-text: #333;
+        --color-text-highlight-reading-background: #cad0d6;
+        --color-text-highlight-reading-text: #333;
+      }
+    </style>`,
+    "https://www.wanikani.com/subject-lessons/4357587608669614620/549",
+  );
+
+  await loadDarkTheme(dom);
+
+  const root = dom.window.document.documentElement;
+  const expected = {
+    "--color-text-highlight-radical-text": "#89b4fa",
+    "--color-text-highlight-radical-background":
+      "color-mix(in srgb,var(--ctp-mocha-blue) 12%,var(--wk-dark-surface-raised))",
+    "--color-text-highlight-kanji-text": "#f5c2e7",
+    "--color-text-highlight-kanji-background":
+      "color-mix(in srgb,var(--ctp-mocha-pink) 12%,var(--wk-dark-surface-raised))",
+    "--color-text-highlight-vocabulary-text": "#cba6f7",
+    "--color-text-highlight-vocabulary-background":
+      "color-mix(in srgb,var(--ctp-mocha-mauve) 12%,var(--wk-dark-surface-raised))",
+    "--color-text-highlight-meaning-text": "#cdd6f4",
+    "--color-text-highlight-meaning-background": "#313244",
+    "--color-text-highlight-reading-text": "#cdd6f4",
+    "--color-text-highlight-reading-background": "#313244",
+  };
+
+  assertCustomProperties(dom, root, expected);
+});
+
+test("dark theme keeps lesson queue subject labels readable", async () => {
+  const dom = createDom(
+    `<style>
+      .subject-character--radical .subject-character__characters-text {
+        color: var(--color-blue-dark);
+        background: var(--color-blue);
+      }
+      .subject-character--kanji .subject-character__characters-text {
+        color: var(--color-pink-dark);
+        background: var(--color-pink);
+      }
+      .subject-character--vocabulary .subject-character__characters-text {
+        color: var(--color-purple-dark);
+        background: var(--color-purple);
+      }
+      .subject-character--recent.subject-character--radical .subject-character__characters-text {
+        background: var(--color-blue-light);
+      }
+      .subject-character--recent.subject-character--kanji .subject-character__characters-text {
+        background: var(--color-pink-light);
+      }
+      .subject-character--recent.subject-character--vocabulary .subject-character__characters-text {
+        background: var(--color-purple-light);
+      }
+      .subject-character--locked .subject-character__characters-text {
+        background: transparent;
+      }
+      .subject-character--unlocked .subject-character__characters-text,
+      .subject-character--passed .subject-character__characters-text {
+        color: #fff;
+      }
+      .subject-character--burned .subject-character__characters-text {
+        color: #fff;
+        background: #6b7079;
+      }
+    </style>
+    <div class="lesson-container__queue">
+      <a class="subject-character subject-character--tiny subject-character--radical subject-character--recent"><span class="subject-character__characters-text">Radical</span></a>
+      <a class="subject-character subject-character--tiny subject-character--kanji subject-character--recent"><span class="subject-character__characters-text">Kanji</span></a>
+      <a class="subject-character subject-character--tiny subject-character--vocabulary subject-character--recent"><span class="subject-character__characters-text">Vocabulary</span></a>
+      <a class="subject-character subject-character--tiny subject-character--radical subject-character--passed"><span class="subject-character__characters-text">Radical</span></a>
+      <a class="subject-character subject-character--tiny subject-character--kanji subject-character--passed"><span class="subject-character__characters-text">Kanji</span></a>
+      <a class="subject-character subject-character--tiny subject-character--vocabulary subject-character--passed"><span class="subject-character__characters-text">Vocabulary</span></a>
+      <a class="subject-character subject-character--tiny subject-character--radical subject-character--locked"><span class="subject-character__characters-text">Radical</span></a>
+      <a class="subject-character subject-character--tiny subject-character--kanji subject-character--locked"><span class="subject-character__characters-text">Kanji</span></a>
+      <a class="subject-character subject-character--tiny subject-character--vocabulary subject-character--locked"><span class="subject-character__characters-text">Vocabulary</span></a>
+      <a class="subject-character subject-character--tiny subject-character--radical subject-character--burned"><span class="subject-character__characters-text">Burned</span></a>
+    </div>`,
+    "https://www.wanikani.com/subject-lessons/4357587608669614620/549",
+  );
+
+  await loadDarkTheme(dom);
+
+  for (const [category, accent] of [
+    ["radical", "blue"],
+    ["kanji", "pink"],
+    ["vocabulary", "mauve"],
+  ]) {
+    for (const state of ["recent", "passed"]) {
+      const styles = dom.window.getComputedStyle(
+        dom.window.document.querySelector(
+          `.subject-character--${category}.subject-character--${state} .subject-character__characters-text`,
+        ),
+      );
+      assert.equal(styles.color, "var(--ctp-mocha-crust)");
+      if (state === "recent") {
+        assert.equal(styles.backgroundColor, `var(--ctp-mocha-${accent})`);
+      }
+    }
+
+    assert.equal(
+      dom.window.getComputedStyle(
+        dom.window.document.querySelector(
+          `.subject-character--${category}.subject-character--locked .subject-character__characters-text`,
+        ),
+      ).color,
+      `var(--ctp-mocha-${accent})`,
+    );
+  }
+
+  const burned = dom.window.getComputedStyle(
+    dom.window.document.querySelector(
+      ".subject-character--burned .subject-character__characters-text",
+    ),
+  );
+  assert.equal(burned.color, "var(--ctp-mocha-text)");
+  assert.equal(burned.backgroundColor, "var(--ctp-mocha-surface-2)");
 });
 
 test("dark theme replaces the light subject lesson slide", async () => {
@@ -3169,19 +3608,99 @@ test("dark theme replaces the light subject lesson slide", async () => {
     "https://www.wanikani.com/subject-lessons/920088919089344908/95",
   );
 
-  await loadUserscript(dom, "wk-dark-theme.js", {
-    matchMedia() {
-      return {
-        matches: true,
-        addEventListener() {},
-      };
-    },
-  });
+  await loadDarkTheme(dom);
 
   const slide = dom.window.document.querySelector(".subject-slide");
   const slideStyles = dom.window.getComputedStyle(slide);
 
   assert.equal(slideStyles.backgroundColor, "var(--wk-dark-surface)");
+});
+
+test("dark theme uses Mocha teal for the lesson Quiz button", async () => {
+  const dom = createDom(
+    `<style>
+      :root {
+        --color-button-quiz-background: #34d399;
+        --color-button-quiz-border: #23a375;
+        --color-button-quiz-edge: #23a375;
+        --color-button-quiz-text: #fff;
+      }
+      .lesson-modal__buttons {
+        --color-button-border: #000;
+        --color-button-edge: #000;
+      }
+    </style>
+    <div class="lesson-modal__buttons">
+      <button class="wk-button wk-button--quiz">
+        <span class="wk-button__content">Quiz</span>
+        <span class="wk-button__edge"></span>
+      </button>
+    </div>`,
+    "https://www.wanikani.com/subject-lessons/920088919089344908/95",
+  );
+
+  await loadDarkTheme(dom);
+
+  const button = dom.window.document.querySelector(".wk-button--quiz");
+  const expected = {
+    "--color-button-background": "#94e2d5",
+    "--color-button-hover-background": "#94e2d5",
+    "--color-button-active-background":
+      "color-mix(in srgb,var(--ctp-mocha-teal) 80%,var(--ctp-mocha-crust))",
+    "--color-button-border":
+      "color-mix(in srgb,var(--ctp-mocha-teal) 65%,var(--ctp-mocha-crust))",
+    "--color-button-edge":
+      "color-mix(in srgb,var(--ctp-mocha-teal) 65%,var(--ctp-mocha-crust))",
+    "--color-button-text": "#11111b",
+    "--color-button-icon": "#11111b",
+    "--color-button-hover-icon": "#11111b",
+    "--color-button-active-icon": "#11111b",
+    "--button-outline": "#94e2d5",
+  };
+
+  assertCustomProperties(dom, button, expected);
+});
+
+test("dark theme colors lesson and quiz headers by subject category", async () => {
+  const dom = createDom(
+    `<style>
+      .character-header--radical, .quiz-header--radical {
+        background-color: #00aaff;
+        background-image: linear-gradient(to bottom, #00aaff, #0093dd);
+      }
+      .character-header--kanji, .quiz-header--kanji {
+        background-color: #ff00aa;
+        background-image: linear-gradient(to bottom, #ff00aa, #dd0093);
+      }
+      .character-header--vocabulary, .quiz-header--vocabulary {
+        background-color: #aa00ff;
+        background-image: linear-gradient(to bottom, #aa00ff, #9300dd);
+      }
+    </style>
+    <header class="character-header character-header--radical"></header>
+    <header class="character-header character-header--kanji"></header>
+    <header class="character-header character-header--vocabulary"></header>
+    <header class="quiz-header quiz-header--radical"></header>
+    <header class="quiz-header quiz-header--kanji"></header>
+    <header class="quiz-header quiz-header--vocabulary"></header>`,
+    "https://www.wanikani.com/subject-lessons/920088919089344908/95",
+  );
+
+  await loadDarkTheme(dom);
+
+  for (const [category, color] of [
+    ["radical", "var(--color-radical)"],
+    ["kanji", "var(--color-kanji)"],
+    ["vocabulary", "var(--color-vocabulary)"],
+  ]) {
+    for (const header of dom.window.document.querySelectorAll(
+      `.character-header--${category}, .quiz-header--${category}`,
+    )) {
+      const headerStyles = dom.window.getComputedStyle(header);
+      assert.equal(headerStyles.backgroundColor, color);
+      assert.equal(headerStyles.backgroundImage, "none");
+    }
+  }
 });
 
 test("dark theme replaces the light review item info background", async () => {
@@ -3195,14 +3714,7 @@ test("dark theme replaces the light review item info background", async () => {
     "https://www.wanikani.com/subjects/review",
   );
 
-  await loadUserscript(dom, "wk-dark-theme.js", {
-    matchMedia() {
-      return {
-        matches: true,
-        addEventListener() {},
-      };
-    },
-  });
+  await loadDarkTheme(dom);
 
   const itemInfo = dom.window.document.querySelector("#subject-info");
 
@@ -3224,14 +3736,7 @@ test("dark theme keeps sitemap section headers readable", async () => {
     "https://www.wanikani.com/",
   );
 
-  await loadUserscript(dom, "wk-dark-theme.js", {
-    matchMedia() {
-      return {
-        matches: true,
-        addEventListener() {},
-      };
-    },
-  });
+  await loadDarkTheme(dom);
 
   const root = dom.window.document.documentElement;
   const sectionHeader = dom.window.document.querySelector(
@@ -3258,6 +3763,106 @@ test("dark theme keeps sitemap section headers readable", async () => {
   assert.ok(contrastRatio(foreground, background) >= 4.5);
 });
 
+test("dark theme gives generic sitemap headers visible interaction borders", async () => {
+  const dom = createDom(
+    `<header class="global-header">
+      <button class="sitemap__section-header">Levels</button>
+      <button class="sitemap__section-header">Help</button>
+      <button class="sitemap__section-header sitemap__section-header--radicals">Radicals</button>
+    </header>`,
+    "https://www.wanikani.com/recent-unlocks",
+  );
+
+  await loadDarkTheme(dom);
+
+  const styles = dom.window.document.querySelector(
+    "#wk-dark-theme-styles",
+  ).textContent;
+
+  assert.match(
+    styles,
+    /\.sitemap__section-header:not\([^}]+:hover\s*\{[^}]*border-color:\s*var\(--ctp-mocha-overlay-1\)/s,
+  );
+  assert.match(
+    styles,
+    /\.sitemap__section-header:not\([^}]+:focus\s*\{[^}]*border-color:\s*var\(--ctp-mocha-lavender\)/s,
+  );
+});
+
+test("dark theme colors category sitemap headers and menus", async () => {
+  const dom = createDom(
+    `<style>
+      :root {
+        --color-radical: #00aaff;
+        --color-kanji: #ff00aa;
+        --color-vocabulary: #aa00ff;
+      }
+      .sitemap__expandable-chunk--radicals { background: #00aaff; }
+      .sitemap__expandable-chunk--kanji { background: #ff00aa; }
+      .sitemap__expandable-chunk--vocabulary { background: #aa00ff; }
+    </style>
+    <header class="global-header">
+      <div class="sitemap__section sitemap__section--open">
+        <button class="sitemap__section-header sitemap__section-header--radicals">Radicals</button>
+        <div class="sitemap__expandable-chunk sitemap__expandable-chunk--radicals"></div>
+      </div>
+      <div class="sitemap__section sitemap__section--open">
+        <button class="sitemap__section-header sitemap__section-header--kanji">Kanji</button>
+        <div class="sitemap__expandable-chunk sitemap__expandable-chunk--kanji"></div>
+      </div>
+      <div class="sitemap__section sitemap__section--open">
+        <button class="sitemap__section-header sitemap__section-header--vocabulary">Vocabulary</button>
+        <div class="sitemap__expandable-chunk sitemap__expandable-chunk--vocabulary"></div>
+      </div>
+    </header>`,
+    "https://www.wanikani.com/recent-unlocks",
+  );
+
+  await loadDarkTheme(dom);
+
+  const styles = dom.window.document.querySelector(
+    "#wk-dark-theme-styles",
+  ).textContent;
+
+  const accents = {
+    radicals: "radical",
+    kanji: "kanji",
+    vocabulary: "vocabulary",
+  };
+
+  for (const [category, accent] of Object.entries(accents)) {
+    assert.match(
+      styles,
+      new RegExp(
+        `sitemap__section-header--${category}:hover[^}]+border-color:[^;]+--color-${accent}[^}]+color:[^;]+--color-${accent}`,
+        "s",
+      ),
+    );
+    assert.match(
+      styles,
+      new RegExp(
+        `sitemap__section--open[^,{]+sitemap__section-header--${category}[^}]+border-color:[^;]+--color-${accent}[^}]+color:[^;]+--color-${accent}`,
+        "s",
+      ),
+    );
+    assert.equal(
+      dom.window.getComputedStyle(
+        dom.window.document.querySelector(
+          `.sitemap__expandable-chunk--${category}`,
+        ),
+      ).background,
+      `var(--color-${accent})`,
+    );
+    assert.match(
+      styles,
+      new RegExp(
+        `sitemap__expandable-chunk--${category}:before[^}]+background:[^;]+--color-${accent}`,
+        "s",
+      ),
+    );
+  }
+});
+
 test("dark theme keeps completed lesson and review widgets readable", async () => {
   const dom = createDom(
     `<style>
@@ -3280,14 +3885,7 @@ test("dark theme keeps completed lesson and review widgets readable", async () =
     "https://www.wanikani.com/",
   );
 
-  await loadUserscript(dom, "wk-dark-theme.js", {
-    matchMedia() {
-      return {
-        matches: true,
-        addEventListener() {},
-      };
-    },
-  });
+  await loadDarkTheme(dom);
 
   for (const widget of dom.window.document.querySelectorAll(
     ".todays-lessons-widget--complete, .reviews-widget--complete",
@@ -3324,14 +3922,7 @@ test("dark theme keeps review forecast header text readable", async () => {
     "https://www.wanikani.com/",
   );
 
-  await loadUserscript(dom, "wk-dark-theme.js", {
-    matchMedia() {
-      return {
-        matches: true,
-        addEventListener() {},
-      };
-    },
-  });
+  await loadDarkTheme(dom);
 
   const header = dom.window.document.querySelector(
     ".review-forecast-widget__header",
@@ -3356,6 +3947,114 @@ test("dark theme keeps review forecast header text readable", async () => {
   }
 });
 
+test("dark theme uses Mocha surfaces for review forecast row interactions", async () => {
+  const dom = createDom(
+    `<style>
+      :root {
+        --color-review-forecast-day-hover: #f4f4f4;
+        --color-review-forecast-day-active: #e7e9eb;
+      }
+    </style>
+    <a class="review-forecast-widget__row" href="/review/session">Today</a>`,
+    "https://www.wanikani.com/dashboard",
+  );
+
+  await loadDarkTheme(dom);
+
+  const row = dom.window.document.querySelector(
+    ".review-forecast-widget__row",
+  );
+
+  assertCustomProperties(dom, row, {
+    "--color-review-forecast-day-hover": "#45475a",
+    "--color-review-forecast-day-active": "#585b70",
+  });
+});
+
+test("dark theme uses Mocha colors for dashboard progress bars", async () => {
+  const dom = createDom(
+    `<style>
+      :root {
+        --color-review-forecast-bar-positive: #35a753;
+        --color-review-forecast-bar-positive-border: #317442;
+        --color-review-forecast-increase-positive: #317442;
+        --color-review-forecast-priority-count-inside: #fff;
+        --color-review-forecast-bar-zero: #f4f4f4;
+        --color-review-forecast-bar-zero-border: #cad0d6;
+        --color-level-progress-completed-bar: #35a753;
+        --color-level-progress-bar: #cad0d6;
+        --color-subject-srs-progress-stage-complete-background: #08c66c;
+      }
+    </style>
+    <section class="review-forecast-widget"></section>
+    <section class="level-progress-widget"></section>`,
+    "https://www.wanikani.com/dashboard",
+  );
+
+  await loadDarkTheme(dom);
+
+  const root = dom.window.document.documentElement;
+  const expected = {
+    "--color-review-forecast-bar-positive": "#a6e3a1",
+    "--color-review-forecast-bar-positive-border": "#a6e3a1",
+    "--color-review-forecast-increase-positive": "#a6e3a1",
+    "--color-review-forecast-priority-count-inside": "#11111b",
+    "--color-review-forecast-bar-zero": "#45475a",
+    "--color-review-forecast-bar-zero-border": "#585b70",
+    "--color-level-progress-completed-bar": "#a6e3a1",
+    "--color-level-progress-bar": "#585b70",
+    "--color-subject-srs-progress-stage-complete-background": "#a6e3a1",
+  };
+
+  assertCustomProperties(dom, root, expected);
+});
+
+test("dark theme uses Mocha surfaces for level progress notifications", async () => {
+  const dom = createDom(
+    `<style>
+      :root {
+        --color-notification-info-background: #dde3fd;
+        --color-notification-info-border: #adbcfb;
+        --color-notification-info-icon: #2452bc;
+        --color-notification-success-background: #d2eeda;
+        --color-notification-success-border: #7fd495;
+        --color-notification-success-icon: #35a753;
+      }
+    </style>
+    <div class="level-progress-widget__info-bubble wk-notification--info"></div>
+    <div class="level-progress-widget__info-bubble wk-notification--success"></div>`,
+    "https://www.wanikani.com/dashboard",
+  );
+
+  await loadDarkTheme(dom);
+
+  const info = dom.window.document.querySelector(".wk-notification--info");
+  const success = dom.window.document.querySelector(
+    ".wk-notification--success",
+  );
+
+  for (const [element, expected] of [
+    [
+      info,
+      {
+        "--color-notification-info-background": "#313244",
+        "--color-notification-info-border": "#89b4fa",
+        "--color-notification-info-icon": "#89b4fa",
+      },
+    ],
+    [
+      success,
+      {
+        "--color-notification-success-background": "#313244",
+        "--color-notification-success-border": "#a6e3a1",
+        "--color-notification-success-icon": "#a6e3a1",
+      },
+    ],
+  ]) {
+    assertCustomProperties(dom, element, expected);
+  }
+});
+
 test("dark theme disables text shadows globally", async () => {
   const dom = createDom(
     `<style>
@@ -3365,14 +4064,7 @@ test("dark theme disables text shadows globally", async () => {
     "https://www.wanikani.com/vocabulary/%E9%A3%9F%E3%81%B9%E3%82%8B",
   );
 
-  await loadUserscript(dom, "wk-dark-theme.js", {
-    matchMedia() {
-      return {
-        matches: true,
-        addEventListener() {},
-      };
-    },
-  });
+  await loadDarkTheme(dom);
 
   const audioDetails = dom.window.document.querySelector(
     ".subject-readings-with-audio",
@@ -3389,50 +4081,36 @@ test("dark theme disables text shadows globally", async () => {
   );
 });
 
-test("dark theme preserves WaniKani subject and quiz-state colors", async () => {
+test("dark theme uses bold Mocha subject colors and preserves the incorrect quiz state", async () => {
   const dom = createDom(
     `<style>
       :root {
         --color-radical: #00aaff;
         --color-kanji: #ff00aa;
         --color-vocabulary: #aa00ff;
-        --color-quiz-correct-background: #88cc00;
+        --color-blue: #00aaff;
+        --color-pink: #ff00aa;
+        --color-purple: #aa00ff;
         --color-quiz-incorrect-background: #ff0033;
       }
     </style>`,
     "https://www.wanikani.com/",
   );
 
-  await loadUserscript(dom, "wk-dark-theme.js", {
-    matchMedia() {
-      return {
-        matches: true,
-        addEventListener() {},
-      };
-    },
-  });
+  await loadDarkTheme(dom);
 
-  const rootStyles = dom.window.getComputedStyle(
-    dom.window.document.documentElement,
-  );
+  const root = dom.window.document.documentElement;
+  const expected = {
+    "--color-radical": "oklch(72.04%0.1913 261.88)",
+    "--color-kanji": "oklch(81.78%0.1552 338.3)",
+    "--color-vocabulary": "oklch(73.99%0.1987 306.77)",
+    "--color-blue": "oklch(72.04%0.1913 261.88)",
+    "--color-pink": "oklch(81.78%0.1552 338.3)",
+    "--color-purple": "oklch(73.99%0.1987 306.77)",
+    "--color-quiz-incorrect-background": "#ff0033",
+  };
 
-  assert.equal(
-    rootStyles.getPropertyValue("--color-radical").trim(),
-    "#00aaff",
-  );
-  assert.equal(rootStyles.getPropertyValue("--color-kanji").trim(), "#ff00aa");
-  assert.equal(
-    rootStyles.getPropertyValue("--color-vocabulary").trim(),
-    "#aa00ff",
-  );
-  assert.equal(
-    rootStyles.getPropertyValue("--color-quiz-correct-background").trim(),
-    "#88cc00",
-  );
-  assert.equal(
-    rootStyles.getPropertyValue("--color-quiz-incorrect-background").trim(),
-    "#ff0033",
-  );
+  assertCustomProperties(dom, root, expected);
 });
 
 test("dark theme responds when the system preference changes", async () => {
