@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WaniKani Redo Answer
 // @namespace    wk-redo-answer
-// @version      0.4.0
+// @version      0.5.0
 // @author       Federico G. Schwindt <fgsch@lodoss.net>
 // @description  Adds a Redo button to WaniKani review and extra study quizzes.
 // @license      MIT
@@ -175,14 +175,16 @@
         return pendingAnswer !== null;
       },
       uninstall() {
-        transaction.flush();
+        try {
+          transaction.flush();
+        } finally {
+          if (quizQueue.submitAnswer === wrappedSubmitAnswer) {
+            quizQueue.submitAnswer = submitAnswer;
+          }
 
-        if (quizQueue.submitAnswer === wrappedSubmitAnswer) {
-          quizQueue.submitAnswer = submitAnswer;
-        }
-
-        if (quizQueue.nextItem === wrappedNextItem) {
-          quizQueue.nextItem = nextItem;
+          if (quizQueue.nextItem === wrappedNextItem) {
+            quizQueue.nextItem = nextItem;
+          }
         }
       },
     };
