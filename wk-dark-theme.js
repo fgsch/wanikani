@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WaniKani Dark Theme
 // @namespace    wk-dark-theme
-// @version      0.5.0
+// @version      0.6.0
 // @author       Federico G. Schwindt <fgsch@lodoss.net>
 // @description  Adds a Catppuccin Mocha dark theme to WaniKani with system and manual modes.
 // @license      MIT
@@ -37,10 +37,20 @@
 
   const styles = `
     :root {
+      --ctp-mocha-rosewater: #f5e0dc;
       --ctp-mocha-blue: #89b4fa;
+      --ctp-mocha-blue-bold: oklch(72.04% 0.1913 261.88);
       --ctp-mocha-sky: #89dceb;
+      --ctp-mocha-teal: #94e2d5;
+      --ctp-mocha-green: #a6e3a1;
+      --ctp-mocha-pink: #f5c2e7;
+      --ctp-mocha-pink-bold: oklch(81.78% 0.1552 338.3);
+      --ctp-mocha-mauve: #cba6f7;
+      --ctp-mocha-mauve-bold: oklch(73.99% 0.1987 306.77);
+      --ctp-mocha-lavender: #b4befe;
       --ctp-mocha-text: #cdd6f4;
       --ctp-mocha-subtext-0: #a6adc8;
+      --ctp-mocha-overlay-2: #9399b2;
       --ctp-mocha-overlay-1: #7f849c;
       --ctp-mocha-overlay-0: #6c7086;
       --ctp-mocha-surface-2: #585b70;
@@ -62,8 +72,45 @@
       --wk-dark-text: var(--ctp-mocha-text);
       --wk-dark-text-muted: var(--ctp-mocha-subtext-0);
 
+      --color-radical: var(--ctp-mocha-blue-bold);
+      --color-radical-dark: color-mix(in srgb, var(--ctp-mocha-blue) 35%, var(--ctp-mocha-crust));
+      --color-radical-highlight: var(--ctp-mocha-sky);
+      --color-radical-lowlight: var(--color-radical-dark);
+      --color-radical-gradient: linear-gradient(to bottom, var(--color-radical), var(--color-radical-dark));
+      --color-kanji: var(--ctp-mocha-pink-bold);
+      --color-kanji-dark: color-mix(in srgb, var(--ctp-mocha-pink) 35%, var(--ctp-mocha-crust));
+      --color-kanji-highlight: var(--ctp-mocha-rosewater);
+      --color-kanji-lowlight: var(--color-kanji-dark);
+      --color-kanji-gradient: linear-gradient(to bottom, var(--color-kanji), var(--color-kanji-dark));
+      --color-vocabulary: var(--ctp-mocha-mauve-bold);
+      --color-vocabulary-dark: color-mix(in srgb, var(--ctp-mocha-mauve) 35%, var(--ctp-mocha-crust));
+      --color-vocabulary-highlight: var(--ctp-mocha-lavender);
+      --color-vocabulary-lowlight: var(--color-vocabulary-dark);
+      --color-vocabulary-gradient: linear-gradient(to bottom, var(--color-vocabulary), var(--color-vocabulary-dark));
+      --color-blue: var(--color-radical);
+      --color-blue-dark: var(--color-radical-dark);
+      --color-blue-light: color-mix(in srgb, var(--ctp-mocha-blue) 30%, var(--wk-dark-surface-raised));
+      --color-pink: var(--color-kanji);
+      --color-pink-dark: var(--color-kanji-dark);
+      --color-pink-light: color-mix(in srgb, var(--ctp-mocha-pink) 30%, var(--wk-dark-surface-raised));
+      --color-purple: var(--color-vocabulary);
+      --color-purple-dark: var(--color-vocabulary-dark);
+      --color-purple-light: color-mix(in srgb, var(--ctp-mocha-mauve) 30%, var(--wk-dark-surface-raised));
+
+      --color-text-highlight-radical-text: var(--ctp-mocha-blue);
+      --color-text-highlight-radical-background: color-mix(in srgb, var(--ctp-mocha-blue) 12%, var(--wk-dark-surface-raised));
+      --color-text-highlight-kanji-text: var(--ctp-mocha-pink);
+      --color-text-highlight-kanji-background: color-mix(in srgb, var(--ctp-mocha-pink) 12%, var(--wk-dark-surface-raised));
+      --color-text-highlight-vocabulary-text: var(--ctp-mocha-mauve);
+      --color-text-highlight-vocabulary-background: color-mix(in srgb, var(--ctp-mocha-mauve) 12%, var(--wk-dark-surface-raised));
+      --color-text-highlight-meaning-text: var(--wk-dark-text);
+      --color-text-highlight-meaning-background: var(--wk-dark-surface-raised);
+      --color-text-highlight-reading-text: var(--wk-dark-text);
+      --color-text-highlight-reading-background: var(--wk-dark-surface-raised);
+
       --color-app-background: var(--wk-dark-background);
       --color-text: var(--wk-dark-text);
+      --color-focus: var(--ctp-mocha-lavender);
       --color-title-underline: var(--wk-dark-border);
       --color-link: var(--ctp-mocha-blue);
       --color-link-hover: var(--ctp-mocha-sky);
@@ -73,7 +120,9 @@
       --color-input-background: var(--wk-dark-surface);
       --color-input-border: var(--wk-dark-border);
       --color-quiz-input-background: var(--wk-dark-surface);
-      --color-quiz-input-focus: var(--ctp-mocha-surface-0);
+      --color-quiz-input-focus: var(--ctp-mocha-lavender);
+      --color-quiz-correct-background: color-mix(in srgb, var(--ctp-mocha-green) 18%, var(--wk-dark-surface));
+      --color-quiz-correct-text-color: var(--wk-dark-text);
       --color-hint-background: var(--wk-dark-surface-raised);
       --color-code-background: var(--wk-dark-surface-raised);
       --color-code-border: var(--wk-dark-border);
@@ -104,11 +153,20 @@
       --color-widget-primary-text: var(--wk-dark-text);
       --color-widget-secondary-text: var(--wk-dark-text-muted);
       --color-empty-widget-background: var(--wk-dark-surface);
+      --color-extra-study-button-background: var(--wk-dark-surface-raised);
+      --color-extra-study-button-hover-background: var(--wk-dark-surface-hover);
+      --color-extra-study-button-active-background: var(--ctp-mocha-surface-2);
+      --color-extra-study-button-disabled-background: var(--wk-dark-surface);
+      --color-extra-study-button-border: var(--wk-dark-border);
+      --color-extra-study-button-text: var(--wk-dark-text);
+      --color-extra-study-button-icon: var(--wk-dark-text-muted);
+      --color-extra-study-button-remaining-text: var(--wk-dark-text-muted);
       --color-wk-panel-background: var(--wk-dark-surface);
       --color-wk-panel-content-background: var(--wk-dark-surface);
       --color-wk-panel-content-title-underline: var(--wk-dark-border);
       --color-modal-background: var(--wk-dark-surface-raised);
       --color-modal-mask: color-mix(in srgb, var(--ctp-mocha-crust) 75%, transparent);
+      --color-modal-button-edge: var(--ctp-mocha-overlay-0);
       --color-lesson-modal-text: var(--wk-dark-text);
       --color-new-user-modal-background: var(--wk-dark-surface-raised);
       --color-new-user-modal-text: var(--wk-dark-text);
@@ -151,6 +209,7 @@
       --color-progress-chart-metric-count: var(--wk-dark-text);
       --color-progress-chart-metric-count-background: var(--wk-dark-surface-hover);
       --color-subject-srs-progress-stage-background: var(--wk-dark-border);
+      --color-subject-srs-progress-stage-complete-background: var(--ctp-mocha-green);
       --color-subject-srs-progress-text: var(--wk-dark-text-muted);
 
       --color-item-spread-row-background: var(--wk-dark-surface);
@@ -162,11 +221,21 @@
       --color-item-spread-total-border: var(--wk-dark-border);
       --color-review-forecast-header-background: var(--wk-dark-surface-raised);
       --color-review-forecast-day-header-label: var(--wk-dark-text);
+      --color-review-forecast-day-hover: var(--wk-dark-surface-hover);
+      --color-review-forecast-day-active: var(--ctp-mocha-surface-2);
+      --color-review-forecast-bar-positive: var(--ctp-mocha-green);
+      --color-review-forecast-bar-positive-border: var(--ctp-mocha-green);
+      --color-review-forecast-increase-positive: var(--ctp-mocha-green);
+      --color-review-forecast-priority-count-inside: var(--ctp-mocha-crust);
+      --color-review-forecast-bar-zero: var(--wk-dark-surface-hover);
+      --color-review-forecast-bar-zero-border: var(--wk-dark-border);
       --color-level-progress-subjects-background: var(--wk-dark-surface);
       --color-level-progress-subjects-border: var(--wk-dark-border);
       --color-level-progress-item-stat-border: var(--wk-dark-border);
       --color-level-progress-item-stat-hover-background: var(--wk-dark-surface-hover);
       --color-level-progress-item-stat-active-background: var(--wk-dark-surface-raised);
+      --color-level-progress-completed-bar: var(--ctp-mocha-green);
+      --color-level-progress-bar: var(--wk-dark-border);
       --color-subject-character-grid-header-background: var(--wk-dark-surface-raised);
       --color-subject-character-grid-header-title: var(--wk-dark-text);
       --color-subject-character-grid-header-subtitle: var(--wk-dark-text-muted);
@@ -207,6 +276,50 @@
       color: var(--wk-dark-text);
     }
 
+    html[data-wk-dark-theme="dark"] .sitemap__section-header:not(.sitemap__section-header--radicals):not(.sitemap__section-header--kanji):not(.sitemap__section-header--vocabulary):not(.sitemap__section-header--account):hover {
+      border-color: var(--ctp-mocha-overlay-1);
+    }
+
+    html[data-wk-dark-theme="dark"] .sitemap__section-header:not(.sitemap__section-header--radicals):not(.sitemap__section-header--kanji):not(.sitemap__section-header--vocabulary):not(.sitemap__section-header--account):focus {
+      border-color: var(--ctp-mocha-lavender);
+    }
+
+    html[data-wk-dark-theme="dark"] .sitemap__section-header--radicals:hover,
+    html[data-wk-dark-theme="dark"] .sitemap__section-header--radicals:focus,
+    html[data-wk-dark-theme="dark"] .sitemap__section--open .sitemap__section-header--radicals {
+      border-color: var(--color-radical);
+      color: var(--color-radical);
+    }
+
+    html[data-wk-dark-theme="dark"] .sitemap__section-header--kanji:hover,
+    html[data-wk-dark-theme="dark"] .sitemap__section-header--kanji:focus,
+    html[data-wk-dark-theme="dark"] .sitemap__section--open .sitemap__section-header--kanji {
+      border-color: var(--color-kanji);
+      color: var(--color-kanji);
+    }
+
+    html[data-wk-dark-theme="dark"] .sitemap__section-header--vocabulary:hover,
+    html[data-wk-dark-theme="dark"] .sitemap__section-header--vocabulary:focus,
+    html[data-wk-dark-theme="dark"] .sitemap__section--open .sitemap__section-header--vocabulary {
+      border-color: var(--color-vocabulary);
+      color: var(--color-vocabulary);
+    }
+
+    html[data-wk-dark-theme="dark"] .sitemap__expandable-chunk--radicals,
+    html[data-wk-dark-theme="dark"] .sitemap__expandable-chunk--radicals:before {
+      background: var(--color-radical);
+    }
+
+    html[data-wk-dark-theme="dark"] .sitemap__expandable-chunk--kanji,
+    html[data-wk-dark-theme="dark"] .sitemap__expandable-chunk--kanji:before {
+      background: var(--color-kanji);
+    }
+
+    html[data-wk-dark-theme="dark"] .sitemap__expandable-chunk--vocabulary,
+    html[data-wk-dark-theme="dark"] .sitemap__expandable-chunk--vocabulary:before {
+      background: var(--color-vocabulary);
+    }
+
     html[data-wk-dark-theme="dark"] .subject-collocations__pattern-name {
       background-color: var(--wk-dark-surface);
     }
@@ -218,6 +331,79 @@
     html[data-wk-dark-theme="dark"] .subject-collocations__pattern-name[aria-selected="true"]::after,
     html[data-wk-dark-theme="dark"] .subject-info .subject-collocations__pattern-name[aria-selected="true"]::after {
       background-color: var(--wk-dark-background);
+      background-image: none;
+    }
+
+    html[data-wk-dark-theme="dark"] .wk-button--quiz {
+      --color-button-background: var(--ctp-mocha-teal);
+      --color-button-hover-background: var(--ctp-mocha-teal);
+      --color-button-active-background: color-mix(in srgb, var(--ctp-mocha-teal) 80%, var(--ctp-mocha-crust));
+      --color-button-border: color-mix(in srgb, var(--ctp-mocha-teal) 65%, var(--ctp-mocha-crust));
+      --color-button-hover-border: var(--color-button-border);
+      --color-button-active-border: color-mix(in srgb, var(--ctp-mocha-teal) 55%, var(--ctp-mocha-crust));
+      --color-button-edge: var(--color-button-border);
+      --color-button-hover-edge: var(--color-button-hover-border);
+      --color-button-active-edge: var(--color-button-active-border);
+      --color-button-text: var(--ctp-mocha-crust);
+      --color-button-hover-text: var(--ctp-mocha-crust);
+      --color-button-active-text: var(--ctp-mocha-crust);
+      --color-button-icon: var(--color-button-text);
+      --color-button-hover-icon: var(--color-button-hover-text);
+      --color-button-active-icon: var(--color-button-active-text);
+      --button-outline: var(--ctp-mocha-teal);
+    }
+
+    html[data-wk-dark-theme="dark"] .lesson-container__queue .subject-character--radical .subject-character__characters-text,
+    html[data-wk-dark-theme="dark"] .lesson-container__queue .subject-character--kanji .subject-character__characters-text,
+    html[data-wk-dark-theme="dark"] .lesson-container__queue .subject-character--vocabulary .subject-character__characters-text {
+      color: var(--ctp-mocha-crust);
+    }
+
+    html[data-wk-dark-theme="dark"] .lesson-container__queue .subject-character--recent.subject-character--radical .subject-character__characters-text {
+      background-color: var(--ctp-mocha-blue);
+    }
+
+    html[data-wk-dark-theme="dark"] .lesson-container__queue .subject-character--recent.subject-character--kanji .subject-character__characters-text {
+      background-color: var(--ctp-mocha-pink);
+    }
+
+    html[data-wk-dark-theme="dark"] .lesson-container__queue .subject-character--recent.subject-character--vocabulary .subject-character__characters-text {
+      background-color: var(--ctp-mocha-mauve);
+    }
+
+    html[data-wk-dark-theme="dark"] .lesson-container__queue .subject-character--locked.subject-character--radical .subject-character__characters-text {
+      color: var(--ctp-mocha-blue);
+    }
+
+    html[data-wk-dark-theme="dark"] .lesson-container__queue .subject-character--locked.subject-character--kanji .subject-character__characters-text {
+      color: var(--ctp-mocha-pink);
+    }
+
+    html[data-wk-dark-theme="dark"] .lesson-container__queue .subject-character--locked.subject-character--vocabulary .subject-character__characters-text {
+      color: var(--ctp-mocha-mauve);
+    }
+
+    html[data-wk-dark-theme="dark"] .lesson-container__queue .subject-character--burned .subject-character__characters-text {
+      background-color: var(--ctp-mocha-surface-2);
+      border-color: var(--ctp-mocha-overlay-1);
+      color: var(--ctp-mocha-text);
+    }
+
+    html[data-wk-dark-theme="dark"] .character-header--radical,
+    html[data-wk-dark-theme="dark"] .quiz-header--radical {
+      background-color: var(--color-radical);
+      background-image: none;
+    }
+
+    html[data-wk-dark-theme="dark"] .character-header--kanji,
+    html[data-wk-dark-theme="dark"] .quiz-header--kanji {
+      background-color: var(--color-kanji);
+      background-image: none;
+    }
+
+    html[data-wk-dark-theme="dark"] .character-header--vocabulary,
+    html[data-wk-dark-theme="dark"] .quiz-header--vocabulary {
+      background-color: var(--color-vocabulary);
       background-image: none;
     }
 
@@ -244,17 +430,82 @@
       --color-review-forecast-header-background: var(--wk-dark-surface-raised);
     }
 
+    html[data-wk-dark-theme="dark"] .level-progress-widget__info-bubble {
+      --color-notification-info-background: var(--wk-dark-surface-raised);
+      --color-notification-info-border: var(--ctp-mocha-blue);
+      --color-notification-info-icon: var(--ctp-mocha-blue);
+      --color-notification-success-background: var(--wk-dark-surface-raised);
+      --color-notification-success-border: var(--ctp-mocha-green);
+      --color-notification-success-icon: var(--ctp-mocha-green);
+    }
+
     html[data-wk-dark-theme="dark"] input,
     html[data-wk-dark-theme="dark"] textarea,
     html[data-wk-dark-theme="dark"] select {
       background-color: var(--wk-dark-surface);
       border-color: var(--wk-dark-border);
+      box-shadow: none;
+      caret-color: var(--ctp-mocha-rosewater);
       color: var(--wk-dark-text);
     }
 
     html[data-wk-dark-theme="dark"] ::placeholder {
       color: var(--wk-dark-text-muted);
       opacity: 1;
+    }
+
+    html[data-wk-dark-theme="dark"] .quiz-input__question-type-container[data-question-type="meaning"] {
+      background-color: var(--wk-dark-surface-raised);
+      background-image: none;
+      border-color: var(--wk-dark-border);
+      color: var(--wk-dark-text);
+    }
+
+    html[data-wk-dark-theme="dark"] .quiz-input__question-type-container[data-question-type="reading"] {
+      background-color: var(--wk-dark-surface);
+      background-image: none;
+      border-color: var(--wk-dark-border);
+      color: var(--wk-dark-text);
+    }
+
+    html[data-wk-dark-theme="dark"] .quiz-input__input-container[correct] .quiz-input__input {
+      border-color: transparent;
+    }
+
+    html[data-wk-dark-theme="dark"] .quiz-input__input-container[correct]:not([correct="false"]) .quiz-input__input {
+      border-color: #a6e3a1;
+    }
+
+    html[data-wk-dark-theme="dark"] .additional-content__item {
+      background-color: var(--wk-dark-surface-raised);
+      border-color: var(--wk-dark-border);
+      box-shadow: 2px 2px 4px color-mix(in srgb, var(--ctp-mocha-crust) 35%, transparent);
+      color: var(--wk-dark-text-muted);
+    }
+
+    html[data-wk-dark-theme="dark"] .additional-content__item--disabled {
+      background-color: var(--wk-dark-surface);
+      box-shadow: none;
+      color: var(--ctp-mocha-overlay-0);
+    }
+
+    html[data-wk-dark-theme="dark"] .additional-content__item--active {
+      background-color: var(--ctp-mocha-overlay-0);
+      box-shadow: none;
+      color: var(--wk-dark-text);
+    }
+
+    html[data-wk-dark-theme="dark"] .additional-content__item--open::after {
+      border-color: transparent transparent var(--wk-dark-border);
+    }
+
+    html[data-wk-dark-theme="dark"] ::selection {
+      background-color: color-mix(in srgb, var(--ctp-mocha-overlay-2) 25%, transparent);
+      color: var(--wk-dark-text);
+    }
+
+    html[data-wk-dark-theme="dark"] :focus-visible {
+      outline-color: var(--ctp-mocha-lavender);
     }
 
     html[data-wk-dark-theme="dark"] body * {
@@ -292,7 +543,7 @@
     }
 
     #${TOGGLE_ID}:focus-visible {
-      outline: 3px solid var(--ctp-mocha-blue);
+      outline: 3px solid var(--ctp-mocha-lavender);
       outline-offset: 2px;
     }
   `;
