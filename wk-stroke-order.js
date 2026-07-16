@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WaniKani Stroke Order
 // @namespace    wk-stroke-order
-// @version      0.5.0
+// @version      0.6.0
 // @author       Federico G. Schwindt <fgsch@lodoss.net>
 // @description  Adds animated KanjiVG stroke order, radicals, and component groups to WaniKani kanji pages, lessons, and reviews.
 // @license      MIT
@@ -23,6 +23,7 @@
   const RADICAL_COLOR = "#c586d7";
   const GROUP_COLOR = "#86a8d7";
   const STROKE_COLORS = ["#0072b2", "#7a6f00", "#007f5f", "#536aa8"];
+  const REQUEST_TIMEOUT_MS = 15_000;
   const NAME = GM_info.script.name;
   const VERSION = GM_info.script.version;
 
@@ -148,6 +149,7 @@
       GM.xmlHttpRequest({
         method: "GET",
         url,
+        timeout: REQUEST_TIMEOUT_MS,
         onload: (res) => {
           if (res.status >= 200 && res.status < 300) {
             resolve(res.responseText);
@@ -156,6 +158,7 @@
           }
         },
         onerror: reject,
+        ontimeout: () => reject(new Error("Request timed out")),
       });
     });
   }
@@ -303,9 +306,13 @@
   }
 
   function sanitizeSvg(svg) {
-    svg.querySelectorAll("script, style, foreignObject").forEach((element) => {
-      element.remove();
-    });
+    svg
+      .querySelectorAll(
+        "script, style, foreignObject, set, animate, animateMotion, animateTransform, discard",
+      )
+      .forEach((element) => {
+        element.remove();
+      });
 
     [svg, ...svg.querySelectorAll("*")].forEach((element) => {
       [...element.attributes].forEach((attribute) => {
@@ -1004,6 +1011,7 @@
       }
     } finally {
       isPageRunning = false;
+      setTimeout(run, 0);
     }
   }
 
