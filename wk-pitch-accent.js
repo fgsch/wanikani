@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WaniKani Pitch Accent
 // @namespace    wk-pitch-accent
-// @version      0.5.0
+// @version      0.6.0
 // @author       Federico G. Schwindt <fgsch@lodoss.net>
 // @description  Adds OJAD pitch-accent diagrams to WaniKani vocabulary pages, lessons, and quizzes.
 // @license      MIT
@@ -21,6 +21,7 @@
   const STYLE_ID = "wk-pitch-accent-style";
   const OJAD_BASE_URL = "https://www.gavo.t.u-tokyo.ac.jp/ojad";
   const RESPONSE_CACHE_LIMIT = 100;
+  const REQUEST_TIMEOUT_MS = 15_000;
   const SVG_NS = "http://www.w3.org/2000/svg";
   const PATTERN_VARIANT = {
     Heiban: 1,
@@ -55,12 +56,12 @@
     return /^\/subject-lessons\/[\d-]+\/\d+\/?$/.test(location.pathname);
   }
 
-  function isVocabularyLessonPage() {
+  function isSupportedLessonPage() {
     return (
       isSubjectLessonPage() &&
       Boolean(
         document.querySelector(
-          ".character-header--vocabulary, .character-header--kana-vocabulary",
+          ".character-header--kanji, .character-header--vocabulary, .character-header--kana-vocabulary",
         ),
       )
     );
@@ -76,7 +77,9 @@
     );
 
     root
-      ?.querySelectorAll(".reading-with-audio__reading, [data-reading]")
+      ?.querySelectorAll(
+        ".reading-with-audio__reading, [data-reading], .wk-text[lang='ja']",
+      )
       .forEach((element) => {
         const reading = normalizeJapanese(
           element.getAttribute("data-reading") || element.textContent,
@@ -136,16 +139,16 @@
     };
   }
 
-  function getLessonVocabulary(quiet) {
-    if (!isVocabularyLessonPage()) {
+  function getLessonSubject(quiet) {
+    if (!isSupportedLessonPage()) {
       if (!quiet) {
-        console.debug(`[${NAME}] Not a vocabulary lesson page`);
+        console.debug(`[${NAME}] Not a supported lesson page`);
       }
       return null;
     }
 
     const header = document.querySelector(
-      ".character-header--vocabulary, .character-header--kana-vocabulary",
+      ".character-header--kanji, .character-header--vocabulary, .character-header--kana-vocabulary",
     );
     const charactersElement = header?.querySelector(
       ".character-header__characters",
@@ -163,7 +166,7 @@
       return null;
     }
     if (!quiet) {
-      console.debug(`[${NAME}] Lesson vocabulary:`, { characters, readings });
+      console.debug(`[${NAME}] Lesson subject:`, { characters, readings });
     }
     return { characters, readings };
   }
@@ -238,6 +241,7 @@
       GM.xmlHttpRequest({
         method: "GET",
         url,
+        timeout: REQUEST_TIMEOUT_MS,
         onload: (response) => {
           if (response.status >= 200 && response.status < 300) {
             resolve(response.responseText);
@@ -246,6 +250,7 @@
           }
         },
         onerror: reject,
+        ontimeout: () => reject(new Error("Request timed out")),
       });
     });
 
@@ -577,7 +582,7 @@
 
       .wk-pitch-accent figure {
         display: flex;
-        align-items: flex-end;
+        align-items: flex-start;
         gap: 7px;
         margin: 0;
       }
@@ -622,6 +627,7 @@
       }
 
       .wk-pitch-accent .wk-pitch-accent-number {
+        dominant-baseline: central;
         font-size: 14px;
         font-weight: 700;
       }
@@ -634,6 +640,8 @@
         color: var(--wk-pitch-accent-color);
         font-size: 16px;
         font-weight: 600;
+        line-height: 16px;
+        margin-top: 26px;
       }
 
       .wk-pitch-accent .wk-pitch-accent-credit,
@@ -655,7 +663,8 @@
     return (
       readingContent.querySelector(".subject-readings-with-audio") ||
       readingContent.querySelector(".reading-with-audio") ||
-      readingContent.querySelector(".subject-section__subsection--reading")
+      readingContent.querySelector(".subject-section__subsection--reading") ||
+      readingContent.querySelector(".wk-text[lang='ja']")
     );
   }
 
@@ -907,10 +916,8 @@
       return;
     }
 
-    const isLesson = isVocabularyLessonPage();
-    const subject = isLesson
-      ? getLessonVocabulary()
-      : getSubjectPageVocabulary();
+    const isLesson = isSupportedLessonPage();
+    const subject = isLesson ? getLessonSubject() : getSubjectPageVocabulary();
     const pageIsReady = isLesson
       ? lessonPageIsReady()
       : Boolean(
@@ -934,12 +941,12 @@
         console.debug(`[${NAME}] Content already present, aborting`);
         return;
       }
-      if (isLesson ? !isVocabularyLessonPage() : !isVocabularySubjectPage()) {
+      if (isLesson ? !isSupportedLessonPage() : !isVocabularySubjectPage()) {
         console.debug(`[${NAME}] Page changed during fetch, aborting`);
         return;
       }
       const currentSubject = isLesson
-        ? getLessonVocabulary(true)
+        ? getLessonSubject(true)
         : getSubjectPageVocabulary(true);
       if (vocabularyKey(currentSubject) !== vocabularyKey(subject)) {
         console.debug(`[${NAME}] Subject changed during fetch, aborting`);
