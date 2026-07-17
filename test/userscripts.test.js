@@ -174,6 +174,52 @@ test("redo answer inserts a disabled redo control before last items", async () =
   );
 });
 
+test("redo answer keeps every additional-content control in the menu", async () => {
+  const dom = createDom(
+    `<style>
+      .additional-content__menu {
+        display: flex;
+      }
+      .additional-content__menu-item {
+        margin-right: 10px;
+      }
+      .additional-content__menu-item--5 {
+        flex: 0 0 calc(20% - 8px);
+        width: calc(20% - 8px);
+      }
+    </style>
+    <div class="quiz-input">
+      <div class="quiz-input__input-container">
+        <input id="user-response">
+      </div>
+    </div>
+    <ul class="additional-content__menu">
+      <li class="additional-content__menu-item additional-content__menu-item--5"><a class="additional-content__item"></a></li>
+      <li class="additional-content__menu-item additional-content__menu-item--5"><a class="additional-content__item"></a></li>
+      <li class="additional-content__menu-item additional-content__menu-item--5"><a class="additional-content__item"></a></li>
+      <li class="additional-content__menu-item additional-content__menu-item--5"><a class="additional-content__item"></a></li>
+      <li class="additional-content__menu-item additional-content__menu-item--5"><a class="additional-content__item additional-content__item--last-items"></a></li>
+    </ul>`,
+    "https://www.wanikani.com/subjects/review",
+  );
+
+  await loadUserscript(dom, "wk-redo-answer.js");
+
+  const items = dom.window.document.querySelectorAll(
+    ".additional-content__menu > li",
+  );
+
+  assert.equal(items.length, 6);
+  for (const item of items) {
+    const styles = dom.window.getComputedStyle(item);
+    assert.equal(styles.flexGrow, "1");
+    assert.equal(styles.flexShrink, "1");
+    assert.equal(styles.flexBasis, "0px");
+    assert.equal(styles.minWidth, "0px");
+    assert.equal(styles.width, "auto");
+  }
+});
+
 test("redo answer does not insert a control outside quiz pages", async () => {
   const dom = createDom(
     `

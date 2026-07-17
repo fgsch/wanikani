@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WaniKani Redo Answer
 // @namespace    wk-redo-answer
-// @version      0.5.0
+// @version      0.6.0
 // @author       Federico G. Schwindt <fgsch@lodoss.net>
 // @description  Adds a Redo button to WaniKani review and extra study quizzes.
 // @license      MIT
@@ -17,6 +17,8 @@
 
   const REDO_SELECTOR = ".additional-content__item--redo-answer";
   const DISABLED_CLASS = "additional-content__item--disabled";
+  const MENU_CLASS = "wk-redo-answer-menu";
+  const STYLE_ID = "wk-redo-answer-styles";
   const NAME = GM_info.script.name;
   const VERSION = GM_info.script.version;
 
@@ -349,6 +351,23 @@
     return li;
   }
 
+  function installStyles() {
+    if (document.getElementById(STYLE_ID)) {
+      return;
+    }
+
+    const style = document.createElement("style");
+    style.id = STYLE_ID;
+    style.textContent = `
+      .${MENU_CLASS} > .additional-content__menu-item {
+        flex: 1 1 0px;
+        min-width: 0;
+        width: auto;
+      }
+    `;
+    (document.head || document.documentElement).append(style);
+  }
+
   function injectRedoButton() {
     if (!isQuizPage()) {
       return;
@@ -365,6 +384,8 @@
       return;
     }
 
+    installStyles();
+    lastItemsLi.parentElement.classList.add(MENU_CLASS);
     lastItemsLi.before(createRedoButton());
   }
 
