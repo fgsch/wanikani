@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WaniKani Catppuccin Mocha
 // @namespace    wk-catppuccin-mocha
-// @version      0.2.0
+// @version      0.3.0
 // @author       Federico G. Schwindt <fgsch@lodoss.net>
 // @description  Applies the Catppuccin Mocha palette to WaniKani with system and manual modes.
 // @license      MIT
@@ -308,6 +308,35 @@
     }
 
     html[data-wk-mocha-active] .sitemap__section-header:not(.sitemap__section-header--radicals):not(.sitemap__section-header--kanji):not(.sitemap__section-header--vocabulary):not(.sitemap__section-header--account):focus {
+      border-color: var(--ctp-mocha-lavender);
+    }
+
+    html[data-wk-mocha-active] .sitemap__expandable-chunk--levels {
+      background-color: var(--wk-dark-surface-raised);
+      box-shadow: 0 4px 12px color-mix(in srgb, var(--ctp-mocha-crust) 55%, transparent);
+      color: var(--wk-dark-text);
+    }
+
+    html[data-wk-mocha-active] .sitemap__expandable-chunk--levels::before {
+      background-color: var(--wk-dark-surface-raised);
+    }
+
+    html[data-wk-mocha-active] .sitemap__expandable-chunk--levels .sitemap__group-header {
+      color: var(--wk-dark-text-muted);
+    }
+
+    html[data-wk-mocha-active] .sitemap__pages--levels .sitemap__page a {
+      background-color: var(--wk-dark-surface-hover);
+      color: var(--wk-dark-text);
+    }
+
+    html[data-wk-mocha-active] .sitemap__pages--levels .sitemap__page a:hover,
+    html[data-wk-mocha-active] .sitemap__pages--levels .sitemap__page a:focus {
+      background-color: var(--ctp-mocha-surface-2);
+    }
+
+    html[data-wk-mocha-active] .sitemap__page--current-level a,
+    html[data-wk-mocha-active] .sitemap__pages--levels .sitemap__page a:focus {
       border-color: var(--ctp-mocha-lavender);
     }
 
