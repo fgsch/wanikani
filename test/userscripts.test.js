@@ -1957,7 +1957,7 @@ test("pitch accent inserts an exact OJAD result inside Reading", async () => {
     ),
   );
   assert.equal(
-    dom.window.document.querySelector(".wk-pitch-accent-charts figcaption")
+    dom.window.document.querySelector(".wk-pitch-accent-label-name")
       ?.textContent,
     "Nakadaka",
   );
@@ -2017,13 +2017,13 @@ test("pitch accent inserts an exact OJAD result inside Reading", async () => {
         ".wk-pitch-accent-charts svg text",
       ),
     ].map((node) => node.textContent),
-    ["た", "べ", "る", "2"],
+    ["た", "べ", "る"],
   );
   assert.equal(
     dom.window.document
       .querySelector(".wk-pitch-accent-charts svg")
       ?.getAttribute("viewBox"),
-    "0 0 124 44",
+    "0 0 88 44",
   );
   assert.equal(
     dom.window.document
@@ -2050,22 +2050,22 @@ test("pitch accent inserts an exact OJAD result inside Reading", async () => {
   assert.equal(
     dom.window.document.querySelectorAll(".wk-pitch-accent-charts svg ellipse")
       .length,
-    1,
+    0,
   );
   const accentNumber = dom.window.document.querySelector(
-    ".wk-pitch-accent-number",
+    ".wk-pitch-accent-label-number",
   );
   const pitchFigure = dom.window.document.querySelector(
     ".wk-pitch-accent-charts figure",
   );
   const pitchCaption = pitchFigure.querySelector("figcaption");
   assert.equal(
-    dom.window.getComputedStyle(accentNumber).dominantBaseline,
-    "central",
+    dom.window.getComputedStyle(accentNumber).display,
+    "inline-flex",
   );
   assert.equal(dom.window.getComputedStyle(pitchFigure).alignItems, "flex-start");
   assert.equal(dom.window.getComputedStyle(pitchCaption).lineHeight, "16px");
-  assert.equal(dom.window.getComputedStyle(pitchCaption).marginTop, "26px");
+  assert.equal(dom.window.getComputedStyle(pitchCaption).alignItems, "center");
   assert.deepEqual(
     [
       ...dom.window.document.querySelectorAll(
@@ -2140,21 +2140,22 @@ test("pitch accent shows all exact variants and rejects other headwords and read
   assert.deepEqual(
     [
       ...dom.window.document.querySelectorAll(
-        ".wk-pitch-accent-charts figcaption",
+        ".wk-pitch-accent-label-name",
       ),
     ].map((node) => node.textContent),
     ["Atamadaka", "Heiban"],
   );
   assert.deepEqual(
     [
-      ...dom.window.document.querySelectorAll(".wk-pitch-accent-charts figure"),
+      ...dom.window.document.querySelectorAll(
+        ".wk-pitch-accent-charts figure",
+      ),
     ].map((figure) =>
-      [...figure.querySelectorAll("text")].map((node) => node.textContent),
+      [...figure.querySelectorAll(".wk-pitch-accent-character")].map(
+        (node) => node.textContent,
+      ),
     ),
-    [
-      ["あ", "げ", "る", "1"],
-      ["あ", "げ", "る", "0"],
-    ],
+    [[], ["あ", "げ", "る"]],
   );
   assert.deepEqual(
     [
@@ -2172,6 +2173,94 @@ test("pitch accent shows all exact variants and rejects other headwords and read
       .querySelectorAll(".wk-pitch-accent-charts polyline")[1]
       ?.getAttribute("points"),
     "12,16 36,3 60,3 80.75,3",
+  );
+});
+
+test("pitch accent groups multiple patterns for one reading", async () => {
+  const accent = (accentClasses) => `
+    <tr>
+      <td class="midashi"><p class="midashi_word">戸口</p></td>
+      <td class="katsuyo_jisho_js"><span class="accented_word">
+        ${[..."とぐち"]
+          .map(
+            (character, index) => `
+          <span class="${accentClasses[index] || ""}"><span class="char">${character}</span></span>
+        `,
+          )
+          .join("")}
+      </span></td>
+    </tr>
+  `;
+  const dom = createDom(
+    `
+      <span class="subject-character subject-character--vocabulary" title="とぐち"></span>
+      <main><section class="subject-section subject-section--reading">
+        <section class="subject-section__content">
+          <div class="reading-with-audio">
+            <span class="reading-with-audio__reading">とぐち</span>
+            <button class="reading-with-audio__audio">Play audio</button>
+          </div>
+        </section>
+      </section></main>
+    `,
+    "https://www.wanikani.com/vocabulary/%E6%88%B8%E5%8F%A3",
+  );
+
+  await loadUserscript(dom, "wk-pitch-accent.js", {
+    GM: {
+      xmlHttpRequest({ onload }) {
+        onload({
+          status: 200,
+          responseText: `<table id="word_table"><tbody>
+            ${accent(["accent_top"])}
+            ${accent(["", "accent_plain", "accent_plain"])}
+          </tbody></table>`,
+        });
+      },
+    },
+  });
+
+  await waitFor(() => {
+    assert.ok(
+      dom.window.document.querySelector(".wk-pitch-accent-charts--multiple"),
+    );
+  });
+
+  const charts = dom.window.document.querySelector(
+    ".wk-pitch-accent-charts--multiple",
+  );
+  assert.deepEqual(
+    [...charts.querySelectorAll("figure")].map((figure) => ({
+      characters: [...figure.querySelectorAll(".wk-pitch-accent-character")].map(
+        (node) => node.textContent,
+      ),
+      number: figure.querySelector(".wk-pitch-accent-label-number")?.textContent,
+      name: figure.querySelector(".wk-pitch-accent-label-name")?.textContent,
+      points: figure.querySelector("polyline")?.getAttribute("points"),
+    })),
+    [
+      {
+        characters: [],
+        number: "1",
+        name: "Atamadaka",
+        points: "12,3 36,16 60,16 80.75,16",
+      },
+      {
+        characters: ["と", "ぐ", "ち"],
+        number: "0",
+        name: "Heiban",
+        points: "12,16 36,3 60,3 80.75,3",
+      },
+    ],
+  );
+  assert.deepEqual(
+    [...charts.querySelectorAll("figure")].map(
+      (figure) => figure.className,
+    ),
+    ["wk-pitch-accent-variant-2", "wk-pitch-accent-variant-1"],
+  );
+  assert.ok(
+    dom.window.document.querySelector(".reading-with-audio__audio"),
   );
 });
 
@@ -2213,7 +2302,10 @@ test("pitch accent shows a terminal drop on a virtual following particle", async
   });
 
   const chart = dom.window.document.querySelector(".wk-pitch-accent-charts");
-  assert.equal(chart.querySelector("figcaption")?.textContent, "Atamadaka");
+  assert.equal(
+    chart.querySelector(".wk-pitch-accent-label-name")?.textContent,
+    "Atamadaka",
+  );
   assert.equal(
     chart.querySelector("polyline")?.getAttribute("points"),
     "12,3 33.14,14.45",
@@ -2227,7 +2319,7 @@ test("pitch accent shows a terminal drop on a virtual following particle", async
   assert.equal(particle?.getAttribute("stroke-width"), "1.5");
   assert.deepEqual(
     [...chart.querySelectorAll("svg text")].map((node) => node.textContent),
-    ["じ", "1"],
+    ["じ"],
   );
 });
 
@@ -2325,7 +2417,13 @@ test("pitch accent replaces each reading beside its own audio control", async ()
         .map((node) => node.textContent)
         .join(""),
     ),
-    ["にほん2", "にっぽん3"],
+    ["にほん", "にっぽん"],
+  );
+  assert.deepEqual(
+    [...readingRow.querySelectorAll(".wk-pitch-accent-label-number")].map(
+      (number) => number.textContent,
+    ),
+    ["2", "3"],
   );
 });
 
@@ -2676,7 +2774,7 @@ test("pitch accent does not insert a stale lookup after vocabulary navigation", 
 
   await waitFor(() => {
     assert.equal(
-      dom.window.document.querySelector(".wk-pitch-accent-charts figcaption")
+      dom.window.document.querySelector(".wk-pitch-accent-label-name")
         ?.textContent,
       "Heiban",
     );
@@ -2983,12 +3081,17 @@ test("pitch accent parses moras with multiple char elements like じょ", async 
         ".wk-pitch-accent-charts svg text",
       ),
     ].map((node) => node.textContent),
-    ["こ", "う", "じょ", "う", "3"],
+    ["こ", "う", "じょ", "う"],
   );
   assert.equal(
-    dom.window.document.querySelector(".wk-pitch-accent-charts figcaption")
+    dom.window.document.querySelector(".wk-pitch-accent-label-name")
       ?.textContent,
     "Nakadaka",
+  );
+  assert.equal(
+    dom.window.document.querySelector(".wk-pitch-accent-label-number")
+      ?.textContent,
+    "3",
   );
 });
 
@@ -3435,6 +3538,67 @@ test("dark theme replaces the legacy Help dropdown colors", async () => {
   assert.match(
     styles,
     /\.sitemap__page--subject a:hover,[^{]+\.button--chat:focus\s*\{[^}]*background-color:[^;]+--wk-dark-surface-hover/s,
+  );
+});
+
+test("dark theme replaces the legacy Levels dropdown colors", async () => {
+  const dom = createDom(
+    `<style>
+      .sitemap__expandable-chunk--levels { background: #666; }
+      .sitemap__group-header { color: rgba(255, 255, 255, .5); }
+      .sitemap__pages--levels .sitemap__page a {
+        background-color: rgba(255, 255, 255, .1);
+        color: #fff;
+      }
+      .sitemap__page--current-level a { border: 2px solid rgba(255, 255, 255, .5); }
+    </style>
+    <div class="sitemap__section sitemap__section--open">
+      <div class="sitemap__expandable-chunk sitemap__expandable-chunk--levels">
+        <h3 class="sitemap__group-header">Pleasant</h3>
+        <ul class="sitemap__pages sitemap__pages--levels">
+          <li class="sitemap__page"><a href="/level/1">01</a></li>
+          <li class="sitemap__page sitemap__page--current-level"><a href="/level/4">04</a></li>
+        </ul>
+      </div>
+    </div>`,
+    "https://www.wanikani.com/",
+  );
+
+  await loadDarkTheme(dom);
+
+  const panel = dom.window.document.querySelector(
+    ".sitemap__expandable-chunk--levels",
+  );
+  const heading = dom.window.document.querySelector(".sitemap__group-header");
+  const link = dom.window.document.querySelector(".sitemap__page a");
+  const styles = dom.window.document.querySelector(
+    "#wk-catppuccin-mocha-styles",
+  ).textContent;
+
+  assert.equal(
+    dom.window.getComputedStyle(panel).backgroundColor,
+    "var(--wk-dark-surface-raised)",
+  );
+  assert.equal(
+    dom.window.getComputedStyle(heading).color,
+    "var(--wk-dark-text-muted)",
+  );
+  assert.equal(
+    dom.window.getComputedStyle(link).backgroundColor,
+    "var(--wk-dark-surface-hover)",
+  );
+  assert.equal(dom.window.getComputedStyle(link).color, "var(--wk-dark-text)");
+  assert.match(
+    styles,
+    /\.sitemap__expandable-chunk--levels::before\s*\{[^}]*background-color:[^;]+--wk-dark-surface-raised/s,
+  );
+  assert.match(
+    styles,
+    /\.sitemap__pages--levels \.sitemap__page a:hover,[^{]+a:focus\s*\{[^}]*background-color:[^;]+--ctp-mocha-surface-2/s,
+  );
+  assert.match(
+    styles,
+    /\.sitemap__page--current-level a,[^{]+a:focus\s*\{[^}]*border-color:[^;]+--ctp-mocha-lavender/s,
   );
 });
 
