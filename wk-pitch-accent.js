@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WaniKani Pitch Accent
 // @namespace    wk-pitch-accent
-// @version      0.7.0
+// @version      0.8.0
 // @author       Federico G. Schwindt <fgsch@lodoss.net>
 // @description  Adds OJAD pitch-accent diagrams to WaniKani vocabulary pages, lessons, and quizzes.
 // @license      MIT
@@ -387,7 +387,7 @@
     return element;
   }
 
-  function createPitchSvg(variant) {
+  function createPitchSvg(variant, showReading) {
     const step = 24;
     const highY = 3;
     const lowY = 16;
@@ -397,26 +397,31 @@
     const accentNumber = getAccentNumber(variant.moras);
     const particleX = step / 2 + variant.moras.length * step;
     const particleY = accentNumber === 0 ? highY : lowY;
-    const badgeX = (variant.moras.length + 1) * step + 16;
-    const width = (variant.moras.length + 1) * step + 28;
+    const width = particleX + 4;
+    const height = showReading ? 44 : 20;
     const svg = createSvgElement("svg", {
-      viewBox: `0 0 ${width} 44`,
+      viewBox: `0 0 ${width} ${height}`,
       role: "img",
       "aria-label": `${variant.reading}, ${getPatternLabel(variant.moras)} pitch accent`,
     });
+    if (!showReading) {
+      svg.classList.add("wk-pitch-accent-diagram-only");
+    }
 
-    variant.moras.forEach((mora, index) => {
-      const character = createSvgElement("text", {
-        x: step / 2 + index * step,
-        y: textY,
-        class: "wk-pitch-accent-character",
+    if (showReading) {
+      variant.moras.forEach((mora, index) => {
+        const character = createSvgElement("text", {
+          x: step / 2 + index * step,
+          y: textY,
+          class: "wk-pitch-accent-character",
+        });
+        character.textContent = mora.text;
+        if (mora.unvoiced) {
+          character.classList.add("wk-pitch-accent-unvoiced");
+        }
+        svg.appendChild(character);
       });
-      character.textContent = mora.text;
-      if (mora.unvoiced) {
-        character.classList.add("wk-pitch-accent-unvoiced");
-      }
-      svg.appendChild(character);
-    });
+    }
 
     const points = variant.moras.map((mora, index) => ({
       x: step / 2 + index * step,
@@ -470,27 +475,11 @@
       }),
     );
 
-    svg.appendChild(
-      createSvgElement("ellipse", {
-        cx: badgeX,
-        cy: textY,
-        rx: 10,
-        ry: 10,
-        fill: "var(--wk-pitch-accent-color)",
-        "fill-opacity": 0.16,
-      }),
-    );
-
-    const number = createSvgElement("text", {
-      x: badgeX,
-      y: textY,
-      class: "wk-pitch-accent-number",
-      fill: "var(--wk-pitch-accent-color)",
-    });
-    number.textContent = String(accentNumber);
-    svg.appendChild(number);
-
     return svg;
+  }
+
+  function getVariantClass(variant) {
+    return `wk-pitch-accent-variant-${PATTERN_VARIANT[getPatternName(variant.moras)] || 1}`;
   }
 
   function createCredit() {
@@ -523,26 +512,40 @@
       message.textContent = error;
       details.appendChild(message);
     } else {
-      const chartsByReading = new Map();
+      const variantsByReading = new Map();
 
-      variants.forEach((variant, _index) => {
-        let charts = chartsByReading.get(variant.reading);
-        if (!charts) {
-          charts = document.createElement("span");
-          charts.className = "wk-pitch-accent wk-pitch-accent-charts";
-          charts.dataset.reading = variant.reading;
-          chartsByReading.set(variant.reading, charts);
-          visual.appendChild(charts);
+      variants.forEach((variant) => {
+        const readingVariants = variantsByReading.get(variant.reading) || [];
+        readingVariants.push(variant);
+        variantsByReading.set(variant.reading, readingVariants);
+      });
+
+      variantsByReading.forEach((readingVariants, reading) => {
+        const charts = document.createElement("span");
+        charts.className = "wk-pitch-accent wk-pitch-accent-charts";
+        charts.dataset.reading = reading;
+        visual.appendChild(charts);
+
+        if (readingVariants.length > 1) {
+          charts.classList.add("wk-pitch-accent-charts--multiple");
         }
 
-        const variantClass = `wk-pitch-accent-variant-${PATTERN_VARIANT[getPatternName(variant.moras)] || 1}`;
-        const figure = document.createElement("figure");
-        const caption = document.createElement("figcaption");
+        readingVariants.forEach((variant, index) => {
+          const figure = document.createElement("figure");
+          const caption = document.createElement("figcaption");
+          const number = document.createElement("span");
+          const name = document.createElement("span");
+          const showReading = index === readingVariants.length - 1;
 
-        figure.className = variantClass;
-        caption.textContent = getPatternName(variant.moras);
-        figure.append(createPitchSvg(variant), caption);
-        charts.appendChild(figure);
+          figure.className = getVariantClass(variant);
+          number.className = "wk-pitch-accent-label-number";
+          number.textContent = String(getAccentNumber(variant.moras));
+          name.className = "wk-pitch-accent-label-name";
+          name.textContent = getPatternName(variant.moras);
+          caption.append(number, name);
+          figure.append(createPitchSvg(variant, showReading), caption);
+          charts.appendChild(figure);
+        });
       });
     }
 
@@ -580,6 +583,11 @@
         margin-bottom: 8px;
       }
 
+      .wk-pitch-accent-charts--multiple {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
       .wk-pitch-accent figure {
         display: flex;
         align-items: flex-start;
@@ -599,21 +607,15 @@
         overflow: visible;
       }
 
-      .wk-pitch-accent .wk-pitch-accent-character,
-      .wk-pitch-accent .wk-pitch-accent-number {
-        font-size: 18px;
-        text-anchor: middle;
-        dominant-baseline: middle;
+      .wk-pitch-accent-charts .wk-pitch-accent-diagram-only {
+        height: 20px;
       }
 
       .wk-pitch-accent .wk-pitch-accent-character {
+        font-size: 18px;
+        text-anchor: middle;
+        dominant-baseline: middle;
         fill: currentColor;
-      }
-
-      .wk-pitch-accent .wk-pitch-accent-number {
-        dominant-baseline: central;
-        font-size: 14px;
-        font-weight: 700;
       }
 
       .wk-pitch-accent .wk-pitch-accent-unvoiced {
@@ -621,11 +623,24 @@
       }
 
       .wk-pitch-accent figcaption {
+        align-items: center;
         color: var(--wk-pitch-accent-color);
+        display: flex;
         font-size: 16px;
         font-weight: 600;
+        gap: 7px;
         line-height: 16px;
-        margin-top: 26px;
+      }
+
+      .wk-pitch-accent-label-number {
+        align-items: center;
+        background: color-mix(in srgb, var(--wk-pitch-accent-color) 16%, transparent);
+        border-radius: 999px;
+        display: inline-flex;
+        font-size: 14px;
+        height: 20px;
+        justify-content: center;
+        width: 20px;
       }
 
       .wk-pitch-accent .wk-pitch-accent-credit,
