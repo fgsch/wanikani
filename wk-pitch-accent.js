@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WaniKani Pitch Accent
 // @namespace    wk-pitch-accent
-// @version      0.6.0
+// @version      0.7.0
 // @author       Federico G. Schwindt <fgsch@lodoss.net>
 // @description  Adds OJAD pitch-accent diagrams to WaniKani vocabulary pages, lessons, and quizzes.
 // @license      MIT
@@ -591,22 +591,6 @@
       .wk-pitch-accent-variant-2 { --wk-pitch-accent-color: #9c007e; }
       .wk-pitch-accent-variant-3 { --wk-pitch-accent-color: #0068a8; }
       .wk-pitch-accent-variant-4 { --wk-pitch-accent-color: #984b00; }
-
-      html[data-wk-dark-theme="dark"] .wk-pitch-accent-variant-1 {
-        --wk-pitch-accent-color: #43e0a1;
-      }
-
-      html[data-wk-dark-theme="dark"] .wk-pitch-accent-variant-2 {
-        --wk-pitch-accent-color: #ff68e7;
-      }
-
-      html[data-wk-dark-theme="dark"] .wk-pitch-accent-variant-3 {
-        --wk-pitch-accent-color: #62b8ff;
-      }
-
-      html[data-wk-dark-theme="dark"] .wk-pitch-accent-variant-4 {
-        --wk-pitch-accent-color: #ffad5c;
-      }
 
       .wk-pitch-accent-charts svg {
         display: block;
