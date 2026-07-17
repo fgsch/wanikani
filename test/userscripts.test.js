@@ -22,7 +22,7 @@ async function loadUserscript(dom, filename, globals = {}) {
 }
 
 async function loadDarkTheme(dom, matches = true) {
-  await loadUserscript(dom, "wk-dark-theme.js", {
+  await loadUserscript(dom, "wk-catppuccin-mocha.js", {
     matchMedia() {
       return {
         matches,
@@ -2251,10 +2251,10 @@ test("pitch accent shows all exact variants and rejects other headwords and read
     ].map((figure) => figure.className),
     ["wk-pitch-accent-variant-2", "wk-pitch-accent-variant-1"],
   );
-  assert.match(
+  assert.doesNotMatch(
     dom.window.document.querySelector("#wk-pitch-accent-style")?.textContent ||
       "",
-    /html\[data-wk-dark-theme="dark"\] \.wk-pitch-accent-variant-1/,
+    /html\[data-wk-mocha-active\] \.wk-pitch-accent-variant-1/,
   );
   assert.equal(
     dom.window.document
@@ -3100,11 +3100,14 @@ test("dark theme follows a dark system preference by default", async () => {
 
   await loadDarkTheme(dom);
 
-  const toggle = dom.window.document.querySelector("#wk-dark-theme-toggle");
+  const toggle = dom.window.document.querySelector("#wk-catppuccin-mocha-toggle");
 
-  assert.equal(dom.window.document.documentElement.dataset.wkDarkTheme, "dark");
   assert.equal(
-    dom.window.document.documentElement.dataset.wkDarkThemeMode,
+    dom.window.document.documentElement.hasAttribute("data-wk-mocha-active"),
+    true,
+  );
+  assert.equal(
+    dom.window.document.documentElement.dataset.wkMochaMode,
     "system",
   );
   assert.equal(toggle?.textContent.trim(), "System");
@@ -3126,10 +3129,13 @@ test("dark theme defaults to system mode when storage reads fail", async () => {
   await loadDarkTheme(dom);
 
   assert.equal(
-    dom.window.document.documentElement.dataset.wkDarkThemeMode,
+    dom.window.document.documentElement.dataset.wkMochaMode,
     "system",
   );
-  assert.equal(dom.window.document.documentElement.dataset.wkDarkTheme, "dark");
+  assert.equal(
+    dom.window.document.documentElement.hasAttribute("data-wk-mocha-active"),
+    true,
+  );
 });
 
 test("dark theme applies a selected mode when storage writes fail", async () => {
@@ -3144,11 +3150,11 @@ test("dark theme applies a selected mode when storage writes fail", async () => 
   await loadDarkTheme(dom, false);
 
   const root = dom.window.document.documentElement;
-  const toggle = dom.window.document.querySelector("#wk-dark-theme-toggle");
+  const toggle = dom.window.document.querySelector("#wk-catppuccin-mocha-toggle");
   toggle.click();
 
-  assert.equal(root.dataset.wkDarkThemeMode, "dark");
-  assert.equal(root.dataset.wkDarkTheme, "dark");
+  assert.equal(root.dataset.wkMochaMode, "dark");
+  assert.equal(root.hasAttribute("data-wk-mocha-active"), true);
   assert.equal(toggle.textContent.trim(), "Dark");
 });
 
@@ -3157,7 +3163,7 @@ test("dark theme toggle stays in the lower-left corner in light mode", async () 
 
   await loadDarkTheme(dom, false);
 
-  const toggle = dom.window.document.querySelector("#wk-dark-theme-toggle");
+  const toggle = dom.window.document.querySelector("#wk-catppuccin-mocha-toggle");
   const toggleStyle = dom.window.getComputedStyle(toggle);
 
   assert.equal(toggleStyle.bottom, "16px");
@@ -3171,38 +3177,47 @@ test("dark theme toggle cycles through and persists manual overrides", async () 
   await loadDarkTheme(dom, false);
 
   const root = dom.window.document.documentElement;
-  const toggle = dom.window.document.querySelector("#wk-dark-theme-toggle");
+  const toggle = dom.window.document.querySelector("#wk-catppuccin-mocha-toggle");
 
   toggle.click();
-  assert.equal(root.dataset.wkDarkThemeMode, "dark");
-  assert.equal(root.dataset.wkDarkTheme, "dark");
+  assert.equal(root.dataset.wkMochaMode, "dark");
+  assert.equal(root.hasAttribute("data-wk-mocha-active"), true);
   assert.equal(toggle.textContent.trim(), "Dark");
-  assert.equal(dom.window.localStorage.getItem("wk-dark-theme-mode"), "dark");
+  assert.equal(
+    dom.window.localStorage.getItem("wk-catppuccin-mocha-mode"),
+    "dark",
+  );
 
   toggle.click();
-  assert.equal(root.dataset.wkDarkThemeMode, "light");
-  assert.equal(root.dataset.wkDarkTheme, "light");
+  assert.equal(root.dataset.wkMochaMode, "light");
+  assert.equal(root.hasAttribute("data-wk-mocha-active"), false);
   assert.equal(toggle.textContent.trim(), "Light");
-  assert.equal(dom.window.localStorage.getItem("wk-dark-theme-mode"), "light");
+  assert.equal(
+    dom.window.localStorage.getItem("wk-catppuccin-mocha-mode"),
+    "light",
+  );
 
   toggle.click();
-  assert.equal(root.dataset.wkDarkThemeMode, "system");
-  assert.equal(root.dataset.wkDarkTheme, "light");
+  assert.equal(root.dataset.wkMochaMode, "system");
+  assert.equal(root.hasAttribute("data-wk-mocha-active"), false);
   assert.equal(toggle.textContent.trim(), "System");
-  assert.equal(dom.window.localStorage.getItem("wk-dark-theme-mode"), "system");
+  assert.equal(
+    dom.window.localStorage.getItem("wk-catppuccin-mocha-mode"),
+    "system",
+  );
 });
 
 test("dark theme restores a saved override instead of the system preference", async () => {
   const dom = createDom("<main>Dashboard</main>", "https://www.wanikani.com/");
-  dom.window.localStorage.setItem("wk-dark-theme-mode", "light");
+  dom.window.localStorage.setItem("wk-catppuccin-mocha-mode", "light");
 
   await loadDarkTheme(dom);
 
   const root = dom.window.document.documentElement;
-  const toggle = dom.window.document.querySelector("#wk-dark-theme-toggle");
+  const toggle = dom.window.document.querySelector("#wk-catppuccin-mocha-toggle");
 
-  assert.equal(root.dataset.wkDarkThemeMode, "light");
-  assert.equal(root.dataset.wkDarkTheme, "light");
+  assert.equal(root.dataset.wkMochaMode, "light");
+  assert.equal(root.hasAttribute("data-wk-mocha-active"), false);
   assert.equal(toggle.textContent.trim(), "Light");
 });
 
@@ -3215,14 +3230,17 @@ test("dark theme restores its control after Turbo replaces the page body", async
   dom.window.document.dispatchEvent(new dom.window.Event("turbo:load"));
 
   assert.equal(
-    dom.window.document.querySelectorAll("#wk-dark-theme-toggle").length,
+    dom.window.document.querySelectorAll("#wk-catppuccin-mocha-toggle").length,
     1,
   );
   assert.equal(
-    dom.window.document.querySelectorAll("#wk-dark-theme-styles").length,
+    dom.window.document.querySelectorAll("#wk-catppuccin-mocha-styles").length,
     1,
   );
-  assert.equal(dom.window.document.documentElement.dataset.wkDarkTheme, "dark");
+  assert.equal(
+    dom.window.document.documentElement.hasAttribute("data-wk-mocha-active"),
+    true,
+  );
 });
 
 test("dark theme applies at document start and adds its control when the body arrives", async () => {
@@ -3231,9 +3249,12 @@ test("dark theme applies at document start and adds its control when the body ar
 
   await loadDarkTheme(dom);
 
-  assert.equal(dom.window.document.documentElement.dataset.wkDarkTheme, "dark");
   assert.equal(
-    dom.window.document.querySelector("#wk-dark-theme-toggle"),
+    dom.window.document.documentElement.hasAttribute("data-wk-mocha-active"),
+    true,
+  );
+  assert.equal(
+    dom.window.document.querySelector("#wk-catppuccin-mocha-toggle"),
     null,
   );
 
@@ -3242,7 +3263,7 @@ test("dark theme applies at document start and adds its control when the body ar
   );
   dom.window.document.dispatchEvent(new dom.window.Event("DOMContentLoaded"));
 
-  assert.ok(dom.window.document.querySelector("#wk-dark-theme-toggle"));
+  assert.ok(dom.window.document.querySelector("#wk-catppuccin-mocha-toggle"));
 });
 
 test("dark theme uses the Catppuccin Mocha palette", async () => {
@@ -3262,6 +3283,31 @@ test("dark theme uses the Catppuccin Mocha palette", async () => {
   });
 });
 
+test("dark theme applies the Mocha palette to pitch accent variants", async () => {
+  const dom = createDom(
+    `<div class="wk-pitch-accent">
+      <figure class="wk-pitch-accent-variant-1"></figure>
+      <figure class="wk-pitch-accent-variant-2"></figure>
+      <figure class="wk-pitch-accent-variant-3"></figure>
+      <figure class="wk-pitch-accent-variant-4"></figure>
+    </div>`,
+    "https://www.wanikani.com/vocabulary/%E9%A3%9F%E3%81%B9%E3%82%8B",
+  );
+
+  await loadDarkTheme(dom);
+
+  const variants = dom.window.document.querySelectorAll(
+    "[class^='wk-pitch-accent-variant-']",
+  );
+  const expected = ["#a6e3a1", "#f5c2e7", "#89b4fa", "#fab387"];
+
+  for (const [index, variant] of variants.entries()) {
+    assertCustomProperties(dom, variant, {
+      "--wk-pitch-accent-color": expected[index],
+    });
+  }
+});
+
 test("dark theme adds Catppuccin accents to browser interaction states", async () => {
   const dom = createDom(
     '<a href="/subjects">Subjects</a><input value="search">',
@@ -3272,7 +3318,7 @@ test("dark theme adds Catppuccin accents to browser interaction states", async (
 
   const root = dom.window.document.documentElement;
   const styles = dom.window.document.querySelector(
-    "#wk-dark-theme-styles",
+    "#wk-catppuccin-mocha-styles",
   ).textContent;
 
   assertCustomProperties(dom, root, {
@@ -3335,6 +3381,166 @@ test("dark theme replaces light quiz chrome with Mocha surfaces", async () => {
   );
 });
 
+test("dark theme replaces the Kana Chart light palette", async () => {
+  const dom = createDom(
+    `<style>
+      .additional-content__content { background-color: #fafafa; border: 2px solid #d4d4d4; box-shadow: 2px 2px 4px #e3e3e3; }
+      .kana-chart__tab:not(.kana-chart__tab--selected) { border-bottom: 2px solid #e0e0e0; color: #999; }
+      .kana-chart__tab--selected { border: 2px solid #e0e0e0; }
+      .kana-chart__backspace, .kana-chart__character { background-color: #eee; color: #333; }
+      .kana-chart__character-romaji { color: #999; }
+    </style>
+    <div class="additional-content__content additional-content__content--open">
+      <div class="kana-chart">
+        <div class="kana-chart__tabs">
+          <button class="kana-chart__tab kana-chart__tab--selected">あ</button>
+          <button class="kana-chart__tab">か</button>
+          <button class="kana-chart__backspace">Backspace</button>
+        </div>
+        <button class="kana-chart__character">
+          <span class="kana-chart__character-kana">あ</span>
+          <span class="kana-chart__character-romaji">a</span>
+        </button>
+      </div>
+    </div>`,
+    "https://www.wanikani.com/subjects/review",
+  );
+
+  await loadDarkTheme(dom);
+
+  const panel = dom.window.document.querySelector(
+    ".additional-content__content",
+  );
+  const selectedTab = dom.window.document.querySelector(
+    ".kana-chart__tab--selected",
+  );
+  const inactiveTab = dom.window.document.querySelector(
+    ".kana-chart__tab:not(.kana-chart__tab--selected)",
+  );
+  const backspace = dom.window.document.querySelector(
+    ".kana-chart__backspace",
+  );
+  const character = dom.window.document.querySelector(
+    ".kana-chart__character",
+  );
+  const romaji = dom.window.document.querySelector(
+    ".kana-chart__character-romaji",
+  );
+
+  assert.equal(
+    dom.window.getComputedStyle(panel).backgroundColor,
+    "var(--wk-dark-surface)",
+  );
+  assert.equal(
+    dom.window.getComputedStyle(panel).borderColor,
+    "rgb(88, 91, 112)",
+  );
+  assert.equal(dom.window.getComputedStyle(panel).boxShadow, "none");
+  assert.equal(
+    dom.window.getComputedStyle(selectedTab).backgroundColor,
+    "var(--wk-dark-surface-raised)",
+  );
+  assert.equal(
+    dom.window.getComputedStyle(inactiveTab).color,
+    "var(--wk-dark-text-muted)",
+  );
+  for (const key of [backspace, character]) {
+    const styles = dom.window.getComputedStyle(key);
+    assert.equal(styles.backgroundColor, "var(--wk-dark-surface-raised)");
+    assert.equal(styles.color, "var(--wk-dark-text)");
+  }
+  assert.equal(
+    dom.window.getComputedStyle(romaji).color,
+    "var(--wk-dark-text-muted)",
+  );
+});
+
+test("dark theme styles lesson and review counts in the global header", async () => {
+  const dom = createDom(
+    `<style>
+      :root {
+        --color-lesson-and-review-border: #cad0d6;
+        --color-lesson-and-review-border-hover: #6b7079;
+        --color-lesson-and-review-count-background: #6b7079;
+        --color-lesson-and-review-count-zero-background: #aaa;
+        --color-lesson-and-review-count-text: #fff;
+      }
+    </style>
+    <header class="global-header">
+      <div class="lesson-and-review-count">
+        <a class="lesson-and-review-count__item">
+          <span class="lesson-and-review-count__count lesson-and-review-count__count--zero">0</span>
+          <span class="lesson-and-review-count__label">Lessons</span>
+        </a>
+      </div>
+    </header>`,
+    "https://www.wanikani.com/",
+  );
+
+  await loadDarkTheme(dom);
+
+  assertCustomProperties(dom, dom.window.document.documentElement, {
+    "--color-lesson-and-review-border": "#585b70",
+    "--color-lesson-and-review-border-hover": "#6c7086",
+    "--color-lesson-and-review-count-background": "#585b70",
+    "--color-lesson-and-review-count-zero-background": "#45475a",
+    "--color-lesson-and-review-count-text": "#cdd6f4",
+  });
+});
+
+test("dark theme replaces the legacy Help dropdown colors", async () => {
+  const dom = createDom(
+    `<style>
+      .sitemap__expandable-chunk--help { background: #333; color: #e5e5e5; }
+      .sitemap__page--subject { border-bottom: 1px solid rgba(255, 255, 255, .2); }
+      .sitemap__page--subject a { color: #fff; }
+    </style>
+    <div class="sitemap__section sitemap__section--open">
+      <div class="sitemap__expandable-chunk sitemap__expandable-chunk--help">
+        <ul class="sitemap__pages">
+          <li class="sitemap__page sitemap__page--subject">
+            <a href="/faq">Knowledge Guide</a>
+          </li>
+          <li class="sitemap__page sitemap__page--subject">
+            <a class="button--chat" href="/contact">Chat with Us</a>
+          </li>
+        </ul>
+      </div>
+    </div>`,
+    "https://www.wanikani.com/",
+  );
+
+  await loadDarkTheme(dom);
+
+  const panel = dom.window.document.querySelector(
+    ".sitemap__expandable-chunk--help",
+  );
+  const row = dom.window.document.querySelector(".sitemap__page--subject");
+  const link = row.querySelector("a");
+  const styles = dom.window.document.querySelector(
+    "#wk-catppuccin-mocha-styles",
+  ).textContent;
+
+  assert.equal(
+    dom.window.getComputedStyle(panel).backgroundColor,
+    "var(--wk-dark-surface-raised)",
+  );
+  assert.equal(dom.window.getComputedStyle(panel).color, "var(--wk-dark-text)");
+  assert.equal(
+    dom.window.getComputedStyle(row).borderBottomColor,
+    "rgb(88, 91, 112)",
+  );
+  assert.equal(dom.window.getComputedStyle(link).color, "var(--wk-dark-text)");
+  assert.match(
+    styles,
+    /\.sitemap__expandable-chunk--help::before\s*\{[^}]*background-color:[^;]+--wk-dark-surface-raised/s,
+  );
+  assert.match(
+    styles,
+    /\.sitemap__page--subject a:hover,[^{]+\.button--chat:focus\s*\{[^}]*background-color:[^;]+--wk-dark-surface-hover/s,
+  );
+});
+
 test("dark theme uses deliberate quiz input borders without light shadows", async () => {
   const dom = createDom(
     `<style>
@@ -3363,7 +3569,7 @@ test("dark theme uses deliberate quiz input borders without light shadows", asyn
       dom.window.getComputedStyle(input).borderColor,
       [
         "rgb(166, 227, 161)",
-        "rgba(0, 0, 0, 0)",
+        "rgb(243, 139, 168)",
         "rgb(180, 190, 254)",
       ][index],
     );
@@ -3438,7 +3644,7 @@ test("dark theme replaces light Extra Study controls with Mocha colors", async (
 test("dark theme replaces light collocation pattern backgrounds", async () => {
   const dom = createDom(
     `<style>
-      .subject-collocations__pattern-name { background-color: #e0e0e0; }
+      .subject-collocations__pattern-name { background-color: #e0e0e0; border: 1px solid transparent; }
     </style>
     <div class="subject-collocations">
       <a class="subject-collocations__pattern-name" aria-selected="true">〜の字</a>
@@ -3455,11 +3661,21 @@ test("dark theme replaces light collocation pattern backgrounds", async () => {
 
   assert.equal(
     dom.window.getComputedStyle(patterns[0]).backgroundColor,
-    "var(--wk-dark-surface-raised)",
+    "var(--wk-dark-surface-hover)",
   );
   assert.equal(
     dom.window.getComputedStyle(patterns[1]).backgroundColor,
-    "var(--wk-dark-surface)",
+    "var(--wk-dark-surface-raised)",
+  );
+  assert.deepEqual(
+    [...patterns].map((pattern) => {
+      const styles = dom.window.getComputedStyle(pattern);
+      return [styles.borderWidth, styles.borderStyle, styles.borderColor];
+    }),
+    [
+      ["1px", "solid", "rgb(180, 190, 254)"],
+      ["1px", "solid", "rgb(88, 91, 112)"],
+    ],
   );
 });
 
@@ -3591,6 +3807,31 @@ test("dark theme keeps lesson queue subject labels readable", async () => {
   );
   assert.equal(burned.color, "var(--ctp-mocha-text)");
   assert.equal(burned.backgroundColor, "var(--ctp-mocha-surface-2)");
+});
+
+test("dark theme replaces the light expandable subject frame", async () => {
+  const dom = createDom(
+    `<span class="subject-character subject-character--vocabulary subject-character--unlocked subject-character--expandable">
+      <span class="subject-character__characters">
+        <span class="subject-character__characters-text">北アメリカ</span>
+      </span>
+    </span>`,
+    "https://www.wanikani.com/vocabulary/%E5%8C%97%E3%82%A2%E3%83%A1%E3%83%AA%E3%82%AB",
+  );
+
+  await loadDarkTheme(dom);
+
+  const styles = dom.window.document.querySelector(
+    "#wk-catppuccin-mocha-styles",
+  ).textContent;
+  const frameRule = styles.match(
+    /\.subject-character--expandable \.subject-character__characters:hover::before\s*\{([^}]*)\}/s,
+  )?.[1];
+
+  assert.ok(frameRule);
+  assert.match(frameRule, /background-color:\s*var\(--wk-dark-surface-raised\)/);
+  assert.match(frameRule, /border:\s*1px solid #585b70/);
+  assert.match(frameRule, /box-shadow:[^;]+--ctp-mocha-crust/);
 });
 
 test("dark theme replaces the light subject lesson slide", async () => {
@@ -3776,7 +4017,7 @@ test("dark theme gives generic sitemap headers visible interaction borders", asy
   await loadDarkTheme(dom);
 
   const styles = dom.window.document.querySelector(
-    "#wk-dark-theme-styles",
+    "#wk-catppuccin-mocha-styles",
   ).textContent;
 
   assert.match(
@@ -3821,7 +4062,7 @@ test("dark theme colors category sitemap headers and menus", async () => {
   await loadDarkTheme(dom);
 
   const styles = dom.window.document.querySelector(
-    "#wk-dark-theme-styles",
+    "#wk-catppuccin-mocha-styles",
   ).textContent;
 
   const accents = {
@@ -3983,6 +4224,7 @@ test("dark theme uses Mocha colors for dashboard progress bars", async () => {
         --color-review-forecast-bar-zero-border: #cad0d6;
         --color-level-progress-completed-bar: #35a753;
         --color-level-progress-bar: #cad0d6;
+        --color-progress-chart-bar: #35a753;
         --color-subject-srs-progress-stage-complete-background: #08c66c;
       }
     </style>
@@ -4003,6 +4245,7 @@ test("dark theme uses Mocha colors for dashboard progress bars", async () => {
     "--color-review-forecast-bar-zero-border": "#585b70",
     "--color-level-progress-completed-bar": "#a6e3a1",
     "--color-level-progress-bar": "#585b70",
+    "--color-progress-chart-bar": "#a6e3a1",
     "--color-subject-srs-progress-stage-complete-background": "#a6e3a1",
   };
 
@@ -4074,14 +4317,14 @@ test("dark theme disables text shadows globally", async () => {
     "rgba(0, 0, 0, 0)",
   );
 
-  dom.window.document.documentElement.dataset.wkDarkTheme = "light";
+  dom.window.document.documentElement.removeAttribute("data-wk-mocha-active");
   assert.equal(
     dom.window.getComputedStyle(audioDetails).textShadow,
     "0 1px 0 #fff",
   );
 });
 
-test("dark theme uses bold Mocha subject colors and preserves the incorrect quiz state", async () => {
+test("dark theme uses bold subject colors and a restrained incorrect quiz state", async () => {
   const dom = createDom(
     `<style>
       :root {
@@ -4092,6 +4335,8 @@ test("dark theme uses bold Mocha subject colors and preserves the incorrect quiz
         --color-pink: #ff00aa;
         --color-purple: #aa00ff;
         --color-quiz-incorrect-background: #ff0033;
+        --color-quiz-incorrect-text-color: #fff;
+        --color-quiz-incorrect-text-shadow: 1px 1px 0 rgba(0, 0, 0, .2);
       }
     </style>`,
     "https://www.wanikani.com/",
@@ -4107,7 +4352,10 @@ test("dark theme uses bold Mocha subject colors and preserves the incorrect quiz
     "--color-blue": "oklch(72.04%0.1913 261.88)",
     "--color-pink": "oklch(81.78%0.1552 338.3)",
     "--color-purple": "oklch(73.99%0.1987 306.77)",
-    "--color-quiz-incorrect-background": "#ff0033",
+    "--color-quiz-incorrect-background":
+      "color-mix(in srgb,var(--ctp-mocha-red) 18%,var(--wk-dark-surface))",
+    "--color-quiz-incorrect-text-color": "#cdd6f4",
+    "--color-quiz-incorrect-text-shadow": "transparent",
   };
 
   assertCustomProperties(dom, root, expected);
@@ -4123,19 +4371,22 @@ test("dark theme responds when the system preference changes", async () => {
     },
   };
 
-  await loadUserscript(dom, "wk-dark-theme.js", {
+  await loadUserscript(dom, "wk-catppuccin-mocha.js", {
     matchMedia() {
       return preference;
     },
   });
 
   assert.equal(
-    dom.window.document.documentElement.dataset.wkDarkTheme,
-    "light",
+    dom.window.document.documentElement.hasAttribute("data-wk-mocha-active"),
+    false,
   );
 
   preference.matches = true;
   preferenceChanged();
 
-  assert.equal(dom.window.document.documentElement.dataset.wkDarkTheme, "dark");
+  assert.equal(
+    dom.window.document.documentElement.hasAttribute("data-wk-mocha-active"),
+    true,
+  );
 });
