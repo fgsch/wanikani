@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WaniKani Catppuccin Mocha
 // @namespace    wk-catppuccin-mocha
-// @version      0.1.0
+// @version      0.2.0
 // @author       Federico G. Schwindt <fgsch@lodoss.net>
 // @description  Applies the Catppuccin Mocha palette to WaniKani with system and manual modes.
 // @license      MIT
@@ -422,6 +422,23 @@
       --color-button-hover-icon: var(--color-button-hover-text);
       --color-button-active-icon: var(--color-button-active-text);
       --button-outline: var(--ctp-mocha-teal);
+    }
+
+    html[data-wk-mocha-active] .subject-character--locked.subject-character--radical .subject-character__characters-text {
+      color: var(--color-radical);
+    }
+
+    html[data-wk-mocha-active] .subject-character--locked.subject-character--kanji .subject-character__characters-text {
+      color: var(--color-kanji);
+    }
+
+    html[data-wk-mocha-active] .subject-character--locked.subject-character--vocabulary .subject-character__characters-text {
+      color: var(--color-vocabulary);
+    }
+
+    html[data-wk-mocha-active] .subject-character--unlocked .subject-character__characters-text,
+    html[data-wk-mocha-active] .subject-character--passed .subject-character__characters-text {
+      color: var(--ctp-mocha-text);
     }
 
     html[data-wk-mocha-active] .lesson-container__queue .subject-character--radical .subject-character__characters-text,

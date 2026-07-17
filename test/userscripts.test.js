@@ -3809,6 +3809,116 @@ test("dark theme keeps lesson queue subject labels readable", async () => {
   assert.equal(burned.backgroundColor, "var(--ctp-mocha-surface-2)");
 });
 
+test("dark theme matches subject grid characters to their outlines", async () => {
+  const dom = createDom(
+    `<style>
+      .subject-character--radical .subject-character__characters {
+        border-color: var(--color-blue);
+        border-style: dashed;
+        border-width: 1px;
+      }
+      .subject-character--radical .subject-character__characters-text {
+        color: var(--color-blue-dark);
+      }
+      .subject-character--kanji .subject-character__characters {
+        border-color: var(--color-pink);
+        border-style: dashed;
+        border-width: 1px;
+      }
+      .subject-character--kanji .subject-character__characters-text {
+        color: var(--color-pink-dark);
+      }
+      .subject-character--vocabulary .subject-character__characters {
+        border-color: var(--color-purple);
+        border-style: dashed;
+        border-width: 1px;
+      }
+      .subject-character--vocabulary .subject-character__characters-text {
+        color: var(--color-purple-dark);
+      }
+    </style>
+    <div class="subject-character-grid">
+      <a class="subject-character subject-character--radical subject-character--locked">
+        <span class="subject-character__characters">
+          <span class="subject-character__characters-text">Cow</span>
+        </span>
+      </a>
+      <a class="subject-character subject-character--kanji subject-character--locked">
+        <span class="subject-character__characters">
+          <span class="subject-character__characters-text">年</span>
+        </span>
+      </a>
+      <a class="subject-character subject-character--vocabulary subject-character--locked">
+        <span class="subject-character__characters">
+          <span class="subject-character__characters-text">少年</span>
+        </span>
+      </a>
+    </div>`,
+    "https://www.wanikani.com/kanji/%E5%B9%B4",
+  );
+
+  await loadDarkTheme(dom);
+
+  for (const category of ["radical", "kanji", "vocabulary"]) {
+    const characters = dom.window.document.querySelector(
+      `.subject-character--${category} .subject-character__characters-text`,
+    );
+    const styles = dom.window.getComputedStyle(characters);
+
+    assert.equal(styles.color, `var(--color-${category})`);
+  }
+});
+
+test("dark theme keeps filled subject box characters contrasting", async () => {
+  const dom = createDom(
+    `<style>
+      .subject-character--radical .subject-character__characters-text {
+        background: var(--color-blue);
+        color: var(--color-blue-dark);
+      }
+      .subject-character--kanji .subject-character__characters-text {
+        background: var(--color-pink);
+        color: var(--color-pink-dark);
+      }
+      .subject-character--vocabulary .subject-character__characters-text {
+        background: var(--color-purple);
+        color: var(--color-purple-dark);
+      }
+      .subject-character--unlocked .subject-character__characters-text,
+      .subject-character--passed .subject-character__characters-text {
+        color: var(--color-white);
+      }
+    </style>
+    <section class="subject-section subject-section--components">
+      <span class="subject-character subject-character--radical subject-character--unlocked">
+        <span class="subject-character__characters-text">Leader</span>
+      </span>
+      <div class="subject-character-grid">
+        <span class="subject-character subject-character--kanji subject-character--unlocked">
+          <span class="subject-character__characters-text">年</span>
+        </span>
+      </div>
+      <span class="subject-character subject-character--vocabulary subject-character--unlocked subject-character--expandable">
+        <span class="subject-character__characters-text">先</span>
+      </span>
+    </section>`,
+    "https://www.wanikani.com/kanji/%E5%B9%B4",
+  );
+
+  await loadDarkTheme(dom);
+
+  for (const category of ["radical", "kanji", "vocabulary"]) {
+    const characters = dom.window.document.querySelector(
+      `.subject-character--${category} .subject-character__characters-text`,
+    );
+
+    assert.equal(
+      dom.window.getComputedStyle(characters).color,
+      "var(--ctp-mocha-text)",
+    );
+  }
+});
+
 test("dark theme replaces the light expandable subject frame", async () => {
   const dom = createDom(
     `<span class="subject-character subject-character--vocabulary subject-character--unlocked subject-character--expandable">
