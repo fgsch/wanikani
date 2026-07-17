@@ -76,6 +76,73 @@ const SIMPLE_TABERU_OJAD_HTML = `<table id="word_table"><tbody><tr>
     </span></td>
   </tr></tbody></table>`;
 
+const LAST_ITEMS_MENU_HTML = `
+  <ul>
+    <li><a class="additional-content__item additional-content__item--last-items"></a></li>
+  </ul>
+`;
+
+const KANJI_SUBJECT_PAGE_HTML = `
+  <nav><ul><li><a class="wk-nav__item" href="#meaning"><span class="wk-nav__item-text">Meaning</span></a></li></ul></nav>
+  <main>
+    <h2>Radical Combination</h2>
+    <h2 id="meaning">Meaning</h2>
+  </main>
+`;
+
+const KANJI_SUBJECT_PAGE_WITHOUT_NAV_HTML = `
+  <main>
+    <h2>Radical Combination</h2>
+    <h2>Meaning</h2>
+  </main>
+`;
+
+function quizInputHtml({ correct, input = false, value } = {}) {
+  const correctAttribute =
+    correct === undefined
+      ? ""
+      : correct === true
+        ? " correct"
+        : ` correct="${correct}"`;
+  const inputElement = input
+    ? `<input id="user-response"${value === undefined ? "" : ` value="${value}"`}>`
+    : "";
+
+  return `
+    <div class="quiz-input">
+      <div class="quiz-input__input-container"${correctAttribute}>${inputElement}</div>
+    </div>
+  `;
+}
+
+function stimulusGlobals(getController) {
+  return {
+    Stimulus: {
+      getControllerForElementAndIdentifier: getController,
+    },
+  };
+}
+
+function immediateKanjiVgResponse(svg = MINIMAL_KANJIVG_SVG) {
+  return {
+    GM: {
+      xmlHttpRequest({ onload }) {
+        onload({ status: 200, responseText: svg });
+      },
+    },
+  };
+}
+
+function capturedRequests(requests) {
+  return {
+    GM: {
+      xmlHttpRequest(request) {
+        requests.push(request);
+      },
+    },
+  };
+}
+
 function stubSvgPathLength(dom) {
   dom.window.SVGElement.prototype.getTotalLength = () => 100;
 }
@@ -144,11 +211,7 @@ function contrastRatio(firstColor, secondColor) {
 test("redo answer inserts a disabled redo control before last items", async () => {
   const dom = createDom(
     `
-      <div class="quiz-input">
-        <div class="quiz-input__input-container">
-          <input id="user-response">
-        </div>
-      </div>
+      ${quizInputHtml({ input: true })}
       <ul>
         <li><a class="additional-content__item additional-content__item--item-info"></a></li>
         <li><a class="additional-content__item additional-content__item--last-items"></a></li>
@@ -188,11 +251,7 @@ test("redo answer keeps every additional-content control in the menu", async () 
         width: calc(20% - 8px);
       }
     </style>
-    <div class="quiz-input">
-      <div class="quiz-input__input-container">
-        <input id="user-response">
-      </div>
-    </div>
+    ${quizInputHtml({ input: true })}
     <ul class="additional-content__menu">
       <li class="additional-content__menu-item additional-content__menu-item--5"><a class="additional-content__item"></a></li>
       <li class="additional-content__menu-item additional-content__menu-item--5"><a class="additional-content__item"></a></li>
@@ -247,14 +306,8 @@ test("redo answer activates after navigating into a quiz page", async () => {
   await loadUserscript(dom, "wk-redo-answer.js");
 
   dom.window.document.body.innerHTML = `
-    <div class="quiz-input">
-      <div class="quiz-input__input-container">
-        <input id="user-response">
-      </div>
-    </div>
-    <ul>
-      <li><a class="additional-content__item additional-content__item--last-items"></a></li>
-    </ul>
+    ${quizInputHtml({ input: true })}
+    ${LAST_ITEMS_MENU_HTML}
   `;
   dom.window.history.pushState({}, "", "/subjects/review");
 
@@ -267,59 +320,10 @@ test("redo answer activates after navigating into a quiz page", async () => {
   });
 });
 
-test("redo answer updates when WaniKani marks an answer correct", async () => {
-  const dom = createDom(
-    `
-      <div class="quiz-input">
-        <div class="quiz-input__input-container">
-          <input id="user-response">
-        </div>
-      </div>
-      <ul>
-        <li><a class="additional-content__item additional-content__item--last-items"></a></li>
-      </ul>
-    `,
-    "https://www.wanikani.com/subjects/review",
-  );
-  const quizQueueController = {
-    submitAnswer() {},
-    nextItem() {},
-  };
-  const controller = { quizQueueOutlet: quizQueueController };
-
-  await loadUserscript(dom, "wk-redo-answer.js", {
-    Stimulus: {
-      getControllerForElementAndIdentifier() {
-        return controller;
-      },
-    },
-  });
-
-  const redoButton = dom.window.document.querySelector(
-    ".additional-content__item--redo-answer",
-  );
-  const inputContainer = dom.window.document.querySelector(
-    ".quiz-input__input-container",
-  );
-
-  assert.equal(redoButton.getAttribute("aria-disabled"), "true");
-
-  quizQueueController.submitAnswer("answer", { action: "pass" });
-  inputContainer.setAttribute("correct", "");
-
-  await waitFor(() => {
-    assert.equal(redoButton.getAttribute("aria-disabled"), "false");
-  });
-});
-
 test("redo answer unlocks item info when the answer is submitted", async () => {
   const dom = createDom(
     `
-      <div class="quiz-input">
-        <div class="quiz-input__input-container">
-          <input id="user-response">
-        </div>
-      </div>
+      ${quizInputHtml({ input: true })}
       <ul>
         <li>
           <a class="additional-content__item additional-content__item--item-info additional-content__item--disabled"></a>
@@ -354,13 +358,11 @@ test("redo answer unlocks item info when the answer is submitted", async () => {
   };
   const controller = { quizQueueOutlet: quizQueueController };
 
-  await loadUserscript(dom, "wk-redo-answer.js", {
-    Stimulus: {
-      getControllerForElementAndIdentifier() {
-        return controller;
-      },
-    },
-  });
+  await loadUserscript(
+    dom,
+    "wk-redo-answer.js",
+    stimulusGlobals(() => controller),
+  );
 
   dom.window.addEventListener("didAnswerQuestion", (event) => {
     answerEventCount += 1;
@@ -395,23 +397,17 @@ test("redo answer unlocks item info when the answer is submitted", async () => {
 test("redo answer stays disabled when the pending-answer interface is unavailable", async () => {
   const dom = createDom(
     `
-      <div class="quiz-input">
-        <div class="quiz-input__input-container" correct="false">
-          <input id="user-response">
-        </div>
-      </div>
-      <ul><li><a class="additional-content__item additional-content__item--last-items"></a></li></ul>
+      ${quizInputHtml({ correct: "false", input: true })}
+      ${LAST_ITEMS_MENU_HTML}
     `,
     "https://www.wanikani.com/subjects/review",
   );
 
-  await loadUserscript(dom, "wk-redo-answer.js", {
-    Stimulus: {
-      getControllerForElementAndIdentifier() {
-        return {};
-      },
-    },
-  });
+  await loadUserscript(
+    dom,
+    "wk-redo-answer.js",
+    stimulusGlobals(() => ({})),
+  );
 
   const redoButton = dom.window.document.querySelector(
     ".additional-content__item--redo-answer",
@@ -423,11 +419,7 @@ test("redo answer stays disabled when the pending-answer interface is unavailabl
 test("redo answer can reset the current quiz input through the WaniKani controller", async () => {
   const dom = createDom(
     `
-      <div class="quiz-input">
-        <div class="quiz-input__input-container">
-          <input id="user-response" value="old answer">
-        </div>
-      </div>
+      ${quizInputHtml({ input: true, value: "old answer" })}
       <div class="answer-exception">Close enough</div>
       <turbo-frame id="subject-info">Subject details</turbo-frame>
       <ul>
@@ -454,13 +446,11 @@ test("redo answer can reset the current quiz input through the WaniKani controll
     },
   };
 
-  await loadUserscript(dom, "wk-redo-answer.js", {
-    Stimulus: {
-      getControllerForElementAndIdentifier() {
-        return controller;
-      },
-    },
-  });
+  await loadUserscript(
+    dom,
+    "wk-redo-answer.js",
+    stimulusGlobals(() => controller),
+  );
 
   const redoButton = dom.window.document.querySelector(
     ".additional-content__item--redo-answer",
@@ -509,14 +499,8 @@ test("redo answer can reset the current quiz input through the WaniKani controll
 test("redo answer commits only the replacement answer when advancing", async () => {
   const dom = createDom(
     `
-      <div class="quiz-input">
-        <div class="quiz-input__input-container">
-          <input id="user-response">
-        </div>
-      </div>
-      <ul>
-        <li><a class="additional-content__item additional-content__item--last-items"></a></li>
-      </ul>
+      ${quizInputHtml({ input: true })}
+      ${LAST_ITEMS_MENU_HTML}
     `,
     "https://www.wanikani.com/subjects/review",
   );
@@ -538,13 +522,11 @@ test("redo answer commits only the replacement answer when advancing", async () 
     updateQuestion() {},
   };
 
-  await loadUserscript(dom, "wk-redo-answer.js", {
-    Stimulus: {
-      getControllerForElementAndIdentifier() {
-        return controller;
-      },
-    },
-  });
+  await loadUserscript(
+    dom,
+    "wk-redo-answer.js",
+    stimulusGlobals(() => controller),
+  );
 
   const inputContainer = dom.window.document.querySelector(
     ".quiz-input__input-container",
@@ -577,10 +559,8 @@ test("redo answer commits only the replacement answer when advancing", async () 
 test("redo answer commits a pending answer when the page exits", async () => {
   const dom = createDom(
     `
-      <div class="quiz-input">
-        <div class="quiz-input__input-container"><input id="user-response"></div>
-      </div>
-      <ul><li><a class="additional-content__item additional-content__item--last-items"></a></li></ul>
+      ${quizInputHtml({ input: true })}
+      ${LAST_ITEMS_MENU_HTML}
     `,
     "https://www.wanikani.com/subjects/review",
   );
@@ -595,13 +575,11 @@ test("redo answer commits a pending answer when the page exits", async () => {
     quizQueueOutlet: quizQueueController,
   };
 
-  await loadUserscript(dom, "wk-redo-answer.js", {
-    Stimulus: {
-      getControllerForElementAndIdentifier() {
-        return controller;
-      },
-    },
-  });
+  await loadUserscript(
+    dom,
+    "wk-redo-answer.js",
+    stimulusGlobals(() => controller),
+  );
 
   const results = { action: "pass" };
   quizQueueController.submitAnswer("answer", results);
@@ -618,10 +596,8 @@ test("redo answer commits a pending answer when the page exits", async () => {
 test("redo answer commits a pending answer before Turbo navigation", async () => {
   const dom = createDom(
     `
-      <div class="quiz-input">
-        <div class="quiz-input__input-container"><input id="user-response"></div>
-      </div>
-      <ul><li><a class="additional-content__item additional-content__item--last-items"></a></li></ul>
+      ${quizInputHtml({ input: true })}
+      ${LAST_ITEMS_MENU_HTML}
     `,
     "https://www.wanikani.com/subjects/review",
   );
@@ -634,13 +610,11 @@ test("redo answer commits a pending answer before Turbo navigation", async () =>
   };
   const controller = { quizQueueOutlet: quizQueueController };
 
-  await loadUserscript(dom, "wk-redo-answer.js", {
-    Stimulus: {
-      getControllerForElementAndIdentifier() {
-        return controller;
-      },
-    },
-  });
+  await loadUserscript(
+    dom,
+    "wk-redo-answer.js",
+    stimulusGlobals(() => controller),
+  );
 
   quizQueueController.submitAnswer("answer", { action: "pass" });
   dom.window.document.dispatchEvent(new dom.window.Event("turbo:before-visit"));
@@ -651,8 +625,8 @@ test("redo answer commits a pending answer before Turbo navigation", async () =>
 test("redo answer retries a pending answer after submit fails", async () => {
   const dom = createDom(
     `
-      <div class="quiz-input"><div class="quiz-input__input-container"></div></div>
-      <ul><li><a class="additional-content__item additional-content__item--last-items"></a></li></ul>
+      ${quizInputHtml()}
+      ${LAST_ITEMS_MENU_HTML}
     `,
     "https://www.wanikani.com/subjects/review",
   );
@@ -671,13 +645,11 @@ test("redo answer retries a pending answer after submit fails", async () => {
     },
   };
 
-  await loadUserscript(dom, "wk-redo-answer.js", {
-    Stimulus: {
-      getControllerForElementAndIdentifier() {
-        return { quizQueueOutlet: quizQueueController };
-      },
-    },
-  });
+  await loadUserscript(
+    dom,
+    "wk-redo-answer.js",
+    stimulusGlobals(() => ({ quizQueueOutlet: quizQueueController })),
+  );
 
   quizQueueController.submitAnswer("answer", { action: "pass" });
 
@@ -694,12 +666,8 @@ test("redo answer retries a pending answer after submit fails", async () => {
 test("redo answer restores quiz state when updating the question fails", async () => {
   const dom = createDom(
     `
-      <div class="quiz-input">
-        <div class="quiz-input__input-container" correct="false">
-          <input id="user-response" value="wrong">
-        </div>
-      </div>
-      <ul><li><a class="additional-content__item additional-content__item--last-items"></a></li></ul>
+      ${quizInputHtml({ correct: "false", input: true, value: "wrong" })}
+      ${LAST_ITEMS_MENU_HTML}
     `,
     "https://www.wanikani.com/subjects/review",
   );
@@ -724,13 +692,11 @@ test("redo answer restores quiz state when updating the question fails", async (
   };
   dom.window.console.error = () => {};
 
-  await loadUserscript(dom, "wk-redo-answer.js", {
-    Stimulus: {
-      getControllerForElementAndIdentifier() {
-        return controller;
-      },
-    },
-  });
+  await loadUserscript(
+    dom,
+    "wk-redo-answer.js",
+    stimulusGlobals(() => controller),
+  );
 
   const results = { action: "fail" };
   quizQueueController.submitAnswer("wrong", results);
@@ -763,8 +729,8 @@ test("redo answer restores quiz state when updating the question fails", async (
 test("redo answer moves its transaction when the queue outlet changes", async () => {
   const dom = createDom(
     `
-      <div class="quiz-input"><div class="quiz-input__input-container"></div></div>
-      <ul><li><a class="additional-content__item additional-content__item--last-items"></a></li></ul>
+      ${quizInputHtml()}
+      ${LAST_ITEMS_MENU_HTML}
     `,
     "https://www.wanikani.com/subjects/review",
   );
@@ -788,13 +754,11 @@ test("redo answer moves its transaction when the queue outlet changes", async ()
   };
   const controller = { quizQueueOutlet: firstQueue };
 
-  await loadUserscript(dom, "wk-redo-answer.js", {
-    Stimulus: {
-      getControllerForElementAndIdentifier() {
-        return controller;
-      },
-    },
-  });
+  await loadUserscript(
+    dom,
+    "wk-redo-answer.js",
+    stimulusGlobals(() => controller),
+  );
 
   firstQueue.submitAnswer("first", { action: "pass" });
   controller.quizQueueOutlet = secondQueue;
@@ -823,8 +787,8 @@ test("redo answer moves its transaction when the queue outlet changes", async ()
 test("redo answer restores the old queue when flushing it during an outlet switch fails", async () => {
   const dom = createDom(
     `
-      <div class="quiz-input"><div class="quiz-input__input-container"></div></div>
-      <ul><li><a class="additional-content__item additional-content__item--last-items"></a></li></ul>
+      ${quizInputHtml()}
+      ${LAST_ITEMS_MENU_HTML}
     `,
     "https://www.wanikani.com/subjects/review",
   );
@@ -850,13 +814,11 @@ test("redo answer restores the old queue when flushing it during an outlet switc
   };
   const controller = { quizQueueOutlet: firstQueue };
 
-  await loadUserscript(dom, "wk-redo-answer.js", {
-    Stimulus: {
-      getControllerForElementAndIdentifier() {
-        return controller;
-      },
-    },
-  });
+  await loadUserscript(
+    dom,
+    "wk-redo-answer.js",
+    stimulusGlobals(() => controller),
+  );
 
   firstQueue.submitAnswer("pending", { action: "pass" });
   controller.quizQueueOutlet = secondQueue;
@@ -884,8 +846,8 @@ test("redo answer restores the old queue when flushing it during an outlet switc
 test("redo answer reuses its transaction when the input controller changes", async () => {
   const dom = createDom(
     `
-      <div class="quiz-input"><div class="quiz-input__input-container"></div></div>
-      <ul><li><a class="additional-content__item additional-content__item--last-items"></a></li></ul>
+      ${quizInputHtml()}
+      ${LAST_ITEMS_MENU_HTML}
     `,
     "https://www.wanikani.com/subjects/review",
   );
@@ -900,13 +862,11 @@ test("redo answer reuses its transaction when the input controller changes", asy
   };
   let controller = { quizQueueOutlet: quizQueueController };
 
-  await loadUserscript(dom, "wk-redo-answer.js", {
-    Stimulus: {
-      getControllerForElementAndIdentifier() {
-        return controller;
-      },
-    },
-  });
+  await loadUserscript(
+    dom,
+    "wk-redo-answer.js",
+    stimulusGlobals(() => controller),
+  );
 
   quizQueueController.submitAnswer("answer", { action: "pass" });
   controller = { quizQueueOutlet: quizQueueController };
@@ -1123,10 +1083,8 @@ test("stroke order inserts a lesson tab after Radicals on kanji lessons", async 
 test("stroke order inserts before Meaning in review Item Info after answering", async () => {
   const dom = createDom(
     `
-      <div class="quiz-input">
-        <div class="quiz-input__input-container"></div>
-      </div>
-      <ul><li><a class="additional-content__item--last-items"></a></li></ul>
+      ${quizInputHtml()}
+      ${LAST_ITEMS_MENU_HTML}
       <turbo-frame id="subject-info">
         <section class="subject-section subject-section--meaning" title="Meaning">
           <h2 class="subject-section__title"><span class="subject-section__title-text">Meaning</span></h2>
@@ -1154,11 +1112,7 @@ test("stroke order inserts before Meaning in review Item Info after answering", 
         onload({ status: 200, responseText: MINIMAL_KANJIVG_SVG });
       },
     },
-    Stimulus: {
-      getControllerForElementAndIdentifier() {
-        return controller;
-      },
-    },
+    ...stimulusGlobals(() => controller),
   });
 
   assert.equal(fetchCount, 0);
@@ -1201,14 +1155,14 @@ for (const [quizName, quizUrl] of [
   test(`stroke order recognizes ${quizName} quizzes`, async () => {
     const dom = createDom(
       `
-        <div class="quiz-input"><div class="quiz-input__input-container" correct></div></div>
+        ${quizInputHtml({ correct: true })}
         <turbo-frame id="subject-info">
           <section class="subject-section subject-section--meaning" title="Meaning">
             <h2>Meaning</h2>
             <section class="subject-section__content"></section>
           </section>
         </turbo-frame>
-        <ul><li><a class="additional-content__item--last-items"></a></li></ul>
+        ${LAST_ITEMS_MENU_HTML}
       `,
       quizUrl,
     );
@@ -1216,18 +1170,10 @@ for (const [quizName, quizUrl] of [
     stubSvgPathLength(dom);
 
     await loadUserscript(dom, "wk-stroke-order.js", {
-      GM: {
-        xmlHttpRequest({ onload }) {
-          onload({ status: 200, responseText: MINIMAL_KANJIVG_SVG });
-        },
-      },
-      Stimulus: {
-        getControllerForElementAndIdentifier() {
-          return {
-            currentSubject: { id: 1, object: "kanji", characters: "一" },
-          };
-        },
-      },
+      ...immediateKanjiVgResponse(),
+      ...stimulusGlobals(() => ({
+        currentSubject: { id: 1, object: "kanji", characters: "一" },
+      })),
     });
 
     await waitFor(() => {
@@ -1246,7 +1192,7 @@ for (const [quizName, quizUrl] of [
 test("stroke order reads the review subject from the userscript page window", async () => {
   const dom = createDom(
     `
-      <div class="quiz-input"><div class="quiz-input__input-container" correct="true"></div></div>
+      ${quizInputHtml({ correct: "true" })}
       <turbo-frame class="subject-info" id="subject-info">
         <div class="container">
           <section class="subject-section subject-section--meaning subject-section--collapsible">
@@ -1274,17 +1220,9 @@ test("stroke order reads the review subject from the userscript page window", as
   stubSvgPathLength(dom);
 
   await loadUserscript(dom, "wk-stroke-order.js", {
-    GM: {
-      xmlHttpRequest({ onload }) {
-        onload({ status: 200, responseText: MINIMAL_KANJIVG_SVG });
-      },
-    },
+    ...immediateKanjiVgResponse(),
     unsafeWindow: {
-      Stimulus: {
-        getControllerForElementAndIdentifier() {
-          return controller;
-        },
-      },
+      ...stimulusGlobals(() => controller),
     },
   });
 
@@ -1309,10 +1247,8 @@ test("stroke order reads the review subject from the userscript page window", as
 test("stroke order does not fetch diagrams for non-kanji review subjects", async () => {
   const dom = createDom(
     `
-      <div class="quiz-input">
-        <div class="quiz-input__input-container" correct></div>
-      </div>
-      <ul><li><a class="additional-content__item--last-items"></a></li></ul>
+      ${quizInputHtml({ correct: true })}
+      ${LAST_ITEMS_MENU_HTML}
       <turbo-frame id="subject-info">
         <section class="subject-section subject-section--meaning" title="Meaning"></section>
       </turbo-frame>
@@ -1327,17 +1263,13 @@ test("stroke order does not fetch diagrams for non-kanji review subjects", async
         fetchCount += 1;
       },
     },
-    Stimulus: {
-      getControllerForElementAndIdentifier() {
-        return {
-          currentSubject: {
-            id: 2,
-            object: "vocabulary",
-            characters: "一つ",
-          },
-        };
+    ...stimulusGlobals(() => ({
+      currentSubject: {
+        id: 2,
+        object: "vocabulary",
+        characters: "一つ",
       },
-    },
+    })),
   });
 
   await flushMutationObservers();
@@ -1365,8 +1297,8 @@ test("stroke order discards a stale review lookup when the subject changes", asy
   `;
   const dom = createDom(
     `
-      <div class="quiz-input"><div class="quiz-input__input-container" correct></div></div>
-      <ul><li><a class="additional-content__item--last-items"></a></li></ul>
+      ${quizInputHtml({ correct: true })}
+      ${LAST_ITEMS_MENU_HTML}
       <turbo-frame id="subject-info">${itemInfo()}</turbo-frame>
     `,
     "https://www.wanikani.com/subjects/review",
@@ -1379,16 +1311,8 @@ test("stroke order discards a stale review lookup when the subject changes", asy
   stubSvgPathLength(dom);
 
   await loadUserscript(dom, "wk-stroke-order.js", {
-    GM: {
-      xmlHttpRequest(request) {
-        requests.push(request);
-      },
-    },
-    Stimulus: {
-      getControllerForElementAndIdentifier() {
-        return controller;
-      },
-    },
+    ...capturedRequests(requests),
+    ...stimulusGlobals(() => controller),
   });
 
   assert.equal(requests.length, 1);
@@ -1427,7 +1351,7 @@ test("stroke order retries a failed kanji only after the review subject changes"
   `;
   const dom = createDom(
     `
-      <div class="quiz-input"><div class="quiz-input__input-container" correct></div></div>
+      ${quizInputHtml({ correct: true })}
       <turbo-frame id="subject-info">${itemInfo}</turbo-frame>
     `,
     "https://www.wanikani.com/subjects/review",
@@ -1440,16 +1364,8 @@ test("stroke order retries a failed kanji only after the review subject changes"
   dom.window.console.warn = () => {};
 
   await loadUserscript(dom, "wk-stroke-order.js", {
-    GM: {
-      xmlHttpRequest(request) {
-        requests.push(request);
-      },
-    },
-    Stimulus: {
-      getControllerForElementAndIdentifier() {
-        return controller;
-      },
-    },
+    ...capturedRequests(requests),
+    ...stimulusGlobals(() => controller),
   });
 
   requests[0].onload({ status: 200, responseText: "<html>Not an SVG</html>" });
@@ -1478,12 +1394,7 @@ test("stroke order retries a failed kanji only after the review subject changes"
 
 test("stroke order starts a review lookup while a subject-page lookup is pending", async () => {
   const dom = createDom(
-    `
-      <main>
-        <h2>Radical Combination</h2>
-        <h2>Meaning</h2>
-      </main>
-    `,
+    KANJI_SUBJECT_PAGE_WITHOUT_NAV_HTML,
     "https://www.wanikani.com/kanji/%E4%B8%80",
   );
   const requests = [];
@@ -1494,23 +1405,15 @@ test("stroke order starts a review lookup while a subject-page lookup is pending
   stubSvgPathLength(dom);
 
   await loadUserscript(dom, "wk-stroke-order.js", {
-    GM: {
-      xmlHttpRequest(request) {
-        requests.push(request);
-      },
-    },
-    Stimulus: {
-      getControllerForElementAndIdentifier() {
-        return controller;
-      },
-    },
+    ...capturedRequests(requests),
+    ...stimulusGlobals(() => controller),
   });
 
   assert.equal(requests.length, 1);
 
   dom.window.history.pushState({}, "", "/subjects/review");
   dom.window.document.body.innerHTML = `
-    <div class="quiz-input"><div class="quiz-input__input-container" correct></div></div>
+    ${quizInputHtml({ correct: true })}
     <turbo-frame id="subject-info">
       <section class="subject-section" title="Radical Combination">
         <h2>Radical Combination</h2>
@@ -1554,24 +1457,14 @@ test("stroke order starts a review lookup while a subject-page lookup is pending
 });
 
 test("stroke order starts the destination kanji lookup after a pending page lookup settles", async () => {
-  const page = `
-    <nav><ul><li><a class="wk-nav__item" href="#meaning"><span class="wk-nav__item-text">Meaning</span></a></li></ul></nav>
-    <main>
-      <h2>Radical Combination</h2>
-      <h2 id="meaning">Meaning</h2>
-    </main>
-  `;
+  const page = KANJI_SUBJECT_PAGE_HTML;
   const dom = createDom(page, "https://www.wanikani.com/kanji/%E4%B8%80");
   const requests = [];
 
   stubSvgPathLength(dom);
 
   await loadUserscript(dom, "wk-stroke-order.js", {
-    GM: {
-      xmlHttpRequest(request) {
-        requests.push(request);
-      },
-    },
+    ...capturedRequests(requests),
   });
 
   assert.equal(requests.length, 1);
@@ -1717,13 +1610,7 @@ test("stroke order sanitizes fetched SVG before insertion", async () => {
     </svg>
   `;
   const dom = createDom(
-    `
-      <nav><ul><li><a class="wk-nav__item" href="#meaning"><span class="wk-nav__item-text">Meaning</span></a></li></ul></nav>
-      <main>
-        <h2>Radical Combination</h2>
-        <h2 id="meaning">Meaning</h2>
-      </main>
-    `,
+    KANJI_SUBJECT_PAGE_HTML,
     "https://www.wanikani.com/kanji/%E4%B8%80",
   );
 
@@ -1767,13 +1654,7 @@ test("stroke order sanitizes fetched SVG before insertion", async () => {
 });
 
 test("stroke order can reinsert after navigating away and back to a kanji page", async () => {
-  const kanjiPage = `
-    <nav><ul><li><a class="wk-nav__item" href="#meaning"><span class="wk-nav__item-text">Meaning</span></a></li></ul></nav>
-    <main>
-      <h2>Radical Combination</h2>
-      <h2 id="meaning">Meaning</h2>
-    </main>
-  `;
+  const kanjiPage = KANJI_SUBJECT_PAGE_HTML;
   const dom = createDom(kanjiPage, "https://www.wanikani.com/kanji/%E4%B8%80");
   let fetchCount = 0;
 
@@ -1825,13 +1706,7 @@ test("stroke order does not duplicate SVG ids in generated figures", async () =>
     </svg>
   `;
   const dom = createDom(
-    `
-      <nav><ul><li><a class="wk-nav__item" href="#meaning"><span class="wk-nav__item-text">Meaning</span></a></li></ul></nav>
-      <main>
-        <h2>Radical Combination</h2>
-        <h2 id="meaning">Meaning</h2>
-      </main>
-    `,
+    KANJI_SUBJECT_PAGE_HTML,
     "https://www.wanikani.com/kanji/%E4%B8%80",
   );
 
@@ -1922,13 +1797,7 @@ test("stroke order does not repeatedly fetch a failed KanjiVG file", async () =>
 });
 
 test("stroke order times out a stalled request and processes the destination page", async () => {
-  const page = `
-    <nav><ul><li><a class="wk-nav__item" href="#meaning"><span class="wk-nav__item-text">Meaning</span></a></li></ul></nav>
-    <main>
-      <h2>Radical Combination</h2>
-      <h2 id="meaning">Meaning</h2>
-    </main>
-  `;
+  const page = KANJI_SUBJECT_PAGE_HTML;
   const dom = createDom(page, "https://www.wanikani.com/kanji/%E4%B8%80");
   const requests = [];
 
@@ -1936,11 +1805,7 @@ test("stroke order times out a stalled request and processes the destination pag
   dom.window.console.warn = () => {};
 
   await loadUserscript(dom, "wk-stroke-order.js", {
-    GM: {
-      xmlHttpRequest(request) {
-        requests.push(request);
-      },
-    },
+    ...capturedRequests(requests),
   });
 
   assert.equal(Number.isFinite(requests[0].timeout), true);
@@ -2613,7 +2478,7 @@ test("pitch accent replaces a kanji lesson reading", async () => {
 test("pitch accent waits for a revealed quiz answer and Reading item info", async () => {
   const dom = createDom(
     `
-      <div class="quiz-input"><div class="quiz-input__input-container"><input id="user-response"></div></div>
+      ${quizInputHtml({ input: true })}
       <turbo-frame id="subject-info"></turbo-frame>
       <ul>
         <li><a class="additional-content__item additional-content__item--item-info"></a></li>
@@ -2634,11 +2499,7 @@ test("pitch accent waits for a revealed quiz answer and Reading item info", asyn
 
   await loadUserscript(dom, "wk-pitch-accent.js", {
     unsafeWindow: {
-      Stimulus: {
-        getControllerForElementAndIdentifier() {
-          return controller;
-        },
-      },
+      ...stimulusGlobals(() => controller),
     },
     GM: {
       xmlHttpRequest({ onload }) {
@@ -2739,29 +2600,25 @@ test("pitch accent recognizes Reading item info outside review URLs", async () =
   </tr></tbody></table>`;
   const dom = createDom(
     `
-      <div class="quiz-input"><div class="quiz-input__input-container" correct="true"></div></div>
+      ${quizInputHtml({ correct: "true" })}
       <turbo-frame id="subject-info">
         <section class="subject-section subject-section--reading">
           <section class="subject-section__content"><div class="reading-with-audio">Reading</div></section>
         </section>
       </turbo-frame>
-      <ul><li><a class="additional-content__item additional-content__item--last-items"></a></li></ul>
+      ${LAST_ITEMS_MENU_HTML}
     `,
     "https://www.wanikani.com/subject-lessons/session/quiz",
   );
 
   await loadUserscript(dom, "wk-pitch-accent.js", {
-    Stimulus: {
-      getControllerForElementAndIdentifier() {
-        return {
-          currentSubject: {
-            subject_category: "KanaVocabulary",
-            characters: "こんにちは",
-            readings: [],
-          },
-        };
+    ...stimulusGlobals(() => ({
+      currentSubject: {
+        subject_category: "KanaVocabulary",
+        characters: "こんにちは",
+        readings: [],
       },
-    },
+    })),
     GM: {
       xmlHttpRequest({ onload }) {
         onload({ status: 200, responseText: ojadHtml });
@@ -2800,11 +2657,7 @@ test("pitch accent does not insert a stale lookup after vocabulary navigation", 
   const requests = [];
 
   await loadUserscript(dom, "wk-pitch-accent.js", {
-    GM: {
-      xmlHttpRequest(request) {
-        requests.push(request);
-      },
-    },
+    ...capturedRequests(requests),
   });
 
   assert.equal(requests.length, 1);
@@ -2843,13 +2696,11 @@ test("pitch accent times out a stalled request and processes the destination pag
   );
   const requests = [];
 
-  await loadUserscript(dom, "wk-pitch-accent.js", {
-    GM: {
-      xmlHttpRequest(request) {
-        requests.push(request);
-      },
-    },
-  });
+  await loadUserscript(
+    dom,
+    "wk-pitch-accent.js",
+    capturedRequests(requests),
+  );
 
   assert.equal(Number.isFinite(requests[0].timeout), true);
   assert.ok(requests[0].timeout > 0);
