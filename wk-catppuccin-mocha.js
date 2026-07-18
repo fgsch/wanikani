@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WaniKani Catppuccin Mocha
 // @namespace    wk-catppuccin-mocha
-// @version      0.3.0
+// @version      0.4.0
 // @author       Federico G. Schwindt <fgsch@lodoss.net>
 // @description  Applies the Catppuccin Mocha palette to WaniKani with system and manual modes.
 // @license      MIT
@@ -453,27 +453,36 @@
       --button-outline: var(--ctp-mocha-teal);
     }
 
+    html[data-wk-mocha-active] .subject-character__characters-text {
+      color: var(--ctp-mocha-text) !important;
+    }
+
     html[data-wk-mocha-active] .subject-character--locked.subject-character--radical .subject-character__characters-text {
-      color: var(--color-radical);
+      color: var(--color-radical) !important;
     }
 
     html[data-wk-mocha-active] .subject-character--locked.subject-character--kanji .subject-character__characters-text {
-      color: var(--color-kanji);
+      color: var(--color-kanji) !important;
     }
 
     html[data-wk-mocha-active] .subject-character--locked.subject-character--vocabulary .subject-character__characters-text {
-      color: var(--color-vocabulary);
+      color: var(--color-vocabulary) !important;
     }
 
-    html[data-wk-mocha-active] .subject-character--unlocked .subject-character__characters-text,
-    html[data-wk-mocha-active] .subject-character--passed .subject-character__characters-text {
-      color: var(--ctp-mocha-text);
+    html[data-wk-mocha-active] .subject-legend-character {
+      color: var(--ctp-mocha-text) !important;
     }
 
-    html[data-wk-mocha-active] .lesson-container__queue .subject-character--radical .subject-character__characters-text,
-    html[data-wk-mocha-active] .lesson-container__queue .subject-character--kanji .subject-character__characters-text,
-    html[data-wk-mocha-active] .lesson-container__queue .subject-character--vocabulary .subject-character__characters-text {
-      color: var(--ctp-mocha-crust);
+    html[data-wk-mocha-active] .subject-legend-character--locked.subject-legend-character--radical {
+      color: var(--color-radical) !important;
+    }
+
+    html[data-wk-mocha-active] .subject-legend-character--locked.subject-legend-character--kanji {
+      color: var(--color-kanji) !important;
+    }
+
+    html[data-wk-mocha-active] .subject-legend-character--locked.subject-legend-character--vocabulary {
+      color: var(--color-vocabulary) !important;
     }
 
     html[data-wk-mocha-active] .lesson-container__queue .subject-character--recent.subject-character--radical .subject-character__characters-text {
@@ -488,22 +497,9 @@
       background-color: var(--ctp-mocha-mauve);
     }
 
-    html[data-wk-mocha-active] .lesson-container__queue .subject-character--locked.subject-character--radical .subject-character__characters-text {
-      color: var(--ctp-mocha-blue);
-    }
-
-    html[data-wk-mocha-active] .lesson-container__queue .subject-character--locked.subject-character--kanji .subject-character__characters-text {
-      color: var(--ctp-mocha-pink);
-    }
-
-    html[data-wk-mocha-active] .lesson-container__queue .subject-character--locked.subject-character--vocabulary .subject-character__characters-text {
-      color: var(--ctp-mocha-mauve);
-    }
-
     html[data-wk-mocha-active] .lesson-container__queue .subject-character--burned .subject-character__characters-text {
       background-color: var(--ctp-mocha-surface-2);
       border-color: var(--ctp-mocha-overlay-1);
-      color: var(--ctp-mocha-text);
     }
 
     html[data-wk-mocha-active] .subject-character--expandable .subject-character__characters:hover::before {

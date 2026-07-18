@@ -3781,6 +3781,52 @@ test("dark theme keeps mnemonic highlights readable", async () => {
   assertCustomProperties(dom, root, expected);
 });
 
+test("dark theme keeps subject legend characters readable", async () => {
+  const dom = createDom(
+    `<style>
+      .subject-legend-character--radical { color: var(--color-blue-dark); }
+      .subject-legend-character--kanji { color: var(--color-pink-dark); }
+      .subject-legend-character--vocabulary { color: var(--color-purple-dark); }
+      .subject-legend-character--review,
+      .subject-legend-character--burned { color: #fff; }
+    </style>
+    <div class="subject-legend">
+      <ul class="subject-legend__items">
+        ${["locked", "lesson", "review"]
+          .flatMap((state) =>
+            ["radical", "kanji", "vocabulary"].map(
+              (category) =>
+                `<li><div class="subject-legend-character subject-legend-character--${category} subject-legend-character--${state}">${category}-${state}</div></li>`,
+            ),
+          )
+          .join("")}
+        <li><div class="subject-legend-character subject-legend-character--group subject-legend-character--burned">Burned</div></li>
+      </ul>
+    </div>`,
+    "https://www.wanikani.com/level/4",
+  );
+
+  await loadDarkTheme(dom);
+
+  for (const character of dom.window.document.querySelectorAll(
+    ".subject-legend-character",
+  )) {
+    const category = ["radical", "kanji", "vocabulary"].find((candidate) =>
+      character.classList.contains(`subject-legend-character--${candidate}`),
+    );
+    const expectedColor = character.classList.contains(
+      "subject-legend-character--locked",
+    )
+      ? `var(--color-${category})`
+      : "var(--ctp-mocha-text)";
+    assert.equal(
+      dom.window.getComputedStyle(character).color,
+      expectedColor,
+      character.textContent,
+    );
+  }
+});
+
 test("dark theme keeps lesson queue subject labels readable", async () => {
   const dom = createDom(
     `<style>
@@ -3845,7 +3891,7 @@ test("dark theme keeps lesson queue subject labels readable", async () => {
           `.subject-character--${category}.subject-character--${state} .subject-character__characters-text`,
         ),
       );
-      assert.equal(styles.color, "var(--ctp-mocha-crust)");
+      assert.equal(styles.color, "var(--ctp-mocha-text)");
       if (state === "recent") {
         assert.equal(styles.backgroundColor, `var(--ctp-mocha-${accent})`);
       }
@@ -3857,7 +3903,7 @@ test("dark theme keeps lesson queue subject labels readable", async () => {
           `.subject-character--${category}.subject-character--locked .subject-character__characters-text`,
         ),
       ).color,
-      `var(--ctp-mocha-${accent})`,
+      `var(--color-${category})`,
     );
   }
 
@@ -3870,63 +3916,67 @@ test("dark theme keeps lesson queue subject labels readable", async () => {
   assert.equal(burned.backgroundColor, "var(--ctp-mocha-surface-2)");
 });
 
-test("dark theme matches subject grid characters to their outlines", async () => {
+test("dark theme keeps subject characters readable across states", async () => {
   const dom = createDom(
     `<style>
-      .subject-character--radical .subject-character__characters {
-        border-color: var(--color-blue);
-        border-style: dashed;
-        border-width: 1px;
-      }
       .subject-character--radical .subject-character__characters-text {
         color: var(--color-blue-dark);
-      }
-      .subject-character--kanji .subject-character__characters {
-        border-color: var(--color-pink);
-        border-style: dashed;
-        border-width: 1px;
       }
       .subject-character--kanji .subject-character__characters-text {
         color: var(--color-pink-dark);
       }
-      .subject-character--vocabulary .subject-character__characters {
-        border-color: var(--color-purple);
-        border-style: dashed;
-        border-width: 1px;
-      }
       .subject-character--vocabulary .subject-character__characters-text {
         color: var(--color-purple-dark);
       }
+      .subject-character--passed .subject-character__characters-text,
+      .subject-character--unlocked .subject-character__characters-text,
+      .subject-character--burned .subject-character__characters-text {
+        color: #fff;
+      }
     </style>
     <div class="subject-character-grid">
-      <a class="subject-character subject-character--radical subject-character--locked">
-        <span class="subject-character__characters">
-          <span class="subject-character__characters-text">Cow</span>
-        </span>
-      </a>
-      <a class="subject-character subject-character--kanji subject-character--locked">
-        <span class="subject-character__characters">
-          <span class="subject-character__characters-text">年</span>
-        </span>
-      </a>
-      <a class="subject-character subject-character--vocabulary subject-character--locked">
-        <span class="subject-character__characters">
-          <span class="subject-character__characters-text">少年</span>
-        </span>
-      </a>
+      ${["radical", "kanji", "vocabulary"]
+        .flatMap((category) =>
+          ["base", "locked", "recent", "passed", "unlocked", "burned"].map(
+            (state) =>
+              `<span class="subject-character subject-character--${category}${
+                state === "base" ? "" : ` subject-character--${state}`
+              }"><span class="subject-character__characters-text">${category}-${state}</span></span>`,
+          ),
+        )
+        .join("")}
     </div>`,
     "https://www.wanikani.com/kanji/%E5%B9%B4",
   );
 
   await loadDarkTheme(dom);
 
-  for (const category of ["radical", "kanji", "vocabulary"]) {
-    const characters = dom.window.document.querySelector(
-      `.subject-character--${category} .subject-character__characters-text`,
-    );
-    const styles = dom.window.getComputedStyle(characters);
+  const themeStyles = dom.window.document.querySelector(
+    "#wk-catppuccin-mocha-styles",
+  ).textContent;
+  assert.match(
+    themeStyles,
+    /html\[data-wk-mocha-active\] \.subject-character__characters-text\s*\{\s*color:\s*var\(--ctp-mocha-text\) !important;/,
+  );
 
-    assert.equal(styles.color, `var(--color-${category})`);
+  for (const character of dom.window.document.querySelectorAll(
+    ".subject-character",
+  )) {
+    const category = ["radical", "kanji", "vocabulary"].find((candidate) =>
+      character.classList.contains(`subject-character--${candidate}`),
+    );
+    const expectedColor = character.classList.contains(
+      "subject-character--locked",
+    )
+      ? `var(--color-${category})`
+      : "var(--ctp-mocha-text)";
+    assert.equal(
+      dom.window.getComputedStyle(
+        character.querySelector(".subject-character__characters-text"),
+      ).color,
+      expectedColor,
+      character.textContent,
+    );
   }
 });
 
