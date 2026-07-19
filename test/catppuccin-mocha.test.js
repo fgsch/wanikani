@@ -247,7 +247,7 @@ for (const { name, html, url, selector, expected } of [
     },
   },
   {
-    name: "Catppuccin Mocha uses palette colors for dashboard progress bars",
+    name: "Catppuccin Mocha uses muted palette colors for dashboard progress bars",
     html: `<style>
       :root {
         --color-review-forecast-bar-positive: #35a753;
@@ -267,16 +267,21 @@ for (const { name, html, url, selector, expected } of [
     url: "https://www.wanikani.com/dashboard",
     selector: ":root",
     expected: {
-      "--color-review-forecast-bar-positive": "#a6e3a1",
-      "--color-review-forecast-bar-positive-border": "#a6e3a1",
+      "--color-review-forecast-bar-positive":
+        "color-mix(in srgb,var(--ctp-mocha-green) 80%,var(--wk-dark-surface-raised))",
+      "--color-review-forecast-bar-positive-border":
+        "color-mix(in srgb,var(--ctp-mocha-green) 80%,var(--wk-dark-surface-raised))",
       "--color-review-forecast-increase-positive": "#a6e3a1",
       "--color-review-forecast-priority-count-inside": "#11111b",
       "--color-review-forecast-bar-zero": "#45475a",
       "--color-review-forecast-bar-zero-border": "#585b70",
-      "--color-level-progress-completed-bar": "#a6e3a1",
+      "--color-level-progress-completed-bar":
+        "color-mix(in srgb,var(--ctp-mocha-green) 80%,var(--wk-dark-surface-raised))",
       "--color-level-progress-bar": "#585b70",
-      "--color-progress-chart-bar": "#a6e3a1",
-      "--color-subject-srs-progress-stage-complete-background": "#a6e3a1",
+      "--color-progress-chart-bar":
+        "color-mix(in srgb,var(--ctp-mocha-green) 80%,var(--wk-dark-surface-raised))",
+      "--color-subject-srs-progress-stage-complete-background":
+        "color-mix(in srgb,var(--ctp-mocha-green) 80%,var(--wk-dark-surface-raised))",
     },
   },
 ]) {
@@ -292,6 +297,17 @@ for (const { name, html, url, selector, expected } of [
     );
   });
 }
+
+test("Catppuccin Mocha progress fills remain distinct from their tracks", () => {
+  const mixSrgb = (first, second, firstWeight) =>
+    first.map((channel, index) =>
+      Math.round(channel * firstWeight + second[index] * (1 - firstWeight)),
+    );
+  const progress = mixSrgb(parseColor("#a6e3a1"), parseColor("#313244"), 0.8);
+  const track = parseColor("#585b70");
+
+  assert.ok(contrastRatio(progress, track) >= 3);
+});
 
 test("Catppuccin Mocha applies its palette to pitch accent variants", async () => {
   const dom = createDom(
@@ -1290,6 +1306,72 @@ test("Catppuccin Mocha colors category sitemap headers and menus", async () => {
       ),
     );
   }
+});
+
+test("Catppuccin Mocha treats the account menu as a raised surface", async () => {
+  const dom = createDom(
+    `<style>
+      .sitemap__expandable-chunk--account { background-color: rgb(1, 2, 3); color: rgb(4, 5, 6); }
+      .sitemap__expandable-chunk--account a { color: rgb(7, 8, 9); }
+      .sitemap__section-header--subsection { color: rgb(10, 11, 12); }
+    </style>
+    <div id="sitemap__account" class="sitemap__expandable-chunk sitemap__expandable-chunk--account">
+      <div>
+        <ul class="sitemap__pages">
+          <li class="user-summary">
+            <div class="user-summary__detail">
+              <p class="user-summary__username">fgs</p>
+              <ul class="user-summary__attributes">
+                <li class="user-summary__attribute"><a href="/level/4">Level 4</a></li>
+              </ul>
+            </div>
+          </li>
+          <li class="sitemap__page"><a href="/users/fgs">Profile</a></li>
+          <li class="sitemap__section sitemap__section--subsection">
+            <h3 class="sitemap__section-header--subsection">Settings</h3>
+            <ul class="sitemap__pages">
+              <li class="sitemap__page"><a href="/settings/app">App</a></li>
+            </ul>
+          </li>
+          <li class="sitemap__page sitemap__page--community"><a href="/community">Community</a></li>
+        </ul>
+      </div>
+    </div>`,
+    "https://www.wanikani.com/",
+  );
+
+  await loadCatppuccinMocha(dom);
+
+  const menu = dom.window.document.querySelector(
+    ".sitemap__expandable-chunk--account",
+  );
+  const styles = dom.window.document.querySelector(
+    "#wk-catppuccin-mocha-styles",
+  ).textContent;
+
+  assert.equal(
+    dom.window.getComputedStyle(menu).backgroundColor,
+    "var(--wk-dark-surface-raised)",
+  );
+  assert.equal(dom.window.getComputedStyle(menu).color, "var(--wk-dark-text)");
+  assert.equal(
+    dom.window.getComputedStyle(menu.querySelector("a")).color,
+    "var(--wk-dark-text)",
+  );
+  assert.equal(
+    dom.window.getComputedStyle(
+      menu.querySelector(".sitemap__section-header--subsection"),
+    ).color,
+    "var(--wk-dark-text-muted)",
+  );
+  assert.match(
+    styles,
+    /sitemap__expandable-chunk--account::before[^}]+background-color:[^;]+--wk-dark-surface-raised/s,
+  );
+  assert.match(
+    styles,
+    /sitemap__expandable-chunk--account \.sitemap__page a:hover,[^{]+a:focus[^}]+background-color:[^;]+--wk-dark-surface-hover/s,
+  );
 });
 
 test("Catppuccin Mocha keeps completed lesson and review widgets readable", async () => {

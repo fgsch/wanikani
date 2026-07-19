@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WaniKani Catppuccin Mocha
 // @namespace    wk-catppuccin-mocha
-// @version      0.4.0
+// @version      0.5.0
 // @author       Federico G. Schwindt <fgsch@lodoss.net>
 // @description  Applies the Catppuccin Mocha palette to WaniKani with system and manual modes.
 // @license      MIT
@@ -73,6 +73,7 @@
       --wk-dark-border: var(--ctp-mocha-surface-2);
       --wk-dark-text: var(--ctp-mocha-text);
       --wk-dark-text-muted: var(--ctp-mocha-subtext-0);
+      --wk-dark-progress: color-mix(in srgb, var(--ctp-mocha-green) 80%, var(--wk-dark-surface-raised));
 
       --color-radical: var(--ctp-mocha-blue-bold);
       --color-radical-dark: color-mix(in srgb, var(--ctp-mocha-blue) 35%, var(--ctp-mocha-crust));
@@ -215,12 +216,12 @@
       --color-count_bubble-background: var(--wk-dark-surface-raised);
       --color-count_bubble-text: var(--wk-dark-text);
       --color-progress-chart-bar-background: var(--wk-dark-border);
-      --color-progress-chart-bar: var(--ctp-mocha-green);
+      --color-progress-chart-bar: var(--wk-dark-progress);
       --color-progress-chart-metric-text: var(--wk-dark-text-muted);
       --color-progress-chart-metric-count: var(--wk-dark-text);
       --color-progress-chart-metric-count-background: var(--wk-dark-surface-hover);
       --color-subject-srs-progress-stage-background: var(--wk-dark-border);
-      --color-subject-srs-progress-stage-complete-background: var(--ctp-mocha-green);
+      --color-subject-srs-progress-stage-complete-background: var(--wk-dark-progress);
       --color-subject-srs-progress-text: var(--wk-dark-text-muted);
 
       --color-item-spread-row-background: var(--wk-dark-surface);
@@ -234,8 +235,8 @@
       --color-review-forecast-day-header-label: var(--wk-dark-text);
       --color-review-forecast-day-hover: var(--wk-dark-surface-hover);
       --color-review-forecast-day-active: var(--ctp-mocha-surface-2);
-      --color-review-forecast-bar-positive: var(--ctp-mocha-green);
-      --color-review-forecast-bar-positive-border: var(--ctp-mocha-green);
+      --color-review-forecast-bar-positive: var(--wk-dark-progress);
+      --color-review-forecast-bar-positive-border: var(--wk-dark-progress);
       --color-review-forecast-increase-positive: var(--ctp-mocha-green);
       --color-review-forecast-priority-count-inside: var(--ctp-mocha-crust);
       --color-review-forecast-bar-zero: var(--wk-dark-surface-hover);
@@ -245,7 +246,7 @@
       --color-level-progress-item-stat-border: var(--wk-dark-border);
       --color-level-progress-item-stat-hover-background: var(--wk-dark-surface-hover);
       --color-level-progress-item-stat-active-background: var(--wk-dark-surface-raised);
-      --color-level-progress-completed-bar: var(--ctp-mocha-green);
+      --color-level-progress-completed-bar: var(--wk-dark-progress);
       --color-level-progress-bar: var(--wk-dark-border);
       --color-subject-character-grid-header-background: var(--wk-dark-surface-raised);
       --color-subject-character-grid-header-title: var(--wk-dark-text);
@@ -372,6 +373,40 @@
     }
 
     html[data-wk-mocha-active] .sitemap__expandable-chunk--help .button--chat::before {
+      border-color: var(--ctp-mocha-lavender);
+    }
+
+    html[data-wk-mocha-active] .sitemap__expandable-chunk--account {
+      background-color: var(--wk-dark-surface-raised);
+      box-shadow: 0 4px 12px color-mix(in srgb, var(--ctp-mocha-crust) 55%, transparent);
+      color: var(--wk-dark-text);
+    }
+
+    html[data-wk-mocha-active] .sitemap__expandable-chunk--account::before {
+      background-color: var(--wk-dark-surface-raised);
+    }
+
+    html[data-wk-mocha-active] .sitemap__expandable-chunk--account .user-summary,
+    html[data-wk-mocha-active] .sitemap__expandable-chunk--account .sitemap__page--community {
+      border-color: var(--wk-dark-border);
+    }
+
+    html[data-wk-mocha-active] .sitemap__expandable-chunk--account .user-summary__username,
+    html[data-wk-mocha-active] .sitemap__expandable-chunk--account .user-summary__attribute a,
+    html[data-wk-mocha-active] .sitemap__expandable-chunk--account .sitemap__page a {
+      color: var(--wk-dark-text);
+    }
+
+    html[data-wk-mocha-active] .sitemap__expandable-chunk--account .sitemap__section-header--subsection {
+      color: var(--wk-dark-text-muted);
+    }
+
+    html[data-wk-mocha-active] .sitemap__expandable-chunk--account .sitemap__page a:hover,
+    html[data-wk-mocha-active] .sitemap__expandable-chunk--account .sitemap__page a:focus {
+      background-color: var(--wk-dark-surface-hover);
+    }
+
+    html[data-wk-mocha-active] .sitemap__expandable-chunk--account .sitemap__page a:focus {
       border-color: var(--ctp-mocha-lavender);
     }
 
