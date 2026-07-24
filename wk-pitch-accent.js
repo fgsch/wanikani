@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WaniKani Pitch Accent
 // @namespace    wk-pitch-accent
-// @version      0.8.0
+// @version      0.9.0
 // @author       Federico G. Schwindt <fgsch@lodoss.net>
 // @description  Adds OJAD pitch-accent diagrams to WaniKani vocabulary pages, lessons, and quizzes.
 // @license      MIT
@@ -388,7 +388,13 @@
   }
 
   function createPitchSvg(variant, showReading) {
-    const step = 24;
+    const characterWidth = 18;
+    const step = Math.max(
+      24,
+      ...variant.moras.map(
+        (mora) => [...mora.text].length * characterWidth + 6,
+      ),
+    );
     const highY = 3;
     const lowY = 16;
     const textY = 34;

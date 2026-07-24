@@ -1247,4 +1247,18 @@ test("pitch accent parses moras with multiple char elements like じょ", async 
       ?.textContent,
     "3",
   );
+  assert.equal(
+    dom.window.document
+      .querySelector(".wk-pitch-accent-charts svg")
+      ?.getAttribute("viewBox"),
+    "0 0 193 44",
+  );
+  assert.deepEqual(
+    [
+      ...dom.window.document.querySelectorAll(
+        ".wk-pitch-accent-charts svg text",
+      ),
+    ].map((node) => node.getAttribute("x")),
+    ["21", "63", "105", "147"],
+  );
 });
