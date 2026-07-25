@@ -13,6 +13,7 @@ import {
   loadUserscript,
   parseColor,
   quizInputHtml,
+  resolveCustomProperty,
   stimulusGlobals,
   stubSvgPathLength,
   waitFor,
@@ -113,7 +114,9 @@ test("stroke order animated colors contrast with light and dark backgrounds", as
     ...dom.window.document.querySelectorAll(
       "#wk-kanjivg-stroke-order svg.wk-kanjivg-main path",
     ),
-  ].map((path) => parseColor(path.style.stroke));
+  ].map((path) =>
+    parseColor(resolveCustomProperty(dom, path, "--wk-kanjivg-stroke-color")),
+  );
 
   assert.equal(new Set(strokes.map(String)).size, 4);
   for (const stroke of strokes) {
@@ -787,6 +790,14 @@ test("stroke order sanitizes fetched SVG before insertion", async () => {
     null,
   );
   assert.ok(insertedSvg.querySelector('use[href="#safe"]'));
+  assert.equal(
+    dom.window.getComputedStyle(insertedSvg.querySelector("text")).fontSize,
+    "8px",
+  );
+  assert.equal(
+    dom.window.getComputedStyle(insertedSvg.querySelector("text")).fontWeight,
+    "normal",
+  );
 });
 
 test("stroke order can reinsert after navigating away and back to a kanji page", async () => {

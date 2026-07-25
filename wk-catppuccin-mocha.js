@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WaniKani Catppuccin Mocha
 // @namespace    wk-catppuccin-mocha
-// @version      0.5.0
+// @version      0.6.0
 // @author       Federico G. Schwindt <fgsch@lodoss.net>
 // @description  Applies the Catppuccin Mocha palette to WaniKani with system and manual modes.
 // @license      MIT
@@ -298,6 +298,50 @@
 
     html[data-wk-mocha-active] .wk-pitch-accent-variant-4 {
       --wk-pitch-accent-color: var(--ctp-mocha-peach);
+    }
+
+    html[data-wk-mocha-active] .wk-kanjivg-stroke-1 {
+      --wk-kanjivg-stroke-color: var(--ctp-mocha-blue);
+    }
+
+    html[data-wk-mocha-active] .wk-kanjivg-stroke-2 {
+      --wk-kanjivg-stroke-color: var(--ctp-mocha-green);
+    }
+
+    html[data-wk-mocha-active] .wk-kanjivg-stroke-3 {
+      --wk-kanjivg-stroke-color: var(--ctp-mocha-teal);
+    }
+
+    html[data-wk-mocha-active] .wk-kanjivg-stroke-4 {
+      --wk-kanjivg-stroke-color: var(--ctp-mocha-mauve);
+    }
+
+    html[data-wk-mocha-active] .wk-kanjivg-stroke-5 {
+      --wk-kanjivg-stroke-color: var(--ctp-mocha-peach);
+    }
+
+    html[data-wk-mocha-active] .wk-kanjivg-stroke-6 {
+      --wk-kanjivg-stroke-color: var(--ctp-mocha-sky);
+    }
+
+    html[data-wk-mocha-active] .wk-kanjivg-stroke-7 {
+      --wk-kanjivg-stroke-color: var(--ctp-mocha-pink);
+    }
+
+    html[data-wk-mocha-active] .wk-kanjivg-stroke-8 {
+      --wk-kanjivg-stroke-color: var(--ctp-mocha-lavender);
+    }
+
+    html[data-wk-mocha-active] .wk-kanjivg-radical {
+      --wk-kanjivg-stroke-color: var(--ctp-mocha-pink);
+    }
+
+    html[data-wk-mocha-active] .wk-kanjivg-group {
+      --wk-kanjivg-stroke-color: var(--ctp-mocha-teal);
+    }
+
+    html[data-wk-mocha-active] .wk-kanjivg-faint {
+      --wk-kanjivg-stroke-color: var(--ctp-mocha-overlay-1);
     }
 
     html[data-wk-mocha-active] .sitemap__section-header {

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WaniKani Stroke Order
 // @namespace    wk-stroke-order
-// @version      0.6.0
+// @version      0.7.0
 // @author       Federico G. Schwindt <fgsch@lodoss.net>
 // @description  Adds animated KanjiVG stroke order, radicals, and component groups to WaniKani kanji pages, lessons, and reviews.
 // @license      MIT
@@ -20,9 +20,7 @@
   const SECTION_ID = "stroke-order";
   const CONTENT_ID = "wk-kanjivg-stroke-order";
   const STYLE_ID = "wk-kanjivg-style";
-  const RADICAL_COLOR = "#c586d7";
-  const GROUP_COLOR = "#86a8d7";
-  const STROKE_COLORS = ["#0072b2", "#7a6f00", "#007f5f", "#536aa8"];
+  const STROKE_CLASS_COUNT = 8;
   const REQUEST_TIMEOUT_MS = 15_000;
   const NAME = GM_info.script.name;
   const VERSION = GM_info.script.version;
@@ -128,10 +126,6 @@
     return `${kanji.codePointAt(0).toString(16).padStart(5, "0")}.svg`;
   }
 
-  function randomKanjiVGViewerColor() {
-    return STROKE_COLORS[Math.floor(Math.random() * STROKE_COLORS.length)];
-  }
-
   function findHeading(text) {
     return [...document.querySelectorAll("h2, h3")].find((h) =>
       h.textContent.trim().toLowerCase().includes(text.toLowerCase()),
@@ -193,13 +187,40 @@
 
       #${CONTENT_ID} path {
         fill: none !important;
+        stroke: var(--wk-kanjivg-stroke-color, currentColor);
         stroke-width: 3 !important;
         stroke-linecap: round;
         stroke-linejoin: round;
       }
 
       #${CONTENT_ID} text {
-        font-weight: bold;
+        font-size: 8px;
+        font-weight: normal;
+        fill: var(--wk-kanjivg-stroke-color, currentColor);
+      }
+
+      .wk-kanjivg-stroke-1 { --wk-kanjivg-stroke-color: #0072b2; }
+      .wk-kanjivg-stroke-2 { --wk-kanjivg-stroke-color: #7a6f00; }
+      .wk-kanjivg-stroke-3 { --wk-kanjivg-stroke-color: #007f5f; }
+      .wk-kanjivg-stroke-4 { --wk-kanjivg-stroke-color: #536aa8; }
+      .wk-kanjivg-stroke-5 { --wk-kanjivg-stroke-color: #b24800; }
+      .wk-kanjivg-stroke-6 { --wk-kanjivg-stroke-color: #006f7a; }
+      .wk-kanjivg-stroke-7 { --wk-kanjivg-stroke-color: #7a4f00; }
+      .wk-kanjivg-stroke-8 { --wk-kanjivg-stroke-color: #4a4a4a; }
+
+      .wk-kanjivg-radical { --wk-kanjivg-stroke-color: #c586d7; }
+      .wk-kanjivg-group { --wk-kanjivg-stroke-color: #86a8d7; }
+      .wk-kanjivg-faint { --wk-kanjivg-stroke-color: #ddd; }
+
+      #${CONTENT_ID} .wk-kanjivg-faint {
+        stroke-width: 2 !important;
+        opacity: .35;
+      }
+
+      #${CONTENT_ID} .wk-kanjivg-radical,
+      #${CONTENT_ID} .wk-kanjivg-group {
+        stroke-width: 4 !important;
+        opacity: 1;
       }
 
       #${CONTENT_ID} .wk-kanjivg-replay {
@@ -350,18 +371,18 @@
     });
 
     paths.forEach((path, index) => {
-      const color = randomKanjiVGViewerColor();
+      const strokeClass = `wk-kanjivg-stroke-${(index % STROKE_CLASS_COUNT) + 1}`;
       const length = path.getTotalLength();
       const delay = `${index * 0.55}s`;
 
-      path.style.stroke = color;
+      path.classList.add(strokeClass);
       path.style.strokeDasharray = String(length);
       path.style.strokeDashoffset = String(length);
       path.style.animation = "wkKanjiVGDraw 0.7s ease forwards";
       path.style.animationDelay = delay;
 
       if (texts[index]) {
-        texts[index].style.fill = color;
+        texts[index].classList.add(strokeClass);
         texts[index].style.opacity = "0";
         texts[index].style.animation = "wkKanjiVGFadeIn 0.15s ease forwards";
         texts[index].style.animationDelay = delay;
@@ -378,7 +399,7 @@
     );
   }
 
-  function createHighlightedCopy(svg, matchingGroupIds, highlightColor, label) {
+  function createHighlightedCopy(svg, matchingGroupIds, highlightClass, label) {
     const copy = svg.cloneNode(true);
     copy.classList.remove("wk-kanjivg-main");
     copy.setAttribute("aria-label", label);
@@ -388,9 +409,7 @@
     });
 
     [...copy.querySelectorAll("path")].forEach((path) => {
-      path.style.stroke = "#ddd";
-      path.style.strokeWidth = "2";
-      path.style.opacity = "0.35";
+      path.classList.add("wk-kanjivg-faint");
       path.style.animation = "none";
       path.style.strokeDasharray = "none";
       path.style.strokeDashoffset = "0";
@@ -403,9 +422,8 @@
       }
 
       [...group.querySelectorAll("path")].forEach((path) => {
-        path.style.stroke = highlightColor;
-        path.style.strokeWidth = "4";
-        path.style.opacity = "1";
+        path.classList.remove("wk-kanjivg-faint");
+        path.classList.add(highlightClass);
       });
     });
 
@@ -445,10 +463,15 @@
       }));
   }
 
-  function createFigure(svg, groupIds, color, captionText, className) {
+  function createFigure(svg, groupIds, highlightClass, captionText, className) {
     const figure = document.createElement("figure");
     const caption = document.createElement("figcaption");
-    const copy = createHighlightedCopy(svg, groupIds, color, captionText);
+    const copy = createHighlightedCopy(
+      svg,
+      groupIds,
+      highlightClass,
+      captionText,
+    );
 
     if (className) {
       figure.className = className;
@@ -493,7 +516,7 @@
         createFigure(
           svg,
           [radical.id],
-          RADICAL_COLOR,
+          "wk-kanjivg-radical",
           radical.label,
           "wk-kanjivg-radical-figure",
         ),
@@ -505,7 +528,7 @@
         createFigure(
           svg,
           [group.id],
-          GROUP_COLOR,
+          "wk-kanjivg-group",
           group.label,
           "wk-kanjivg-group-figure",
         ),

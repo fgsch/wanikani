@@ -334,6 +334,70 @@ test("Catppuccin Mocha applies its palette to pitch accent variants", async () =
   }
 });
 
+test("Catppuccin Mocha applies its palette to stroke order colors", async () => {
+  const dom = createDom(
+    `
+      <div id="wk-kanjivg-stroke-order">
+        <svg>
+          <path class="wk-kanjivg-stroke-1"></path>
+          <path class="wk-kanjivg-stroke-2"></path>
+          <path class="wk-kanjivg-stroke-3"></path>
+          <path class="wk-kanjivg-stroke-4"></path>
+          <path class="wk-kanjivg-stroke-5"></path>
+          <path class="wk-kanjivg-stroke-6"></path>
+          <path class="wk-kanjivg-stroke-7"></path>
+          <path class="wk-kanjivg-stroke-8"></path>
+          <path class="wk-kanjivg-radical"></path>
+          <path class="wk-kanjivg-group"></path>
+          <path class="wk-kanjivg-faint"></path>
+        </svg>
+      </div>
+    `,
+    "https://www.wanikani.com/kanji/%E4%B8%80",
+  );
+
+  await loadCatppuccinMocha(dom);
+
+  const expected = {
+    "wk-kanjivg-stroke-1": "#89b4fa",
+    "wk-kanjivg-stroke-2": "#a6e3a1",
+    "wk-kanjivg-stroke-3": "#94e2d5",
+    "wk-kanjivg-stroke-4": "#cba6f7",
+    "wk-kanjivg-stroke-5": "#fab387",
+    "wk-kanjivg-stroke-6": "#89dceb",
+    "wk-kanjivg-stroke-7": "#f5c2e7",
+    "wk-kanjivg-stroke-8": "#b4befe",
+    "wk-kanjivg-radical": "#f5c2e7",
+    "wk-kanjivg-group": "#94e2d5",
+    "wk-kanjivg-faint": "#7f849c",
+  };
+
+  for (const [className, color] of Object.entries(expected)) {
+    const path = dom.window.document.querySelector(`.${className}`);
+    assertCustomProperties(dom, path, {
+      "--wk-kanjivg-stroke-color": color,
+    });
+  }
+
+  const mochaBackground = parseColor("#1e1e2e");
+  for (const className of [
+    "wk-kanjivg-stroke-1",
+    "wk-kanjivg-stroke-2",
+    "wk-kanjivg-stroke-3",
+    "wk-kanjivg-stroke-4",
+    "wk-kanjivg-stroke-5",
+    "wk-kanjivg-stroke-6",
+    "wk-kanjivg-stroke-7",
+    "wk-kanjivg-stroke-8",
+  ]) {
+    const path = dom.window.document.querySelector(`.${className}`);
+    const stroke = parseColor(
+      resolveCustomProperty(dom, path, "--wk-kanjivg-stroke-color"),
+    );
+    assert.ok(contrastRatio(stroke, mochaBackground) >= 3);
+  }
+});
+
 test("Catppuccin Mocha adds palette accents to browser interaction states", async () => {
   const dom = createDom(
     '<a href="/subjects">Subjects</a><input value="search">',
