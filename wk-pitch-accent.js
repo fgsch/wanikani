@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WaniKani Pitch Accent
 // @namespace    wk-pitch-accent
-// @version      0.9.0
+// @version      0.9.1
 // @author       Federico G. Schwindt <fgsch@lodoss.net>
 // @description  Adds OJAD pitch-accent diagrams to WaniKani vocabulary pages, lessons, and quizzes.
 // @license      MIT
@@ -389,19 +389,23 @@
 
   function createPitchSvg(variant, showReading) {
     const characterWidth = 18;
-    const step = Math.max(
-      24,
-      ...variant.moras.map(
-        (mora) => [...mora.text].length * characterWidth + 6,
-      ),
+    const minimumMoraWidth = 24;
+    const moraWidths = variant.moras.map((mora) =>
+      Math.max(minimumMoraWidth, [...mora.text].length * characterWidth + 6),
     );
+    let moraOffset = 0;
+    const moraXs = moraWidths.map((width) => {
+      const x = moraOffset + width / 2;
+      moraOffset += width;
+      return x;
+    });
     const highY = 3;
     const lowY = 16;
     const textY = 34;
     const particleRadius = 2.5;
     const particleStrokeWidth = 1.5;
     const accentNumber = getAccentNumber(variant.moras);
-    const particleX = step / 2 + variant.moras.length * step;
+    const particleX = moraOffset + minimumMoraWidth / 2;
     const particleY = accentNumber === 0 ? highY : lowY;
     const width = particleX + 4;
     const height = showReading ? 44 : 20;
@@ -417,7 +421,7 @@
     if (showReading) {
       variant.moras.forEach((mora, index) => {
         const character = createSvgElement("text", {
-          x: step / 2 + index * step,
+          x: moraXs[index],
           y: textY,
           class: "wk-pitch-accent-character",
         });
@@ -430,7 +434,7 @@
     }
 
     const points = variant.moras.map((mora, index) => ({
-      x: step / 2 + index * step,
+      x: moraXs[index],
       y: mora.high ? highY : lowY,
     }));
     const previousPoint = points.at(-1);
@@ -461,7 +465,7 @@
     variant.moras.forEach((mora, index) => {
       svg.appendChild(
         createSvgElement("circle", {
-          cx: step / 2 + index * step,
+          cx: moraXs[index],
           cy: mora.high ? highY : lowY,
           r: 3,
           fill: "var(--wk-pitch-accent-color)",

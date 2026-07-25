@@ -1192,7 +1192,7 @@ test("pitch accent waits for the Reading row before lookup and insertion", async
   });
 });
 
-test("pitch accent parses moras with multiple char elements like じょ", async () => {
+test("pitch accent fits じょ without widening single-character moras", async () => {
   const ojadHtml = `<table id="word_table"><tbody><tr>
     <td class="midashi"><p class="midashi_word">工場</p></td>
     <td class="katsuyo_jisho_js"><span class="accented_word">
@@ -1251,7 +1251,7 @@ test("pitch accent parses moras with multiple char elements like じょ", async 
     dom.window.document
       .querySelector(".wk-pitch-accent-charts svg")
       ?.getAttribute("viewBox"),
-    "0 0 193 44",
+    "0 0 130 44",
   );
   assert.deepEqual(
     [
@@ -1259,6 +1259,6 @@ test("pitch accent parses moras with multiple char elements like じょ", async 
         ".wk-pitch-accent-charts svg text",
       ),
     ].map((node) => node.getAttribute("x")),
-    ["21", "63", "105", "147"],
+    ["12", "36", "69", "102"],
   );
 });
