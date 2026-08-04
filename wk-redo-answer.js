@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WaniKani Redo Answer
 // @namespace    wk-redo-answer
-// @version      0.6.0
+// @version      0.7.0
 // @author       Federico G. Schwindt <fgsch@lodoss.net>
 // @description  Adds a Redo button to WaniKani review and extra study quizzes.
 // @license      MIT
@@ -160,7 +160,9 @@
       controller,
       quizQueue,
       discard() {
+        const discardedAnswer = pendingAnswer;
         pendingAnswer = null;
+        return discardedAnswer;
       },
       flush() {
         if (!pendingAnswer) {
@@ -197,6 +199,50 @@
     pendingAnswerTransaction = transaction;
 
     return transaction;
+  }
+
+  function undoQuizStatistics(results) {
+    const statisticsElement = document.querySelector(
+      '[data-controller~="quiz-statistics"]',
+    );
+    const statisticsController =
+      window.Stimulus?.getControllerForElementAndIdentifier?.(
+        statisticsElement,
+        "quiz-statistics",
+      );
+
+    if (
+      !statisticsController ||
+      typeof statisticsController.answeredCount !== "number" ||
+      typeof statisticsController.incorrectCount !== "number"
+    ) {
+      return;
+    }
+
+    statisticsController.answeredCount = Math.max(
+      0,
+      statisticsController.answeredCount - 1,
+    );
+
+    if (results.action === "fail") {
+      statisticsController.incorrectCount = Math.max(
+        0,
+        statisticsController.incorrectCount - 1,
+      );
+    }
+
+    const percentCorrect =
+      statisticsController.answeredCount === 0
+        ? 100
+        : Math.round(
+            ((statisticsController.answeredCount -
+              statisticsController.incorrectCount) *
+              100) /
+              statisticsController.answeredCount,
+          );
+    if (statisticsController.percentCorrectTarget) {
+      statisticsController.percentCorrectTarget.innerText = `${percentCorrect}%`;
+    }
   }
 
   function updateRedoButtonState() {
@@ -288,7 +334,10 @@
       return;
     }
 
-    transaction?.discard();
+    const discardedAnswer = transaction?.discard();
+    if (discardedAnswer) {
+      undoQuizStatistics(discardedAnswer.results);
+    }
 
     requestAnimationFrame(() => {
       resetItemInfo();

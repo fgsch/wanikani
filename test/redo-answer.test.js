@@ -645,6 +645,77 @@ test("redo answer restores the old queue when flushing it during an outlet switc
   ]);
 });
 
+test("redo answer removes the discarded attempt from quiz statistics", async () => {
+  const dom = createDom(
+    `
+      ${quizInputHtml({ input: true })}
+      <div data-controller="quiz-statistics"></div>
+      ${LAST_ITEMS_MENU_HTML}
+    `,
+    "https://www.wanikani.com/subjects/review",
+  );
+  const statisticsController = {
+    answeredCount: 0,
+    incorrectCount: 0,
+    percentCorrectTarget: { innerText: "0%" },
+  };
+  const quizQueueController = {
+    submitAnswer() {},
+    nextItem() {},
+  };
+  const controller = {
+    currentSubject: { id: 1 },
+    currentQuestionType: "meaning",
+    quizQueueOutlet: quizQueueController,
+    updateQuestion() {},
+  };
+
+  dom.window.addEventListener("didAnswerQuestion", ({ detail }) => {
+    if (detail.results.action === "fail") {
+      statisticsController.incorrectCount += 1;
+    }
+    statisticsController.answeredCount += 1;
+    statisticsController.percentCorrectTarget.innerText = `${Math.round(
+      ((statisticsController.answeredCount -
+        statisticsController.incorrectCount) *
+        100) /
+        statisticsController.answeredCount,
+    )}%`;
+  });
+
+  await loadUserscript(
+    dom,
+    "wk-redo-answer.js",
+    stimulusGlobals((element, identifier) =>
+      identifier === "quiz-input"
+        ? controller
+        : identifier === "quiz-statistics"
+          ? statisticsController
+          : null,
+    ),
+  );
+
+  quizQueueController.submitAnswer("wrong", { action: "fail" });
+  dom.window.document
+    .querySelector(".quiz-input__input-container")
+    .setAttribute("correct", "false");
+  const redoButton = dom.window.document.querySelector(
+    ".additional-content__item--redo-answer",
+  );
+
+  await waitFor(() => {
+    assert.equal(redoButton.getAttribute("aria-disabled"), "false");
+  });
+  assert.equal(statisticsController.percentCorrectTarget.innerText, "0%");
+
+  redoButton.click();
+  await new Promise((resolve) => dom.window.requestAnimationFrame(resolve));
+
+  quizQueueController.submitAnswer("correct", { action: "pass" });
+
+  assert.equal(statisticsController.percentCorrectTarget.innerText, "100%");
+});
+
 test("redo answer reuses its transaction when the input controller changes", async () => {
   const dom = createDom(
     `
