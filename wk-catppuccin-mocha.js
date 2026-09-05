@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WaniKani Catppuccin Mocha
 // @namespace    wk-catppuccin-mocha
-// @version      0.6.0
+// @version      0.6.1
 // @author       Federico G. Schwindt <fgsch@lodoss.net>
 // @description  Applies the Catppuccin Mocha palette to WaniKani with system and manual modes.
 // @license      MIT
@@ -23,6 +23,7 @@
   const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
   const NAME = GM_info.script.name;
   const VERSION = GM_info.script.version;
+  const pendingLevelUpImages = new WeakSet();
 
   let mode = "system";
 
@@ -628,6 +629,14 @@
       --color-review-forecast-header-background: var(--wk-dark-surface-raised);
     }
 
+    html[data-wk-mocha-mode] .level-up-alert__image img {
+      color-scheme: light;
+    }
+
+    html[data-wk-mocha-active] .level-up-alert__image img {
+      color-scheme: dark;
+    }
+
     html[data-wk-mocha-active] .level-progress-widget__info-bubble {
       --color-notification-info-background: var(--wk-dark-surface-raised);
       --color-notification-info-border: var(--ctp-mocha-blue);
@@ -867,14 +876,80 @@
     document.body.append(toggle);
   }
 
+  async function themeLevelUpImage(element) {
+    const attribute = element.localName === "source" ? "srcset" : "src";
+    const original = element.getAttribute(attribute);
+    if (!original || pendingLevelUpImages.has(element)) {
+      return;
+    }
+
+    const url = new URL(original, document.baseURI);
+    if (
+      url.origin !== location.origin ||
+      url.pathname !== "/level_up_image.svg"
+    ) {
+      return;
+    }
+
+    pendingLevelUpImages.add(element);
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Level-up image request failed: ${response.status}`);
+      }
+      const svg = new DOMParser().parseFromString(
+        await response.text(),
+        "image/svg+xml",
+      );
+      if (
+        svg.querySelector("parsererror") ||
+        svg.documentElement.localName !== "svg" ||
+        !svg.querySelector(".lu-title")
+      ) {
+        return;
+      }
+
+      // Embedded SVG media queries follow the image's color-scheme, including
+      // manual theme overrides. Keep the artwork isolated in an image document.
+      const style = svg.createElementNS("http://www.w3.org/2000/svg", "style");
+      const textColor = getComputedStyle(document.documentElement)
+        .getPropertyValue("--ctp-mocha-text")
+        .trim();
+      style.textContent = `@media (prefers-color-scheme: dark) {
+        .lu-title { fill: ${textColor}; text-shadow: none; }
+      }`;
+      svg.documentElement.append(style);
+      if (element.getAttribute(attribute) === original) {
+        element.setAttribute(
+          attribute,
+          `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
+            new XMLSerializer().serializeToString(svg),
+          )}`,
+        );
+      }
+    } catch (error) {
+      console.warn(`[${NAME}] Could not theme level-up image:`, error);
+    } finally {
+      pendingLevelUpImages.delete(element);
+    }
+  }
+
+  function installPageContent() {
+    installToggle();
+    document
+      .querySelectorAll(
+        ".level-up-alert__image img[src], .level-up-alert__image source[srcset]",
+      )
+      .forEach(themeLevelUpImage);
+  }
+
   function run() {
     installStyles();
     applyTheme();
 
-    if (document.body) {
-      installToggle();
-    } else {
-      document.addEventListener("DOMContentLoaded", installToggle, {
+    installPageContent();
+    if (document.readyState === "loading" || !document.body) {
+      document.addEventListener("DOMContentLoaded", installPageContent, {
         once: true,
       });
     }

@@ -8,6 +8,7 @@ import {
   loadUserscript,
   parseColor,
   resolveCustomProperty,
+  waitFor,
 } from "./support/userscript-harness.js";
 
 test("Catppuccin Mocha follows a dark system preference by default", async () => {
@@ -189,6 +190,74 @@ test("Catppuccin Mocha applies at document start and adds its control when the b
   dom.window.document.dispatchEvent(new dom.window.Event("DOMContentLoaded"));
 
   assert.ok(dom.window.document.querySelector("#wk-catppuccin-mocha-toggle"));
+});
+
+test("Catppuccin Mocha makes responsive level-up titles readable without recoloring artwork", async () => {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1610 600">
+    <defs><style>
+      .artwork { fill: #ffbf59; }
+      .lu-title { font-size: 54px; text-shadow: 0 1px 0 #FFF; }
+    </style></defs>
+    <circle class="artwork" cx="805" cy="171" r="170"/>
+    <text class="lu-title" x="805" y="590">レベルアップおめでとう！</text>
+  </svg>`;
+  const dom = createDom(
+    `<div class="level-up-alert__image"><picture>
+      <source media="(max-width: 600px)" srcset="/level_up_image.svg?level=5&amp;size=mobile">
+      <img src="/level_up_image.svg?level=5" alt="Level up banner">
+    </picture></div>`,
+    "https://www.wanikani.com/dashboard",
+  );
+  dom.window.fetch = async () => ({ ok: true, text: async () => svg });
+  await loadCatppuccinMocha(dom);
+
+  const source = dom.window.document.querySelector("source");
+  const image = dom.window.document.querySelector("img");
+  await waitFor(() => {
+    assert.ok(source.srcset.startsWith("data:image/svg+xml;"));
+    assert.ok(image.src.startsWith("data:image/svg+xml;"));
+  });
+
+  for (const uri of [source.srcset, image.src]) {
+    const themedSvg = decodeURIComponent(uri.slice(uri.indexOf(",") + 1));
+    const rendered = createDom(themedSvg, "https://www.wanikani.com/");
+    const style = rendered.window.document.createElement("style");
+    style.textContent = [
+      ...rendered.window.document.querySelectorAll("svg style"),
+    ]
+      .map((node) => node.textContent)
+      .join("\n");
+    rendered.window.document.head.append(style);
+
+    // JSDOM does not evaluate color-scheme media queries for SVG images.
+    // Apply the emitted dark rules here; Chromium covers actual switching.
+    const darkStyles = rendered.window.document.createElement("style");
+    darkStyles.textContent = [...style.sheet.cssRules]
+      .filter((rule) => rule.conditionText === "(prefers-color-scheme: dark)")
+      .flatMap((rule) => [...rule.cssRules].map((child) => child.cssText))
+      .join("\n");
+    rendered.window.document.head.append(darkStyles);
+
+    const title = rendered.window.document.querySelector(".lu-title");
+    const artwork = rendered.window.document.querySelector(".artwork");
+    assert.equal(
+      rendered.window.getComputedStyle(title).fill,
+      "rgb(205, 214, 244)",
+    );
+    assert.equal(
+      rendered.window.getComputedStyle(title).textShadow,
+      "rgba(0, 0, 0, 0)",
+    );
+    assert.equal(
+      rendered.window.getComputedStyle(artwork).fill,
+      "rgb(255, 191, 89)",
+    );
+    darkStyles.remove();
+    assert.equal(
+      rendered.window.getComputedStyle(title).textShadow,
+      "0 1px 0 #FFF",
+    );
+  }
 });
 
 for (const { name, html, url, selector, expected } of [
