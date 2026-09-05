@@ -131,7 +131,7 @@ test("pitch accent inserts an exact OJAD result inside Reading", async () => {
   );
   assert.equal(
     fetchedUrl,
-    "https://www.gavo.t.u-tokyo.ac.jp/ojad/search/index/word:%E9%A3%9F%E3%81%B9%E3%82%8B",
+    "https://www.gavo.t.u-tokyo.ac.jp/ojad/search/index/word:%E3%81%9F%E3%81%B9%E3%82%8B",
   );
   assert.ok(
     dom.window.document.querySelector(
@@ -270,6 +270,152 @@ test("pitch accent inserts an exact OJAD result inside Reading", async () => {
     ].map((element) => element.className),
     ["subject-readings-with-audio", "wk-pitch-accent wk-pitch-accent-details"],
   );
+});
+
+test("pitch accent queries each distinct reading", async () => {
+  const dom = createDom(
+    `
+      <div class="character-header character-header--vocabulary">
+        <div class="character-header__characters" title="そのた">その他</div>
+      </div>
+      <div class="subject-slide" id="reading">
+        <section class="subject-section" title="Reading">
+          <section class="subject-section__content">
+            <div class="subject-readings-with-audio">
+              <div class="reading-with-audio">
+                <span class="reading-with-audio__reading">そのた</span>
+                <button class="reading-with-audio__audio">Play そのた</button>
+              </div>
+              <div class="reading-with-audio">
+                <span class="reading-with-audio__reading"> \u3000そのほか\u3000 </span>
+                <button class="reading-with-audio__audio">Play そのほか</button>
+              </div>
+            </div>
+          </section>
+        </section>
+      </div>
+    `,
+    "https://www.wanikani.com/subject-lessons/-3852124987023274978/9088#reading",
+  );
+  const audioControls = [
+    ...dom.window.document.querySelectorAll(".reading-with-audio__audio"),
+  ];
+  const sonota = {
+    headword: "その他",
+    moras: [{ text: "そ" }, { text: "の", drop: true }, { text: "た" }],
+  };
+  const sonohoka = {
+    headword: "そのほか",
+    moras: [
+      { text: "そ" },
+      { text: "の", drop: true },
+      { text: "ほ" },
+      { text: "か" },
+    ],
+  };
+  const requests = [];
+  const requestUrl = (reading) =>
+    `https://www.gavo.t.u-tokyo.ac.jp/ojad/search/index/word:${encodeURIComponent(reading)}`;
+
+  await loadUserscript(dom, "wk-pitch-accent.js", capturedRequests(requests));
+
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].url, requestUrl("そのた"));
+  requests[0].onload({
+    status: 200,
+    responseText: ojadResultsHtml([sonota, sonota, sonohoka]),
+  });
+
+  await waitFor(() => assert.equal(requests.length, 2));
+  assert.equal(requests[1].url, requestUrl("そのほか"));
+  requests[1].onload({
+    status: 200,
+    responseText: ojadResultsHtml([
+      sonohoka,
+      {
+        headword: "別語",
+        moras: [
+          { text: "そ", drop: true },
+          { text: "の" },
+          { text: "ほ" },
+          { text: "か" },
+        ],
+      },
+      { ...sonota, headword: "そのほか" },
+    ]),
+  });
+
+  await waitFor(() => {
+    assert.equal(
+      dom.window.document.querySelectorAll(".wk-pitch-accent-charts figure")
+        .length,
+      2,
+    );
+  });
+  const charts = [
+    ...dom.window.document.querySelectorAll(".wk-pitch-accent-charts"),
+  ];
+  assert.deepEqual(
+    charts.map((chart) => ({
+      reading: [...chart.querySelectorAll("svg text")]
+        .map((node) => node.textContent)
+        .join(""),
+      pattern: chart.querySelector(".wk-pitch-accent-label-name").textContent,
+      accent: chart.querySelector(".wk-pitch-accent-label-number").textContent,
+      figures: chart.querySelectorAll("figure").length,
+    })),
+    [
+      { reading: "そのた", pattern: "Nakadaka", accent: "2", figures: 1 },
+      { reading: "そのほか", pattern: "Nakadaka", accent: "2", figures: 1 },
+    ],
+  );
+  audioControls.forEach((audio, index) => {
+    assert.equal(audio.isConnected, true);
+    assert.equal(audio.previousElementSibling, charts[index]);
+    assert.notEqual(dom.window.getComputedStyle(audio).display, "none");
+  });
+  assert.equal(requests.length, 2);
+});
+
+test("pitch accent queries characters when reading metadata is absent", async () => {
+  const dom = createDom(
+    `
+      <span class="subject-character subject-character--vocabulary">食べる</span>
+      <main><section class="subject-section subject-section--reading">
+        <section class="subject-section__content">
+          <div class="reading-with-audio">たべる</div>
+        </section>
+      </section></main>
+    `,
+    "https://www.wanikani.com/vocabulary/%E9%A3%9F%E3%81%B9%E3%82%8B",
+  );
+  const requests = [];
+
+  await loadUserscript(dom, "wk-pitch-accent.js", capturedRequests(requests));
+
+  assert.equal(requests.length, 1);
+  assert.equal(
+    requests[0].url,
+    `https://www.gavo.t.u-tokyo.ac.jp/ojad/search/index/word:${encodeURIComponent("食べる")}`,
+  );
+  requests[0].onload({
+    status: 200,
+    responseText: SIMPLE_TABERU_OJAD_HTML,
+  });
+
+  await waitFor(() => {
+    assert.equal(
+      [
+        ...dom.window.document.querySelectorAll(
+          ".reading-with-audio .wk-pitch-accent-charts svg text",
+        ),
+      ]
+        .map((node) => node.textContent)
+        .join(""),
+      "たべる",
+    );
+  });
+  assert.equal(requests.length, 1);
 });
 
 test("pitch accent shows all exact variants and rejects other headwords and readings", async () => {

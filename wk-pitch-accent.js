@@ -286,9 +286,9 @@
     return moras;
   }
 
-  function parseOjadResults(html, subject) {
+  function parseOjadResults(html, subject, requestedReading) {
     const document = new DOMParser().parseFromString(html, "text/html");
-    const acceptedReadings = new Set(subject.readings.map(normalizeJapanese));
+    const characters = normalizeJapanese(subject.characters);
     const variants = [];
     const seen = new Set();
 
@@ -305,12 +305,14 @@
         row.querySelector(".midashi_word")?.textContent.split("・")[0],
       );
 
-      if (headword !== subject.characters) {
+      if (headword !== characters && headword !== requestedReading) {
         console.debug(
           `[${NAME}] Skipping row, headword mismatch:`,
           headword,
           "!=",
-          subject.characters,
+          characters,
+          "or",
+          requestedReading,
         );
         return;
       }
@@ -325,12 +327,12 @@
           }
 
           const reading = moras.map((mora) => mora.text).join("");
-          if (acceptedReadings.size && !acceptedReadings.has(reading)) {
+          if (requestedReading !== null && reading !== requestedReading) {
             console.debug(
-              `[${NAME}] Skipping reading not in accepted:`,
+              `[${NAME}] Skipping reading not requested:`,
               reading,
-              "accepted:",
-              [...acceptedReadings],
+              "requested:",
+              requestedReading,
             );
             return;
           }
@@ -891,13 +893,20 @@
   }
 
   async function loadPitchContent(subject) {
-    const searchUrl = `${OJAD_BASE_URL}/search/index/word:${encodeURIComponent(subject.characters)}`;
-    console.debug(`[${NAME}] Fetching OJAD:`, searchUrl);
+    const readings = [
+      ...new Set(subject.readings.map(normalizeJapanese).filter(Boolean)),
+    ];
 
     try {
-      const html = await fetchText(searchUrl);
-      console.debug(`[${NAME}] OJAD response length:`, html.length);
-      const variants = parseOjadResults(html, subject);
+      const variants = [];
+      for (const requestedReading of readings.length ? readings : [null]) {
+        const query = requestedReading ?? normalizeJapanese(subject.characters);
+        const searchUrl = `${OJAD_BASE_URL}/search/index/word:${encodeURIComponent(query)}`;
+        console.debug(`[${NAME}] Fetching OJAD:`, searchUrl);
+        const html = await fetchText(searchUrl);
+        console.debug(`[${NAME}] OJAD response length:`, html.length);
+        variants.push(...parseOjadResults(html, subject, requestedReading));
+      }
       return createPitchContent(
         variants,
         variants.length ? null : "No exact OJAD pitch accent found.",
