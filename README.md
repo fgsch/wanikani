@@ -10,6 +10,8 @@ Applies the [Catppuccin Mocha](https://github.com/catppuccin/catppuccin) palette
 
 Level-up banner titles follow the selected theme without recoloring the illustration. The script fetches the banner SVGs from WaniKani and adds a title-only dark-mode style, preserving responsive image selection and animations.
 
+![The 食べる vocabulary page in Light mode on the left and Catppuccin Mocha on the right](docs/screenshots/catppuccin-mocha.png)
+
 Install:
 <https://raw.githubusercontent.com/fgsch/wanikani/main/wk-catppuccin-mocha.js>
 
@@ -17,12 +19,16 @@ Install:
 
 Adds a **Redo** control to WaniKani review and extra study quizzes so you can reopen a submitted answer and replace it before advancing.
 
+![A submitted quiz answer with the Redo control available](docs/screenshots/redo-answer.png)
+
 Install:
 <https://raw.githubusercontent.com/fgsch/wanikani/main/wk-redo-answer.js>
 
 ### WaniKani Stroke Order
 
 Adds animated stroke-order diagrams to kanji subject pages, lessons, and review or extra study Item Info. Diagrams include optional radical and component group views and are retrieved from [KanjiVG](https://kanjivg.tagaini.net/) on GitHub.
+
+![Stroke-order diagrams with playback controls and component groups](docs/screenshots/stroke-order.png)
 
 Install:
 <https://raw.githubusercontent.com/fgsch/wanikani/main/wk-stroke-order.js>
@@ -32,6 +38,8 @@ Install:
 Adds compact pitch-pattern diagrams from [OJAD](https://www.gavo.t.u-tokyo.ac.jp/ojad/eng/pages/home) to Reading content on vocabulary subject pages, vocabulary and kanji lessons, and Item Info during reviews and extra study. Japanese terms and readings are sent to this third-party service to retrieve pitch-accent data. Quiz diagrams remain hidden until the current answer has been submitted.
 
 Each distinct reading is looked up separately, with exact spelling and reading checks to exclude unrelated homophones. When reading metadata is absent, the subject spelling is queried instead.
+
+![Pitch-accent diagrams for そのほか and そのた alongside their audio controls](docs/screenshots/pitch-accent.png)
 
 Install:
 <https://raw.githubusercontent.com/fgsch/wanikani/main/wk-pitch-accent.js>
