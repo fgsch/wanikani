@@ -1007,6 +1007,63 @@ test("pitch accent waits for a revealed quiz answer and Reading item info", asyn
   );
 });
 
+test("pitch accent supports recent mistakes without a last-items menu", async () => {
+  const dom = createDom(
+    `
+      ${quizInputHtml({ input: true })}
+      <turbo-frame id="subject-info">
+        <section class="subject-section subject-section--reading">
+          <section class="subject-section__content">
+            <div class="reading-with-audio">
+              <span class="reading-with-audio__reading">たべる</span>
+              <button class="reading-with-audio__audio">Play audio</button>
+            </div>
+          </section>
+        </section>
+      </turbo-frame>
+    `,
+    "https://www.wanikani.com/recent-mistakes/376490190126789252/quiz",
+  );
+  let fetchCount = 0;
+  await loadUserscript(dom, "wk-pitch-accent.js", {
+    ...stimulusGlobals(() => ({
+      currentSubject: {
+        subject_category: "Vocabulary",
+        characters: "食べる",
+        readings: [{ text: "たべる", kind: "primary" }],
+      },
+    })),
+    GM: {
+      xmlHttpRequest({ onload }) {
+        fetchCount += 1;
+        onload({ status: 200, responseText: SIMPLE_TABERU_OJAD_HTML });
+      },
+    },
+  });
+
+  const frame = dom.window.document.querySelector("#subject-info");
+  const input = dom.window.document.querySelector(
+    ".quiz-input__input-container",
+  );
+  assert.equal(fetchCount, 0);
+  assert.equal(frame.querySelector("svg"), null);
+
+  input.setAttribute("correct", "false");
+  await waitFor(() => {
+    assert.ok(frame.querySelector(".wk-pitch-accent-charts svg"));
+  });
+  assert.equal(fetchCount, 1);
+
+  input.removeAttribute("correct");
+  await waitFor(() => {
+    assert.equal(frame.querySelector(".wk-pitch-accent-charts"), null);
+    assert.equal(
+      frame.querySelector(".reading-with-audio__reading")?.textContent,
+      "たべる",
+    );
+  });
+});
+
 test("pitch accent recognizes Reading item info outside review URLs", async () => {
   const ojadHtml = ojadResultsHtml([
     {
