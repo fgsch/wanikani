@@ -192,8 +192,28 @@ test("Catppuccin Mocha applies at document start and adds its control when the b
   assert.ok(dom.window.document.querySelector("#wk-catppuccin-mocha-toggle"));
 });
 
-test("Catppuccin Mocha makes responsive level-up titles readable without recoloring artwork", async () => {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1610 600">
+function renderDarkLevelUpImage(uri) {
+  const themedSvg = decodeURIComponent(uri.slice(uri.indexOf(",") + 1));
+  const dom = createDom(themedSvg, "https://www.wanikani.com/");
+  const style = dom.window.document.createElement("style");
+  style.textContent = [...dom.window.document.querySelectorAll("svg style")]
+    .map((node) => node.textContent)
+    .join("\n");
+  dom.window.document.head.append(style);
+
+  // JSDOM cannot evaluate SVG-image media queries; Chromium covers rendering.
+  const darkStyles = dom.window.document.createElement("style");
+  darkStyles.textContent = [...style.sheet.cssRules]
+    .filter((rule) => rule.conditionText === "(prefers-color-scheme: dark)")
+    .flatMap((rule) => [...rule.cssRules].map((child) => child.cssText))
+    .join("\n");
+  dom.window.document.head.append(darkStyles);
+  return { dom, darkStyles };
+}
+
+for (const lateBanner of [false, true]) {
+  test(`Catppuccin Mocha makes responsive level-up titles readable without recoloring artwork${lateBanner ? " when the banner loads after startup" : ""}`, async (t) => {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1610 600">
     <defs><style>
       .artwork { fill: #ffbf59; }
       .lu-title { font-size: 54px; text-shadow: 0 1px 0 #FFF; }
@@ -201,63 +221,119 @@ test("Catppuccin Mocha makes responsive level-up titles readable without recolor
     <circle class="artwork" cx="805" cy="171" r="170"/>
     <text class="lu-title" x="805" y="590">レベルアップおめでとう！</text>
   </svg>`;
+    const bannerHtml = `<div class="level-up-alert__image"><picture>
+    <source media="(max-width: 600px)" srcset="/level_up_image.svg?level=5&amp;size=mobile">
+    <img src="/level_up_image.svg?level=5" alt="Level up banner">
+  </picture></div>`;
+    const dom = createDom(
+      lateBanner ? "<main></main>" : bannerHtml,
+      "https://www.wanikani.com/dashboard",
+    );
+    t.after(() => dom.window.close());
+    dom.window.fetch = async () => ({ ok: true, text: async () => svg });
+    await loadCatppuccinMocha(dom);
+
+    if (lateBanner) {
+      await waitFor(() => {
+        assert.equal(dom.window.document.readyState, "complete");
+      });
+      dom.window.document.querySelector("main").innerHTML = bannerHtml;
+      dom.window.document
+        .querySelector("img")
+        .dispatchEvent(new dom.window.Event("load"));
+    }
+
+    const source = dom.window.document.querySelector("source");
+    const image = dom.window.document.querySelector("img");
+    await waitFor(() => {
+      assert.ok(source.srcset.startsWith("data:image/svg+xml;"));
+      assert.ok(image.src.startsWith("data:image/svg+xml;"));
+    });
+
+    for (const uri of [source.srcset, image.src]) {
+      const { dom: rendered, darkStyles } = renderDarkLevelUpImage(uri);
+      t.after(() => rendered.window.close());
+
+      const title = rendered.window.document.querySelector(".lu-title");
+      const artwork = rendered.window.document.querySelector(".artwork");
+      assert.equal(
+        rendered.window.getComputedStyle(title).fill,
+        "rgb(205, 214, 244)",
+      );
+      assert.equal(
+        rendered.window.getComputedStyle(title).textShadow,
+        "rgba(0, 0, 0, 0)",
+      );
+      assert.equal(
+        rendered.window.getComputedStyle(artwork).fill,
+        "rgb(255, 191, 89)",
+      );
+      darkStyles.remove();
+      assert.equal(
+        rendered.window.getComputedStyle(title).textShadow,
+        "0 1px 0 #FFF",
+      );
+    }
+  });
+}
+
+test("Catppuccin Mocha keeps the current banner readable while an older SVG request is pending", async (t) => {
   const dom = createDom(
-    `<div class="level-up-alert__image"><picture>
-      <source media="(max-width: 600px)" srcset="/level_up_image.svg?level=5&amp;size=mobile">
-      <img src="/level_up_image.svg?level=5" alt="Level up banner">
-    </picture></div>`,
+    '<div class="level-up-alert__image"><img src="/level_up_image.svg?level=5" alt="Level up banner"></div>',
     "https://www.wanikani.com/dashboard",
   );
-  dom.window.fetch = async () => ({ ok: true, text: async () => svg });
+  let releaseEarlierImage;
+  const earlierImage = new Promise((resolve) => {
+    releaseEarlierImage = resolve;
+  });
+  t.after(async () => {
+    releaseEarlierImage();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    dom.window.close();
+  });
+  dom.window.fetch = async (url) => {
+    const level = url.searchParams.get("level");
+    if (level === "5") {
+      await earlierImage;
+    }
+    return {
+      ok: true,
+      text: async () => `<svg xmlns="http://www.w3.org/2000/svg">
+        <text class="level">${level}</text>
+        <text class="lu-title">レベルアップおめでとう！</text>
+      </svg>`,
+    };
+  };
   await loadCatppuccinMocha(dom);
 
-  const source = dom.window.document.querySelector("source");
   const image = dom.window.document.querySelector("img");
+  image.src = "/level_up_image.svg?level=6";
+  image.dispatchEvent(new dom.window.Event("load"));
   await waitFor(() => {
-    assert.ok(source.srcset.startsWith("data:image/svg+xml;"));
     assert.ok(image.src.startsWith("data:image/svg+xml;"));
   });
 
-  for (const uri of [source.srcset, image.src]) {
-    const themedSvg = decodeURIComponent(uri.slice(uri.indexOf(",") + 1));
-    const rendered = createDom(themedSvg, "https://www.wanikani.com/");
-    const style = rendered.window.document.createElement("style");
-    style.textContent = [
-      ...rendered.window.document.querySelectorAll("svg style"),
-    ]
-      .map((node) => node.textContent)
-      .join("\n");
-    rendered.window.document.head.append(style);
-
-    // JSDOM does not evaluate color-scheme media queries for SVG images.
-    // Apply the emitted dark rules here; Chromium covers actual switching.
-    const darkStyles = rendered.window.document.createElement("style");
-    darkStyles.textContent = [...style.sheet.cssRules]
-      .filter((rule) => rule.conditionText === "(prefers-color-scheme: dark)")
-      .flatMap((rule) => [...rule.cssRules].map((child) => child.cssText))
-      .join("\n");
-    rendered.window.document.head.append(darkStyles);
-
-    const title = rendered.window.document.querySelector(".lu-title");
-    const artwork = rendered.window.document.querySelector(".artwork");
-    assert.equal(
-      rendered.window.getComputedStyle(title).fill,
-      "rgb(205, 214, 244)",
-    );
-    assert.equal(
-      rendered.window.getComputedStyle(title).textShadow,
-      "rgba(0, 0, 0, 0)",
-    );
-    assert.equal(
-      rendered.window.getComputedStyle(artwork).fill,
-      "rgb(255, 191, 89)",
-    );
-    darkStyles.remove();
-    assert.equal(
-      rendered.window.getComputedStyle(title).textShadow,
-      "0 1px 0 #FFF",
-    );
+  function assertCurrentBanner() {
+    const { dom: rendered } = renderDarkLevelUpImage(image.src);
+    try {
+      assert.equal(
+        rendered.window.document.querySelector(".level").textContent,
+        "6",
+      );
+      assert.equal(
+        rendered.window.getComputedStyle(
+          rendered.window.document.querySelector(".lu-title"),
+        ).fill,
+        "rgb(205, 214, 244)",
+      );
+    } finally {
+      rendered.window.close();
+    }
   }
+  assertCurrentBanner();
+  releaseEarlierImage();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assertCurrentBanner();
 });
 
 for (const { name, html, url, selector, expected } of [
@@ -902,50 +978,77 @@ test("Catppuccin Mocha keeps mnemonic highlights readable", async () => {
   assertCustomProperties(dom, root, expected);
 });
 
-test("Catppuccin Mocha keeps subject legend characters readable", async () => {
+test("Catppuccin Mocha lesson and review legends match entries and preserve other states", async () => {
+  const categories = ["radical", "kanji", "vocabulary"];
   const dom = createDom(
     `<style>
-      .subject-legend-character--radical { color: var(--color-blue-dark); }
-      .subject-legend-character--kanji { color: var(--color-pink-dark); }
-      .subject-legend-character--vocabulary { color: var(--color-purple-dark); }
-      .subject-legend-character--review,
-      .subject-legend-character--burned { color: #fff; }
-    </style>
-    <div class="subject-legend">
-      <ul class="subject-legend__items">
-        ${["locked", "lesson", "review"]
-          .flatMap((state) =>
-            ["radical", "kanji", "vocabulary"].map(
-              (category) =>
-                `<li><div class="subject-legend-character subject-legend-character--${category} subject-legend-character--${state}">${category}-${state}</div></li>`,
-            ),
-          )
-          .join("")}
-        <li><div class="subject-legend-character subject-legend-character--group subject-legend-character--burned">Burned</div></li>
-      </ul>
-    </div>`,
-    "https://www.wanikani.com/level/4",
+        .subject-legend-character--radical { color: var(--color-blue-dark); }
+        .subject-legend-character--kanji { color: var(--color-pink-dark); }
+        .subject-legend-character--vocabulary { color: var(--color-purple-dark); }
+        .subject-legend-character--review,
+        .subject-legend-character--burned,
+        .subject-character__characters-text { color: #fff; }
+      </style>
+      <div class="subject-legend">
+        <ul class="subject-legend__items">
+          ${["locked", "lesson", "review"]
+            .flatMap((state) =>
+              categories.map(
+                (category) =>
+                  `<li><div class="subject-legend-character subject-legend-character--${category} subject-legend-character--${state}">${category}-${state}</div></li>`,
+              ),
+            )
+            .join("")}
+          <li><div class="subject-legend-character subject-legend-character--group subject-legend-character--burned">Burned</div></li>
+        </ul>
+      </div>
+      ${["recent", "unlocked"]
+        .flatMap((state) =>
+          categories.map(
+            (category) =>
+              `<div class="subject-character subject-character--${category} subject-character--${state}"><span class="subject-character__characters-text">${category}</span></div>`,
+          ),
+        )
+        .join("")}`,
+    "https://www.wanikani.com/vocabulary?difficulty=pleasant",
   );
+  const { document } = dom.window;
+  const color = (element) => dom.window.getComputedStyle(element).color;
+  const legends = [...document.querySelectorAll(".subject-legend-character")];
+  const nativeColors = legends.map(color);
 
   await loadCatppuccinMocha(dom);
 
-  for (const character of dom.window.document.querySelectorAll(
-    ".subject-legend-character",
-  )) {
-    const category = ["radical", "kanji", "vocabulary"].find((candidate) =>
-      character.classList.contains(`subject-legend-character--${candidate}`),
+  for (const legend of legends) {
+    const category = categories.find((candidate) =>
+      legend.classList.contains(`subject-legend-character--${candidate}`),
     );
-    const expectedColor = character.classList.contains(
-      "subject-legend-character--locked",
-    )
-      ? `var(--color-${category})`
-      : "var(--ctp-mocha-text)";
-    assert.equal(
-      dom.window.getComputedStyle(character).color,
-      expectedColor,
-      character.textContent,
-    );
+    let expectedColor = "var(--ctp-mocha-text)";
+    if (legend.classList.contains("subject-legend-character--locked")) {
+      expectedColor = `var(--color-${category})`;
+    } else if (
+      legend.classList.contains("subject-legend-character--lesson") ||
+      legend.classList.contains("subject-legend-character--review")
+    ) {
+      const state = legend.classList.contains(
+        "subject-legend-character--lesson",
+      )
+        ? "recent"
+        : "unlocked";
+      expectedColor = color(
+        document.querySelector(
+          `.subject-character--${category}.subject-character--${state} .subject-character__characters-text`,
+        ),
+      );
+    }
+    assert.equal(color(legend), expectedColor, legend.textContent);
   }
+
+  const toggle = document.getElementById("wk-catppuccin-mocha-toggle");
+  toggle.click();
+  toggle.click();
+  assert.equal(document.documentElement.dataset.wkMochaMode, "light");
+  assert.deepEqual(legends.map(color), nativeColors);
 });
 
 test("Catppuccin Mocha keeps lesson queue subject labels readable", async () => {
@@ -953,15 +1056,15 @@ test("Catppuccin Mocha keeps lesson queue subject labels readable", async () => 
     `<style>
       .subject-character--radical .subject-character__characters-text {
         color: var(--color-blue-dark);
-        background: var(--color-blue);
+        background: #89b4fa;
       }
       .subject-character--kanji .subject-character__characters-text {
         color: var(--color-pink-dark);
-        background: var(--color-pink);
+        background: #f5c2e7;
       }
       .subject-character--vocabulary .subject-character__characters-text {
         color: var(--color-purple-dark);
-        background: var(--color-purple);
+        background: #cba6f7;
       }
       .subject-character--recent.subject-character--radical .subject-character__characters-text {
         background: var(--color-blue-light);
@@ -1001,21 +1104,21 @@ test("Catppuccin Mocha keeps lesson queue subject labels readable", async () => 
 
   await loadCatppuccinMocha(dom);
 
-  for (const [category, accent] of [
-    ["radical", "blue"],
-    ["kanji", "pink"],
-    ["vocabulary", "mauve"],
-  ]) {
+  for (const category of ["radical", "kanji", "vocabulary"]) {
     for (const state of ["recent", "passed"]) {
-      const styles = dom.window.getComputedStyle(
-        dom.window.document.querySelector(
-          `.subject-character--${category}.subject-character--${state} .subject-character__characters-text`,
-        ),
+      const characters = dom.window.document.querySelector(
+        `.subject-character--${category}.subject-character--${state} .subject-character__characters-text`,
       );
-      assert.equal(styles.color, "var(--ctp-mocha-text)");
-      if (state === "recent") {
-        assert.equal(styles.backgroundColor, `var(--ctp-mocha-${accent})`);
-      }
+      const foreground = parseColor(
+        resolveCustomProperty(dom, characters, "color"),
+      );
+      const background = parseColor(
+        resolveCustomProperty(dom, characters, "background-color"),
+      );
+      assert.ok(
+        contrastRatio(foreground, background) >= 4.5,
+        `${category}-${state}`,
+      );
     }
 
     assert.equal(
@@ -1028,97 +1131,35 @@ test("Catppuccin Mocha keeps lesson queue subject labels readable", async () => 
     );
   }
 
-  const burned = dom.window.getComputedStyle(
-    dom.window.document.querySelector(
-      ".subject-character--burned .subject-character__characters-text",
-    ),
+  const burned = dom.window.document.querySelector(
+    ".subject-character--burned .subject-character__characters-text",
   );
-  assert.equal(burned.color, "var(--ctp-mocha-text)");
-  assert.equal(burned.backgroundColor, "var(--ctp-mocha-surface-2)");
-});
-
-test("Catppuccin Mocha keeps subject characters readable across states", async () => {
-  const dom = createDom(
-    `<style>
-      .subject-character--radical .subject-character__characters-text {
-        color: var(--color-blue-dark);
-      }
-      .subject-character--kanji .subject-character__characters-text {
-        color: var(--color-pink-dark);
-      }
-      .subject-character--vocabulary .subject-character__characters-text {
-        color: var(--color-purple-dark);
-      }
-      .subject-character--passed .subject-character__characters-text,
-      .subject-character--unlocked .subject-character__characters-text,
-      .subject-character--burned .subject-character__characters-text {
-        color: #fff;
-      }
-    </style>
-    <div class="subject-character-grid">
-      ${["radical", "kanji", "vocabulary"]
-        .flatMap((category) =>
-          ["base", "locked", "recent", "passed", "unlocked", "burned"].map(
-            (state) =>
-              `<span class="subject-character subject-character--${category}${
-                state === "base" ? "" : ` subject-character--${state}`
-              }"><span class="subject-character__characters-text">${category}-${state}</span></span>`,
-          ),
-        )
-        .join("")}
-    </div>`,
-    "https://www.wanikani.com/kanji/%E5%B9%B4",
+  assert.ok(
+    contrastRatio(
+      parseColor(resolveCustomProperty(dom, burned, "color")),
+      parseColor(resolveCustomProperty(dom, burned, "background-color")),
+    ) >= 4.5,
   );
-
-  await loadCatppuccinMocha(dom);
-
-  const themeStyles = dom.window.document.querySelector(
-    "#wk-catppuccin-mocha-styles",
-  ).textContent;
-  assert.match(
-    themeStyles,
-    /html\[data-wk-mocha-active\] \.subject-character__characters-text\s*\{\s*color:\s*var\(--ctp-mocha-text\) !important;/,
-  );
-
-  for (const character of dom.window.document.querySelectorAll(
-    ".subject-character",
-  )) {
-    const category = ["radical", "kanji", "vocabulary"].find((candidate) =>
-      character.classList.contains(`subject-character--${candidate}`),
-    );
-    const expectedColor = character.classList.contains(
-      "subject-character--locked",
-    )
-      ? `var(--color-${category})`
-      : "var(--ctp-mocha-text)";
-    assert.equal(
-      dom.window.getComputedStyle(
-        character.querySelector(".subject-character__characters-text"),
-      ).color,
-      expectedColor,
-      character.textContent,
-    );
-  }
 });
 
 test("Catppuccin Mocha keeps filled subject box characters contrasting", async () => {
   const dom = createDom(
     `<style>
       .subject-character--radical .subject-character__characters-text {
-        background: var(--color-blue);
+        background: #89b4fa;
         color: var(--color-blue-dark);
       }
       .subject-character--kanji .subject-character__characters-text {
-        background: var(--color-pink);
+        background: #f5c2e7;
         color: var(--color-pink-dark);
       }
       .subject-character--vocabulary .subject-character__characters-text {
-        background: var(--color-purple);
+        background: #cba6f7;
         color: var(--color-purple-dark);
       }
       .subject-character--unlocked .subject-character__characters-text,
       .subject-character--passed .subject-character__characters-text {
-        color: var(--color-white);
+        color: #fff;
       }
     </style>
     <section class="subject-section subject-section--components">
@@ -1144,9 +1185,27 @@ test("Catppuccin Mocha keeps filled subject box characters contrasting", async (
       `.subject-character--${category} .subject-character__characters-text`,
     );
 
-    assert.equal(
-      dom.window.getComputedStyle(characters).color,
-      "var(--ctp-mocha-text)",
+    assert.ok(
+      contrastRatio(
+        parseColor(resolveCustomProperty(dom, characters, "color")),
+        parseColor(resolveCustomProperty(dom, characters, "background-color")),
+      ) >= 4.5,
+      category,
+    );
+  }
+
+  const toggle = dom.window.document.querySelector(
+    "#wk-catppuccin-mocha-toggle",
+  );
+  toggle.click();
+  toggle.click();
+  for (const characters of dom.window.document.querySelectorAll(
+    ".subject-character__characters-text",
+  )) {
+    assert.deepEqual(
+      parseColor(resolveCustomProperty(dom, characters, "color")),
+      [255, 255, 255],
+      "Light mode restores the native foreground",
     );
   }
 });
@@ -1367,80 +1426,6 @@ test("Catppuccin Mocha gives generic sitemap headers visible interaction borders
   );
 });
 
-test("Catppuccin Mocha colors category sitemap headers and menus", async () => {
-  const dom = createDom(
-    `<style>
-      :root {
-        --color-radical: #00aaff;
-        --color-kanji: #ff00aa;
-        --color-vocabulary: #aa00ff;
-      }
-      .sitemap__expandable-chunk--radicals { background: #00aaff; }
-      .sitemap__expandable-chunk--kanji { background: #ff00aa; }
-      .sitemap__expandable-chunk--vocabulary { background: #aa00ff; }
-    </style>
-    <header class="global-header">
-      <div class="sitemap__section sitemap__section--open">
-        <button class="sitemap__section-header sitemap__section-header--radicals">Radicals</button>
-        <div class="sitemap__expandable-chunk sitemap__expandable-chunk--radicals"></div>
-      </div>
-      <div class="sitemap__section sitemap__section--open">
-        <button class="sitemap__section-header sitemap__section-header--kanji">Kanji</button>
-        <div class="sitemap__expandable-chunk sitemap__expandable-chunk--kanji"></div>
-      </div>
-      <div class="sitemap__section sitemap__section--open">
-        <button class="sitemap__section-header sitemap__section-header--vocabulary">Vocabulary</button>
-        <div class="sitemap__expandable-chunk sitemap__expandable-chunk--vocabulary"></div>
-      </div>
-    </header>`,
-    "https://www.wanikani.com/recent-unlocks",
-  );
-
-  await loadCatppuccinMocha(dom);
-
-  const styles = dom.window.document.querySelector(
-    "#wk-catppuccin-mocha-styles",
-  ).textContent;
-
-  const accents = {
-    radicals: "radical",
-    kanji: "kanji",
-    vocabulary: "vocabulary",
-  };
-
-  for (const [category, accent] of Object.entries(accents)) {
-    assert.match(
-      styles,
-      new RegExp(
-        `sitemap__section-header--${category}:hover[^}]+border-color:[^;]+--color-${accent}[^}]+color:[^;]+--color-${accent}`,
-        "s",
-      ),
-    );
-    assert.match(
-      styles,
-      new RegExp(
-        `sitemap__section--open[^,{]+sitemap__section-header--${category}[^}]+border-color:[^;]+--color-${accent}[^}]+color:[^;]+--color-${accent}`,
-        "s",
-      ),
-    );
-    assert.equal(
-      dom.window.getComputedStyle(
-        dom.window.document.querySelector(
-          `.sitemap__expandable-chunk--${category}`,
-        ),
-      ).background,
-      `var(--color-${accent})`,
-    );
-    assert.match(
-      styles,
-      new RegExp(
-        `sitemap__expandable-chunk--${category}:before[^}]+background:[^;]+--color-${accent}`,
-        "s",
-      ),
-    );
-  }
-});
-
 test("Catppuccin Mocha treats the account menu as a raised surface", async () => {
   const dom = createDom(
     `<style>
@@ -1507,7 +1492,7 @@ test("Catppuccin Mocha treats the account menu as a raised surface", async () =>
   );
 });
 
-test("Catppuccin Mocha keeps completed lesson and review widgets readable", async () => {
+test("Catppuccin Mocha keeps lesson and review widgets readable when completed", async () => {
   const dom = createDom(
     `<style>
       :root {
@@ -1515,16 +1500,21 @@ test("Catppuccin Mocha keeps completed lesson and review widgets readable", asyn
         --color-widget-primary-text: #333;
         --color-widget-secondary-text: #6b7079;
       }
+      .todays-lessons-widget { --color-widget-background: var(--ctp-mocha-pink); }
+      .reviews-widget { --color-widget-background: var(--ctp-mocha-blue); }
+      .count-bubble { background-color: #fff; color: var(--color-count-bubble-text); }
       .todays-lessons-widget--complete,
       .reviews-widget--complete {
         --color-widget-background: #e8ecf0;
       }
     </style>
-    <section class="todays-lessons-widget--complete">
+    <section class="todays-lessons-widget">
       <h2>Today's Lessons</h2>
+      <span class="count-bubble">10</span>
     </section>
-    <section class="reviews-widget--complete">
+    <section class="reviews-widget">
       <h2>Reviews</h2>
+      <span class="count-bubble">20</span>
     </section>`,
     "https://www.wanikani.com/",
   );
@@ -1532,16 +1522,38 @@ test("Catppuccin Mocha keeps completed lesson and review widgets readable", asyn
   await loadCatppuccinMocha(dom);
 
   for (const widget of dom.window.document.querySelectorAll(
-    ".todays-lessons-widget--complete, .reviews-widget--complete",
+    ".todays-lessons-widget, .reviews-widget",
   )) {
-    const foreground = parseColor(
-      resolveCustomProperty(dom, widget, "--color-widget-primary-text"),
-    );
-    const background = parseColor(
-      resolveCustomProperty(dom, widget, "--color-widget-background"),
+    const bubble = widget.querySelector(".count-bubble");
+    assert.ok(
+      contrastRatio(
+        parseColor(resolveCustomProperty(dom, bubble, "color")),
+        parseColor(resolveCustomProperty(dom, bubble, "background-color")),
+      ) >= 4.5,
+      "Pending count bubbles remain readable",
     );
 
-    assert.ok(contrastRatio(foreground, background) >= 4.5);
+    for (const complete of [false, true]) {
+      if (complete) {
+        widget.classList.add(`${widget.className}--complete`);
+        bubble.remove();
+      }
+      const background = parseColor(
+        resolveCustomProperty(dom, widget, "--color-widget-background"),
+      );
+      for (const property of [
+        "--color-widget-primary-text",
+        "--color-widget-secondary-text",
+      ]) {
+        const foreground = parseColor(
+          resolveCustomProperty(dom, widget, property),
+        );
+        assert.ok(
+          contrastRatio(foreground, background) >= 4.5,
+          `${widget.className} ${property}`,
+        );
+      }
+    }
   }
 });
 

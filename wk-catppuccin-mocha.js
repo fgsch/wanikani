@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WaniKani Catppuccin Mocha
 // @namespace    wk-catppuccin-mocha
-// @version      0.6.1
+// @version      0.6.2
 // @author       Federico G. Schwindt <fgsch@lodoss.net>
 // @description  Applies the Catppuccin Mocha palette to WaniKani with system and manual modes.
 // @license      MIT
@@ -23,7 +23,7 @@
   const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
   const NAME = GM_info.script.name;
   const VERSION = GM_info.script.version;
-  const pendingLevelUpImages = new WeakSet();
+  const pendingLevelUpImages = new WeakMap();
 
   let mode = "system";
 
@@ -127,12 +127,20 @@
       --color-quiz-input-focus: var(--ctp-mocha-lavender);
       --color-quiz-correct-background: color-mix(in srgb, var(--ctp-mocha-green) 18%, var(--wk-dark-surface));
       --color-quiz-correct-text-color: var(--wk-dark-text);
+      --color-quiz-srs-correct-background: var(--wk-dark-progress);
+      --color-quiz-srs-correct-text-color: var(--ctp-mocha-base);
+      --color-quiz-srs-correct-text-shadow: none;
       --color-quiz-incorrect-background: color-mix(in srgb, var(--ctp-mocha-red) 18%, var(--wk-dark-surface));
       --color-quiz-incorrect-text-color: var(--wk-dark-text);
       --color-quiz-incorrect-text-shadow: transparent;
       --color-hint-background: var(--wk-dark-surface-raised);
       --color-code-background: var(--wk-dark-surface-raised);
       --color-code-border: var(--wk-dark-border);
+
+      --color-alert-system-background: var(--ctp-mocha-pink);
+      --color-alert-system-button-edge: var(--ctp-mocha-crust);
+      --color-alert-system-text: var(--ctp-mocha-crust);
+      --color-alert-system-text-shadow: none;
 
       --color-page-header-title: var(--wk-dark-text);
       --color-page-header-subtitle: var(--wk-dark-text-muted);
@@ -165,6 +173,8 @@
       --color-widget-primary-text: var(--wk-dark-text);
       --color-widget-secondary-text: var(--wk-dark-text-muted);
       --color-empty-widget-background: var(--wk-dark-surface);
+      --color-extra-study-flashcard-seperator: var(--wk-dark-border);
+      --color-extra-study-flashcard-subject: var(--ctp-mocha-base);
       --color-extra-study-button-background: var(--wk-dark-surface-raised);
       --color-extra-study-button-hover-background: var(--wk-dark-surface-hover);
       --color-extra-study-button-active-background: var(--ctp-mocha-surface-2);
@@ -283,6 +293,10 @@
     html[data-wk-mocha-active] .site-container {
       background-color: var(--wk-dark-background);
       color: var(--wk-dark-text);
+    }
+
+    html[data-wk-mocha-active] .wk-alert--system {
+      --color-button-icon-only-hover-background: color-mix(in srgb, var(--color-alert-system-background) 85%, var(--color-alert-system-text));
     }
 
     html[data-wk-mocha-active] .wk-pitch-accent-variant-1 {
@@ -491,6 +505,15 @@
       background: var(--color-vocabulary);
     }
 
+    html[data-wk-mocha-active] .sitemap__expandable-chunk--radicals .sitemap__page--subject a,
+    html[data-wk-mocha-active] .sitemap__expandable-chunk--kanji .sitemap__page--subject a,
+    html[data-wk-mocha-active] .sitemap__expandable-chunk--vocabulary .sitemap__page--subject a,
+    html[data-wk-mocha-active] .sitemap__expandable-chunk--radicals .sitemap__page-subtitle,
+    html[data-wk-mocha-active] .sitemap__expandable-chunk--kanji .sitemap__page-subtitle,
+    html[data-wk-mocha-active] .sitemap__expandable-chunk--vocabulary .sitemap__page-subtitle {
+      color: var(--ctp-mocha-base);
+    }
+
     html[data-wk-mocha-active] .subject-collocations__pattern-name {
       background-color: var(--wk-dark-surface-raised);
       border: 1px solid #585b70;
@@ -537,6 +560,15 @@
       color: var(--ctp-mocha-text) !important;
     }
 
+    html[data-wk-mocha-active] .subject-character:not(.subject-character--locked):not(.subject-character--burned) .subject-character__characters-text,
+    html[data-wk-mocha-active] .character-header__content,
+    html[data-wk-mocha-active] .character-header__menu,
+    html[data-wk-mocha-active] .character-header .summary-button,
+    html[data-wk-mocha-active] .character-header__characters,
+    html[data-wk-mocha-active] .character-header__meaning {
+      color: var(--ctp-mocha-base) !important;
+    }
+
     html[data-wk-mocha-active] .subject-character--locked.subject-character--radical .subject-character__characters-text {
       color: var(--color-radical) !important;
     }
@@ -553,6 +585,11 @@
       color: var(--ctp-mocha-text) !important;
     }
 
+    html[data-wk-mocha-active] .subject-legend-character--lesson,
+    html[data-wk-mocha-active] .subject-legend-character--review {
+      color: var(--ctp-mocha-base) !important;
+    }
+
     html[data-wk-mocha-active] .subject-legend-character--locked.subject-legend-character--radical {
       color: var(--color-radical) !important;
     }
@@ -565,15 +602,38 @@
       color: var(--color-vocabulary) !important;
     }
 
-    html[data-wk-mocha-active] .lesson-container__queue .subject-character--recent.subject-character--radical .subject-character__characters-text {
+    html[data-wk-mocha-active] .level-progress-widget .subject-legend-character:not(.subject-legend-character--locked),
+    html[data-wk-mocha-active] .item-spread-table-widget .subject-legend-character:not(.subject-legend-character--locked),
+    html[data-wk-mocha-active] .item-spread-table-widget .item-spread-table-row__count {
+      color: var(--ctp-mocha-base) !important;
+    }
+
+    html[data-wk-mocha-active] [data-reveal="true"] .extra-study-flash-card-widget__subject-label {
+      opacity: 1;
+    }
+
+    /* Image radicals read --color-text inside their shadow root. */
+    html[data-wk-mocha-active] .subject-character:not(.subject-character--locked):not(.subject-character--burned) .subject-character__character-image,
+    html[data-wk-mocha-active] .character-header__character-image {
+      --color-text: var(--ctp-mocha-base);
+    }
+
+    html[data-wk-mocha-active] .subject-character--locked.subject-character--radical .subject-character__character-image {
+      --color-text: var(--color-radical);
+    }
+
+    html[data-wk-mocha-active] .subject-legend-character--lesson.subject-legend-character--radical,
+    html[data-wk-mocha-active] .subject-character--recent.subject-character--radical .subject-character__characters-text {
       background-color: var(--ctp-mocha-blue);
     }
 
-    html[data-wk-mocha-active] .lesson-container__queue .subject-character--recent.subject-character--kanji .subject-character__characters-text {
+    html[data-wk-mocha-active] .subject-legend-character--lesson.subject-legend-character--kanji,
+    html[data-wk-mocha-active] .subject-character--recent.subject-character--kanji .subject-character__characters-text {
       background-color: var(--ctp-mocha-pink);
     }
 
-    html[data-wk-mocha-active] .lesson-container__queue .subject-character--recent.subject-character--vocabulary .subject-character__characters-text {
+    html[data-wk-mocha-active] .subject-legend-character--lesson.subject-legend-character--vocabulary,
+    html[data-wk-mocha-active] .subject-character--recent.subject-character--vocabulary .subject-character__characters-text {
       background-color: var(--ctp-mocha-mauve);
     }
 
@@ -616,8 +676,23 @@
       background-color: var(--wk-dark-surface);
     }
 
+    html[data-wk-mocha-active] .subject-subsection__subtitle {
+      color: var(--wk-dark-text-muted) !important;
+    }
+
     html[data-wk-mocha-active] .subject-slides__navigation-link[aria-selected="true"]::after {
       border-bottom-color: var(--wk-dark-border);
+    }
+
+    html[data-wk-mocha-active] .todays-lessons-widget:not(.todays-lessons-widget--complete),
+    html[data-wk-mocha-active] .reviews-widget:not(.reviews-widget--complete) {
+      --color-widget-primary-text: var(--ctp-mocha-base);
+      --color-widget-secondary-text: var(--ctp-mocha-base);
+    }
+
+    html[data-wk-mocha-active] .todays-lessons-widget:not(.todays-lessons-widget--complete) .count-bubble,
+    html[data-wk-mocha-active] .reviews-widget:not(.reviews-widget--complete) .count-bubble {
+      color: var(--ctp-mocha-base);
     }
 
     html[data-wk-mocha-active] .todays-lessons-widget--complete,
@@ -879,7 +954,7 @@
   async function themeLevelUpImage(element) {
     const attribute = element.localName === "source" ? "srcset" : "src";
     const original = element.getAttribute(attribute);
-    if (!original || pendingLevelUpImages.has(element)) {
+    if (!original || pendingLevelUpImages.get(element) === original) {
       return;
     }
 
@@ -891,7 +966,7 @@
       return;
     }
 
-    pendingLevelUpImages.add(element);
+    pendingLevelUpImages.set(element, original);
     try {
       const response = await fetch(url);
       if (!response.ok) {
@@ -930,7 +1005,9 @@
     } catch (error) {
       console.warn(`[${NAME}] Could not theme level-up image:`, error);
     } finally {
-      pendingLevelUpImages.delete(element);
+      if (pendingLevelUpImages.get(element) === original) {
+        pendingLevelUpImages.delete(element);
+      }
     }
   }
 
@@ -954,6 +1031,22 @@
       });
     }
   }
+
+  // Banner images can load after the document and Turbo page scans.
+  document.addEventListener(
+    "load",
+    ({ target }) => {
+      if (!target.matches?.(".level-up-alert__image img")) {
+        return;
+      }
+      themeLevelUpImage(target);
+      target
+        .closest("picture")
+        ?.querySelectorAll("source[srcset]")
+        .forEach(themeLevelUpImage);
+    },
+    true,
+  );
 
   mediaQuery.addEventListener?.("change", () => {
     if (mode === "system") {

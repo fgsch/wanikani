@@ -6,9 +6,7 @@ Small userscripts for improving WaniKani.
 
 ### WaniKani Catppuccin Mocha
 
-Applies the [Catppuccin Mocha](https://github.com/catppuccin/catppuccin) palette across WaniKani, including coordinated colors for subject categories, quiz feedback, interface states, and diagrams added by WaniKani Pitch Accent. It follows the system color scheme by default; use the control in the lower-left corner to cycle through **System**, **Dark**, and **Light** modes.
-
-Level-up banner titles follow the selected theme without recoloring the illustration. The script fetches the banner SVGs from WaniKani and adds a title-only dark-mode style, preserving responsive image selection and animations.
+Applies the [Catppuccin Mocha](https://github.com/catppuccin/catppuccin) palette across WaniKani with coordinated colors and readable contrast. It follows the system color scheme by default; use the control in the lower-left corner to cycle through **System**, **Dark**, and **Light** modes.
 
 ![The 食べる vocabulary page in Light mode on the left and Catppuccin Mocha on the right](docs/screenshots/catppuccin-mocha.png)
 
