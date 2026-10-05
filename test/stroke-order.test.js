@@ -125,7 +125,7 @@ test("stroke order animated colors contrast with light and dark backgrounds", as
   }
 });
 
-test("stroke order inserts a lesson tab after Radicals on kanji lessons", async () => {
+test("stroke order inserts a lesson tab after Radicals without section title attributes", async () => {
   const dom = createDom(
     `
       <div class="lesson-container">
@@ -145,7 +145,7 @@ test("stroke order inserts a lesson tab after Radicals on kanji lessons", async 
             <div class="subject-slide" id="composition" data-subject-slides-target="slide" role="tabpanel">
               <div class="subject-slide__content">
                 <div class="subject-slide__sections">
-                  <section class="subject-section" title="Radical Composition">
+                  <section class="subject-section">
                     <h2 class="subject-section__title"><span class="subject-section__title-text">Radical Composition</span></h2>
                     <section class="subject-section__content">Radicals</section>
                   </section>
@@ -219,17 +219,278 @@ test("stroke order inserts a lesson tab after Radicals on kanji lessons", async 
   );
 });
 
+test("stroke order renders in current kanji-review Item Info", async () => {
+  const dom = createDom(
+    `
+      ${quizInputHtml({ correct: "true" })}
+      <div id="item-info" data-controller="subject-info">
+        <section class="subject-section subject-section--collapsible" data-name="components">
+          <h2 class="subject-section__title">Radical Combination</h2>
+          <section class="subject-section__content" id="section-components" hidden></section>
+        </section>
+        <section class="subject-section subject-section--collapsible" data-name="meaning">
+          <h2 class="subject-section__title">Meaning</h2>
+          <section class="subject-section__content" id="section-meaning" hidden>Blue</section>
+        </section>
+        <section class="subject-section subject-section--collapsible" data-name="reading" expanded>
+          <h2 class="subject-section__title">Readings</h2>
+          <section class="subject-section__content" id="section-reading">せい / あお</section>
+        </section>
+      </div>
+    `,
+    "https://www.wanikani.com/subjects/review",
+  );
+
+  stubSvgPathLength(dom);
+  await loadUserscript(dom, "wk-stroke-order.js", {
+    ...immediateKanjiVgResponse(),
+    ...stimulusGlobals(() => ({
+      currentSubject: { id: 604, type: "Kanji", characters: "青" },
+    })),
+  });
+
+  await waitFor(() => {
+    assert.equal(
+      dom.window.document
+        .querySelector("#item-info #wk-kanjivg-stroke-order svg")
+        ?.getAttribute("aria-label"),
+      "青 stroke order",
+    );
+  });
+
+  const sections = [
+    ...dom.window.document.querySelectorAll("#item-info > .subject-section"),
+  ];
+  assert.deepEqual(
+    sections.map((section) =>
+      section.querySelector(".subject-section__title").textContent.trim(),
+    ),
+    ["Radical Combination", "Stroke Order", "Meaning", "Readings"],
+  );
+  assert.equal(
+    dom.window.document.querySelector("#section-meaning").textContent,
+    "Blue",
+  );
+  assert.equal(
+    dom.window.document.querySelector("#section-meaning").hidden,
+    true,
+  );
+});
+
+test("stroke order follows browsed kanji and clears diagrams for other Item Info subjects", async () => {
+  const currentInfo = `
+    <section class="subject-section" data-name="meaning">
+      <h2 class="subject-section__title">Meaning</h2>
+      <section class="subject-section__content">Grass</section>
+    </section>
+  `;
+  const dom = createDom(
+    `${quizInputHtml({ correct: "true" })}<div id="item-info">${currentInfo}</div>`,
+    "https://www.wanikani.com/subjects/extra_study",
+  );
+  const controller = {
+    currentSubject: { id: 605, type: "Kanji", characters: "草" },
+  };
+  const info = dom.window.document.querySelector("#item-info");
+
+  stubSvgPathLength(dom);
+  await loadUserscript(dom, "wk-stroke-order.js", {
+    ...immediateKanjiVgResponse(),
+    ...stimulusGlobals(() => controller),
+  });
+  await waitFor(() => {
+    assert.equal(
+      info.querySelector(".wk-kanjivg-main")?.getAttribute("aria-label"),
+      "草 stroke order",
+    );
+  });
+
+  info.innerHTML = `
+    <header class="item-info__header">
+      <a data-subject-character-item-value='{"itemId":90,"characters":"艹","subjectCategory":"Radical","meaning":"Flowers"}'>艹 Flowers</a>
+    </header>
+    <section class="subject-section" data-name="meaning">
+      <h2 class="subject-section__title">Name</h2>
+      <section class="subject-section__content">Flowers</section>
+    </section>
+  `;
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await flushMutationObservers();
+
+  assert.equal(info.querySelector(".subject-section--stroke-order"), null);
+  assert.equal(
+    info.querySelector('[data-name="meaning"] .subject-section__content')
+      .textContent,
+    "Flowers",
+  );
+
+  info.innerHTML = `
+    <header class="item-info__header">
+      <a data-subject-character-item-value='{"itemId":601,"characters":"日","subjectCategory":"Kanji","meaning":"Sun"}'>日 Sun</a>
+    </header>
+    <section class="subject-section" data-name="meaning">
+      <h2>Meaning</h2>
+      <section class="subject-section__content">Sun</section>
+    </section>
+  `;
+  await waitFor(() => {
+    assert.equal(
+      info.querySelector(".wk-kanjivg-main")?.getAttribute("aria-label"),
+      "日 stroke order",
+    );
+  });
+
+  info.innerHTML = `
+    <header class="item-info__header">
+      <a data-subject-character-item-value='{"itemId":22,"characters":"日","subjectCategory":"Radical","meaning":"Sun"}'>日 Sun</a>
+    </header>
+    <section class="subject-section" data-name="meaning">
+      <h2>Name</h2>
+      <section class="subject-section__content">Sun</section>
+    </section>
+  `;
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await flushMutationObservers();
+  assert.equal(info.querySelector(".subject-section--stroke-order"), null);
+
+  info.innerHTML = `
+    <header class="item-info__header">
+      <a data-subject-character-item-value='{"itemId":606,"characters":"草","subjectCategory":"Vocabulary","meaning":"Grass"}'>草 Grass</a>
+    </header>
+    ${currentInfo}
+  `;
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await flushMutationObservers();
+  assert.equal(info.querySelector(".subject-section--stroke-order"), null);
+
+  info.innerHTML = currentInfo;
+  await waitFor(() => {
+    assert.equal(
+      info.querySelector(".wk-kanjivg-main")?.getAttribute("aria-label"),
+      "草 stroke order",
+    );
+  });
+});
+
+test("stroke order does not reinsert a delayed quiz diagram into browsed radical Item Info", async () => {
+  const dom = createDom(
+    `
+      ${quizInputHtml({ correct: "true" })}
+      <div id="item-info">
+        <section class="subject-section" data-name="meaning">
+          <h2>Meaning</h2>
+          <section class="subject-section__content">Grass</section>
+        </section>
+      </div>
+    `,
+    "https://www.wanikani.com/subjects/review",
+  );
+  const requests = [];
+  const info = dom.window.document.querySelector("#item-info");
+
+  stubSvgPathLength(dom);
+  await loadUserscript(dom, "wk-stroke-order.js", {
+    ...capturedRequests(requests),
+    ...stimulusGlobals(() => ({
+      currentSubject: { id: 605, type: "Kanji", characters: "草" },
+    })),
+  });
+
+  info.innerHTML = `
+    <header class="item-info__header">
+      <a data-subject-character-item-value='{"itemId":90,"characters":"艹","subjectCategory":"Radical","meaning":"Flowers"}'>艹 Flowers</a>
+    </header>
+    <section class="subject-section" data-name="meaning">
+      <h2>Name</h2>
+      <section class="subject-section__content">Flowers</section>
+    </section>
+  `;
+  await flushMutationObservers();
+
+  // Settle any requests the browsing transition triggers, not just the old one.
+  for (const request of requests) {
+    request.onload({ status: 200, responseText: MINIMAL_KANJIVG_SVG });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  await flushMutationObservers();
+
+  assert.equal(info.querySelector(".subject-section--stroke-order"), null);
+  assert.equal(
+    info.querySelector('[data-name="meaning"] .subject-section__content')
+      .textContent,
+    "Flowers",
+  );
+});
+
+test("stroke order starts collapsed in reviews even when Meaning is expanded", async () => {
+  const dom = createDom(
+    `
+      ${quizInputHtml({ correct: "true" })}
+      <div id="item-info" data-controller="subject-info">
+        <section class="subject-section subject-section--collapsible" data-name="meaning"
+          data-controller="toggle" data-toggle-context-value='{"auto_expand_question_types":["meaning"]}' expanded>
+          <h2 class="subject-section__title">
+            <a class="subject-section__toggle" data-toggle-target="toggle"
+              data-action="toggle#toggle" aria-expanded="true" aria-controls="section-meaning">
+              <span class="subject-section__title-text">Meaning</span>
+            </a>
+          </h2>
+          <section class="subject-section__content" id="section-meaning" data-toggle-target="content">Grass</section>
+        </section>
+      </div>
+    `,
+    "https://www.wanikani.com/subjects/review",
+  );
+
+  stubSvgPathLength(dom);
+  await loadUserscript(dom, "wk-stroke-order.js", {
+    ...immediateKanjiVgResponse(),
+    ...stimulusGlobals(() => ({
+      currentSubject: { id: 1, type: "Kanji", characters: "草" },
+    })),
+  });
+
+  await waitFor(() => {
+    assert.ok(
+      dom.window.document.querySelector("#wk-kanjivg-stroke-order svg"),
+    );
+  });
+
+  const strokes = dom.window.document.querySelector(
+    ".subject-section--stroke-order",
+  );
+  assert.equal(strokes.querySelector(".subject-section__content").hidden, true);
+  assert.equal(strokes.hasAttribute("expanded"), false);
+  assert.equal(
+    strokes
+      .querySelector('[data-toggle-target="toggle"]')
+      .getAttribute("aria-expanded"),
+    "false",
+  );
+  assert.equal(
+    dom.window.document.querySelector("#section-meaning").hidden,
+    false,
+  );
+  assert.equal(
+    dom.window.document
+      .querySelector('[data-name="meaning"]')
+      .hasAttribute("expanded"),
+    true,
+  );
+});
+
 test("stroke order inserts before Meaning in review Item Info after answering", async () => {
   const dom = createDom(
     `
       ${quizInputHtml()}
       ${LAST_ITEMS_MENU_HTML}
-      <turbo-frame id="subject-info">
-        <section class="subject-section subject-section--meaning" title="Meaning">
+      <div id="item-info">
+        <section class="subject-section" data-name="meaning">
           <h2 class="subject-section__title"><span class="subject-section__title-text">Meaning</span></h2>
           <section class="subject-section__content">One</section>
         </section>
-      </turbo-frame>
+      </div>
     `,
     "https://www.wanikani.com/subjects/review",
   );
@@ -267,43 +528,32 @@ test("stroke order inserts before Meaning in review Item Info after answering", 
   });
 
   const sections = [
-    ...dom.window.document.querySelectorAll("#subject-info > .subject-section"),
+    ...dom.window.document.querySelectorAll("#item-info > .subject-section"),
   ];
 
   assert.equal(fetchCount, 1);
-  assert.deepEqual(
-    sections.map((section) => section.title),
-    ["Stroke Order", "Meaning"],
-  );
-  assert.equal(
-    sections[0].querySelector(".subject-section__title-text")?.textContent,
-    "Stroke Order",
-  );
+  assert.equal(sections[0].nextElementSibling, sections[1]);
   assert.ok(
     sections[0].querySelector("#wk-kanjivg-stroke-order svg.wk-kanjivg-main"),
   );
 });
 
-for (const [quizName, quizUrl] of [
-  ["extra study", "https://www.wanikani.com/subjects/extra_study"],
-  [
-    "a non-standard URL",
-    "https://www.wanikani.com/subject-lessons/session/quiz",
-  ],
+for (const [context, url] of [
+  ["Extra Study", "https://www.wanikani.com/subjects/extra_study"],
+  ["Recent Mistakes", "https://www.wanikani.com/recent-mistakes/123/quiz"],
 ]) {
-  test(`stroke order recognizes ${quizName} quizzes`, async () => {
+  test(`stroke order renders answered kanji in ${context} Item Info`, async () => {
     const dom = createDom(
       `
-        ${quizInputHtml({ correct: true })}
-        <turbo-frame id="subject-info">
-          <section class="subject-section subject-section--meaning" title="Meaning">
-            <h2>Meaning</h2>
-            <section class="subject-section__content"></section>
-          </section>
-        </turbo-frame>
-        ${LAST_ITEMS_MENU_HTML}
-      `,
-      quizUrl,
+      ${quizInputHtml({ correct: true })}
+      <div id="item-info">
+        <section class="subject-section" data-name="meaning">
+          <h2>Meaning</h2>
+          <section class="subject-section__content"></section>
+        </section>
+      </div>
+    `,
+      url,
     );
 
     stubSvgPathLength(dom);
@@ -311,20 +561,18 @@ for (const [quizName, quizUrl] of [
     await loadUserscript(dom, "wk-stroke-order.js", {
       ...immediateKanjiVgResponse(),
       ...stimulusGlobals(() => ({
-        currentSubject: { id: 1, object: "kanji", characters: "一" },
+        currentSubject: { id: 1, type: "Kanji", characters: "一" },
       })),
     });
 
     await waitFor(() => {
-      assert.ok(
-        dom.window.document.querySelector(".subject-section--stroke-order"),
+      assert.equal(
+        dom.window.document
+          .querySelector("#item-info #wk-kanjivg-stroke-order svg")
+          ?.getAttribute("aria-label"),
+        "一 stroke order",
       );
     });
-
-    assert.equal(
-      dom.window.document.querySelector(".wk-kanjivg-replay").tagName,
-      "BUTTON",
-    );
   });
 }
 
@@ -332,18 +580,16 @@ test("stroke order reads the review subject from the userscript page window", as
   const dom = createDom(
     `
       ${quizInputHtml({ correct: "true" })}
-      <turbo-frame class="subject-info" id="subject-info">
-        <div class="container">
-          <section class="subject-section subject-section--meaning subject-section--collapsible">
-            <h2 class="subject-section__title">
-              <a class="subject-section__toggle">
-                <span class="subject-section__title-text">Meaning</span>
-              </a>
-            </h2>
-            <section id="section-meaning" class="subject-section__content"></section>
-          </section>
-        </div>
-      </turbo-frame>
+      <div id="item-info">
+        <section class="subject-section subject-section--collapsible" data-name="meaning">
+          <h2 class="subject-section__title">
+            <a class="subject-section__toggle">
+              <span class="subject-section__title-text">Meaning</span>
+            </a>
+          </h2>
+          <section id="section-meaning" class="subject-section__content"></section>
+        </section>
+      </div>
     `,
     "https://www.wanikani.com/subjects/review",
   );
@@ -373,14 +619,6 @@ test("stroke order reads the review subject from the userscript page window", as
       "先 stroke order",
     );
   });
-
-  const replay = dom.window.document.querySelector(
-    "#wk-kanjivg-stroke-order .wk-kanjivg-replay",
-  );
-
-  assert.equal(replay.tagName, "BUTTON");
-  assert.equal(replay.textContent, "Replay animation");
-  assert.equal(replay.classList.contains("subject-section__toggle"), false);
 });
 
 test("stroke order does not fetch diagrams for non-kanji review subjects", async () => {
@@ -388,9 +626,9 @@ test("stroke order does not fetch diagrams for non-kanji review subjects", async
     `
       ${quizInputHtml({ correct: true })}
       ${LAST_ITEMS_MENU_HTML}
-      <turbo-frame id="subject-info">
-        <section class="subject-section subject-section--meaning" title="Meaning"></section>
-      </turbo-frame>
+      <div id="item-info">
+        <section class="subject-section" data-name="meaning"></section>
+      </div>
     `,
     "https://www.wanikani.com/subjects/review",
   );
@@ -420,6 +658,138 @@ test("stroke order does not fetch diagrams for non-kanji review subjects", async
   );
 });
 
+test("stroke order gates browsed kanji in vocabulary quizzes until answering and clears on the next question", async () => {
+  const dom = createDom(
+    `
+      ${quizInputHtml()}
+      <div id="item-info">
+        <header class="item-info__header">
+          <a data-subject-character-item-value='{"itemId":601,"characters":"日","subjectCategory":"Kanji","meaning":"Sun"}'>日 Sun</a>
+        </header>
+        <section class="subject-section" data-name="meaning">
+          <h2>Meaning</h2>
+          <section class="subject-section__content">Sun</section>
+        </section>
+      </div>
+    `,
+    "https://www.wanikani.com/subjects/review",
+  );
+  const controller = {
+    currentSubject: { id: 2804, type: "Vocabulary", characters: "音" },
+  };
+  const info = dom.window.document.querySelector("#item-info");
+  const input = dom.window.document.querySelector(
+    ".quiz-input__input-container",
+  );
+
+  stubSvgPathLength(dom);
+  await loadUserscript(dom, "wk-stroke-order.js", {
+    ...immediateKanjiVgResponse(),
+    ...stimulusGlobals(() => controller),
+  });
+  await flushMutationObservers();
+  assert.equal(info.querySelector(".subject-section--stroke-order"), null);
+
+  input.setAttribute("correct", "false");
+  await waitFor(() => {
+    assert.equal(
+      info.querySelector(".wk-kanjivg-main")?.getAttribute("aria-label"),
+      "日 stroke order",
+    );
+  });
+
+  controller.currentSubject = {
+    id: 2805,
+    type: "Vocabulary",
+    characters: "休む",
+  };
+  input.removeAttribute("correct");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await flushMutationObservers();
+  assert.equal(info.querySelector(".subject-section--stroke-order"), null);
+});
+
+test("stroke order gates lesson-quiz diagrams and rejects stale browsed kanji", async () => {
+  const meaningInfo = (meaning, subject) => `
+    ${subject ? `<header class="item-info__header"><a data-subject-character-item-value='${JSON.stringify(subject)}'></a></header>` : ""}
+    <section class="subject-section subject-section--collapsible" data-name="meaning">
+      <h2 class="subject-section__title">Meaning</h2>
+      <section class="subject-section__content">${meaning}</section>
+    </section>
+  `;
+  const dom = createDom(
+    `${quizInputHtml()}<div id="item-info">${meaningInfo("One")}</div>`,
+    "https://www.wanikani.com/subject-lessons/1234567890123456789/quiz",
+  );
+  const controller = {
+    currentSubject: { id: 1, type: "Kanji", characters: "一" },
+  };
+  const requests = [];
+  stubSvgPathLength(dom);
+  await loadUserscript(dom, "wk-stroke-order.js", {
+    ...capturedRequests(requests),
+    ...stimulusGlobals(() => controller),
+  });
+  const info = dom.window.document.querySelector("#item-info");
+  const input = dom.window.document.querySelector(
+    ".quiz-input__input-container",
+  );
+  await flushMutationObservers();
+  assert.equal(info.querySelector(".subject-section--stroke-order"), null);
+  assert.deepEqual(requests, []);
+
+  input.setAttribute("correct", "false");
+  await waitFor(() => assert.equal(requests.length, 1));
+  info.innerHTML = meaningInfo("Two", {
+    itemId: 2,
+    subjectCategory: "Kanji",
+    characters: "二",
+  });
+  await flushMutationObservers();
+  requests[0].onload({ status: 200, responseText: MINIMAL_KANJIVG_SVG });
+  await waitFor(() => assert.equal(requests.length, 2));
+  assert.equal(info.querySelector(".subject-section--stroke-order"), null);
+  const twoStrokeSvg = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 109 109">
+      <path d="M20 35 L80 35"></path>
+      <path d="M10 70 L90 70"></path>
+    </svg>
+  `;
+  requests[1].onload({ status: 200, responseText: twoStrokeSvg });
+  await waitFor(() => {
+    const svg = info.querySelector("svg.wk-kanjivg-main");
+    assert.match(svg?.getAttribute("aria-label") || "", /二/);
+    assert.equal(svg.querySelectorAll("path").length, 2);
+  });
+
+  input.removeAttribute("correct");
+  await waitFor(() => {
+    assert.equal(info.querySelector(".subject-section--stroke-order"), null);
+  });
+  info.innerHTML = meaningInfo("One");
+  await flushMutationObservers();
+  assert.equal(info.querySelector(".subject-section--stroke-order"), null);
+  input.setAttribute("correct", "true");
+  await waitFor(() => assert.equal(requests.length, 3));
+  requests[2].onload({ status: 200, responseText: MINIMAL_KANJIVG_SVG });
+  await waitFor(() => {
+    assert.match(
+      info.querySelector("svg.wk-kanjivg-main")?.getAttribute("aria-label") ||
+        "",
+      /一/,
+    );
+  });
+
+  info.innerHTML = meaningInfo("Ground", {
+    itemId: 3,
+    subjectCategory: "Radical",
+    characters: "一",
+  });
+  await flushMutationObservers();
+  assert.equal(info.querySelector(".subject-section--stroke-order"), null);
+  assert.equal(requests.length, 3);
+});
+
 test("stroke order discards a stale review lookup when the subject changes", async () => {
   const svgText = (kanji) => `
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 109 109">
@@ -429,7 +799,7 @@ test("stroke order discards a stale review lookup when the subject changes", asy
     </svg>
   `;
   const itemInfo = () => `
-    <section class="subject-section subject-section--meaning" title="Meaning">
+    <section class="subject-section" data-name="meaning">
       <h2 class="subject-section__title"><span class="subject-section__title-text">Meaning</span></h2>
       <section class="subject-section__content"></section>
     </section>
@@ -438,7 +808,7 @@ test("stroke order discards a stale review lookup when the subject changes", asy
     `
       ${quizInputHtml({ correct: true })}
       ${LAST_ITEMS_MENU_HTML}
-      <turbo-frame id="subject-info">${itemInfo()}</turbo-frame>
+      <div id="item-info">${itemInfo()}</div>
     `,
     "https://www.wanikani.com/subjects/review",
   );
@@ -457,7 +827,7 @@ test("stroke order discards a stale review lookup when the subject changes", asy
   assert.equal(requests.length, 1);
 
   controller.currentSubject = { id: 2, object: "kanji", characters: "二" };
-  dom.window.document.querySelector("#subject-info").innerHTML = itemInfo();
+  dom.window.document.querySelector("#item-info").innerHTML = itemInfo();
   requests[0].onload({ status: 200, responseText: svgText("一") });
 
   await waitFor(() => {
@@ -481,9 +851,66 @@ test("stroke order discards a stale review lookup when the subject changes", asy
   });
 });
 
+test("stroke order discards a pending browsed-kanji lookup when Item Info changes without changing the quiz subject", async () => {
+  const dom = createDom(
+    `
+      ${quizInputHtml({ correct: "true" })}
+      <div id="item-info">
+        <header class="item-info__header">
+          <a data-subject-character-item-value='{"itemId":601,"characters":"日","subjectCategory":"Kanji","meaning":"Sun"}'>日 Sun</a>
+        </header>
+        <section class="subject-section" data-name="meaning">
+          <h2>Meaning</h2>
+          <section class="subject-section__content">Sun</section>
+        </section>
+      </div>
+    `,
+    "https://www.wanikani.com/subjects/review",
+  );
+  const requests = [];
+  const info = dom.window.document.querySelector("#item-info");
+
+  stubSvgPathLength(dom);
+  await loadUserscript(dom, "wk-stroke-order.js", {
+    ...capturedRequests(requests),
+    ...stimulusGlobals(() => ({
+      currentSubject: { id: 605, type: "Kanji", characters: "草" },
+    })),
+  });
+  assert.equal(
+    requests[0]?.url,
+    "https://raw.githubusercontent.com/KanjiVG/kanjivg/master/kanji/065e5.svg",
+  );
+
+  const character = info.querySelector("[data-subject-character-item-value]");
+  character.dataset.subjectCharacterItemValue =
+    '{"itemId":604,"characters":"青","subjectCategory":"Kanji","meaning":"Blue"}';
+  character.textContent = "青 Blue";
+  info.querySelector(
+    '[data-name="meaning"] .subject-section__content',
+  ).textContent = "Blue";
+  requests[0].onload({ status: 200, responseText: MINIMAL_KANJIVG_SVG });
+
+  await waitFor(() => {
+    assert.equal(
+      requests[1]?.url,
+      "https://raw.githubusercontent.com/KanjiVG/kanjivg/master/kanji/09752.svg",
+    );
+  });
+  assert.equal(info.querySelector(".wk-kanjivg-main"), null);
+
+  requests[1].onload({ status: 200, responseText: MINIMAL_KANJIVG_SVG });
+  await waitFor(() => {
+    assert.equal(
+      info.querySelector(".wk-kanjivg-main")?.getAttribute("aria-label"),
+      "青 stroke order",
+    );
+  });
+});
+
 test("stroke order retries a failed kanji only after the review subject changes", async () => {
   const itemInfo = `
-    <section class="subject-section subject-section--meaning" title="Meaning">
+    <section class="subject-section" data-name="meaning">
       <h2>Meaning</h2>
       <section class="subject-section__content"></section>
     </section>
@@ -491,7 +918,7 @@ test("stroke order retries a failed kanji only after the review subject changes"
   const dom = createDom(
     `
       ${quizInputHtml({ correct: true })}
-      <turbo-frame id="subject-info">${itemInfo}</turbo-frame>
+      <div id="item-info">${itemInfo}</div>
     `,
     "https://www.wanikani.com/subjects/review",
   );
@@ -510,7 +937,7 @@ test("stroke order retries a failed kanji only after the review subject changes"
   requests[0].onload({ status: 200, responseText: "<html>Not an SVG</html>" });
 
   await new Promise((resolve) => setTimeout(resolve, 0));
-  dom.window.document.querySelector("#subject-info").innerHTML = itemInfo;
+  dom.window.document.querySelector("#item-info").innerHTML = itemInfo;
   await new Promise((resolve) => setTimeout(resolve, 0));
 
   assert.equal(requests.length, 1);
@@ -520,11 +947,11 @@ test("stroke order retries a failed kanji only after the review subject changes"
     object: "vocabulary",
     characters: "一つ",
   };
-  dom.window.document.querySelector("#subject-info").innerHTML = itemInfo;
+  dom.window.document.querySelector("#item-info").innerHTML = itemInfo;
   await flushMutationObservers();
 
   controller.currentSubject = { id: 1, object: "kanji", characters: "一" };
-  dom.window.document.querySelector("#subject-info").innerHTML = itemInfo;
+  dom.window.document.querySelector("#item-info").innerHTML = itemInfo;
 
   await waitFor(() => {
     assert.equal(requests.length, 2);
@@ -553,15 +980,15 @@ test("stroke order starts a review lookup while a subject-page lookup is pending
   dom.window.history.pushState({}, "", "/subjects/review");
   dom.window.document.body.innerHTML = `
     ${quizInputHtml({ correct: true })}
-    <turbo-frame id="subject-info">
-      <section class="subject-section" title="Radical Combination">
+    <div id="item-info">
+      <section class="subject-section" data-name="components">
         <h2>Radical Combination</h2>
       </section>
-      <section class="subject-section subject-section--meaning" title="Meaning">
+      <section class="subject-section" data-name="meaning">
         <h2>Meaning</h2>
         <section class="subject-section__content"></section>
       </section>
-    </turbo-frame>
+    </div>
   `;
 
   await waitFor(() => {

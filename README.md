@@ -26,7 +26,7 @@ Install:
 
 ### WaniKani Stroke Order
 
-Adds animated stroke-order diagrams to kanji subject pages, lessons, and review or extra study Item Info. Diagrams include optional radical and component group views and are retrieved from [KanjiVG](https://kanjivg.tagaini.net/) on GitHub.
+Adds animated stroke-order diagrams to kanji content on WaniKani. Diagrams include optional radical and component group views and are retrieved from [KanjiVG](https://kanjivg.tagaini.net/) on GitHub.
 
 ![Stroke-order diagrams with playback controls and component groups](docs/screenshots/stroke-order.png)
 

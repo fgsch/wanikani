@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         WaniKani Stroke Order
 // @namespace    wk-stroke-order
-// @version      0.7.0
+// @version      0.7.1
 // @author       Federico G. Schwindt <fgsch@lodoss.net>
-// @description  Adds animated KanjiVG stroke order, radicals, and component groups to WaniKani kanji pages, lessons, and reviews.
+// @description  Adds animated KanjiVG stroke order, radicals, and component groups to WaniKani kanji pages, lessons, and quizzes.
 // @license      MIT
 // @homepageURL  https://github.com/fgsch/wanikani
 // @updateURL    https://raw.githubusercontent.com/fgsch/wanikani/main/wk-stroke-order.js
@@ -27,13 +27,15 @@
 
   let isPageRunning = false;
   let isQuizRunning = false;
-  let failedQuizSubjectKey = null;
-  let previousQuizSubjectKey = null;
+  let failedQuizInfoKey = null;
+  let previousQuizInfoKey = null;
   const processedPaths = new Set();
 
   function isQuizPage() {
     return (
       /^\/subjects\/(?:review|extra_study)(?:\/|$)/.test(location.pathname) ||
+      /^\/recent-mistakes\/[^/]+\/quiz\/?$/.test(location.pathname) ||
+      /^\/subject-lessons\/[\d-]+\/quiz\/?$/.test(location.pathname) ||
       Boolean(
         document.querySelector(".quiz-input") &&
         document.querySelector(".additional-content__item--last-items"),
@@ -95,14 +97,38 @@
     );
   }
 
-  function getQuizKanjiSubject() {
-    const subject = getQuizController()?.currentSubject;
+  function getQuizInfoKanjiTarget() {
+    const meaningSection = document.querySelector(
+      '#item-info > .subject-section[data-name="meaning"]',
+    );
+    if (!meaningSection) {
+      return null;
+    }
+
+    // Native Item Info adds a subject header only when browsing another item.
+    const header = document.querySelector("#item-info > .item-info__header");
+    let subject;
+    if (header) {
+      const character = header.querySelector(
+        "[data-subject-character-item-value]",
+      );
+      if (!character) {
+        return null;
+      }
+      subject = JSON.parse(character.dataset.subjectCharacterItemValue);
+    } else {
+      subject = getQuizController()?.currentSubject;
+    }
     if (!subject) {
       return null;
     }
 
     const type = String(
-      subject.object || subject.type || subject.subject_category || "",
+      subject.subjectCategory ||
+        subject.object ||
+        subject.type ||
+        subject.subject_category ||
+        "",
     )
       .toLowerCase()
       .replace(/[_-]/g, "");
@@ -116,9 +142,11 @@
       return null;
     }
 
+    const id = subject.itemId ?? subject.id;
     return {
       kanji,
-      key: `${subject.id ?? kanji}:${kanji}`,
+      key: `${id ?? kanji}:${kanji}`,
+      meaningSection,
     };
   }
 
@@ -721,9 +749,7 @@
       "#composition.subject-slide",
     );
     const meaningSlide = document.querySelector("#meaning.subject-slide");
-    const radicalSection = compositionSlide?.querySelector(
-      '.subject-section[title="Radical Composition"]',
-    );
+    const radicalSection = compositionSlide?.querySelector(".subject-section");
     const compositionNext = compositionSlide?.querySelector(
       '.subject-slide__navigation[aria-label="next slide"]',
     );
@@ -787,32 +813,8 @@
     return true;
   }
 
-  function getQuizMeaningSection() {
-    const frame = document.querySelector(
-      "turbo-frame#subject-info, turbo-frame.subject-info",
-    );
-
-    return (
-      frame?.querySelector(".subject-section--meaning") ||
-      frame?.querySelector('.subject-section[title="Meaning"]') ||
-      [...(frame?.querySelectorAll(".subject-section") || [])].find((section) =>
-        section
-          .querySelector(
-            ".subject-section__title-text, .subject-section__title, h2",
-          )
-          ?.textContent.trim()
-          .toLowerCase()
-          .includes("meaning"),
-      ) ||
-      null
-    );
-  }
-
-  function insertStrokeOrderQuizSection(svg, subject) {
-    const meaningSection = getQuizMeaningSection();
-    if (!meaningSection) {
-      return false;
-    }
+  function insertStrokeOrderQuizSection(svg, target) {
+    const { meaningSection } = target;
 
     const section = meaningSection.cloneNode(false);
     const sourceHeading = meaningSection.querySelector(
@@ -829,24 +831,32 @@
       heading.querySelector(".subject-section__title-text") || heading;
 
     section.removeAttribute("id");
-    section.classList.remove("subject-section--meaning");
     section.classList.add("subject-section--stroke-order");
-    section.title = "Stroke Order";
+    section.dataset.name = SECTION_ID;
+    section.removeAttribute("data-toggle-connected-value");
     heading
       .querySelectorAll("[id]")
       .forEach((element) => element.removeAttribute("id"));
     heading.removeAttribute("id");
     headingText.textContent = "Stroke Order";
     content.classList.add("subject-section__content");
+    content.id = `section-${SECTION_ID}`;
+    const toggle = heading.querySelector('[data-toggle-target="toggle"]');
+    toggle?.setAttribute("aria-controls", content.id);
 
-    const strokeOrder = createStrokeOrderContent(svg, subject.kanji);
-    strokeOrder.dataset.quizSubjectKey = subject.key;
+    if (/^\/subjects\/review(?:\/|$)/.test(location.pathname)) {
+      section.removeAttribute("expanded");
+      section.removeAttribute("data-toggle-context-value");
+      content.hidden = true;
+      toggle?.setAttribute("aria-expanded", "false");
+    }
+
+    const strokeOrder = createStrokeOrderContent(svg, target.kanji);
+    strokeOrder.dataset.quizInfoKey = target.key;
     content.appendChild(strokeOrder);
     section.append(heading, content);
     meaningSection.before(section);
     animateSvg(svg);
-
-    return true;
   }
 
   function pageIsReady() {
@@ -858,9 +868,7 @@
         document.querySelector(
           '.subject-slides__navigation-link[href="#meaning"]',
         ) &&
-        document.querySelector(
-          '#composition.subject-slide .subject-section[title="Radical Composition"]',
-        ) &&
+        document.querySelector("#composition.subject-slide .subject-section") &&
         document.querySelector(
           '#composition.subject-slide .subject-slide__navigation[aria-label="next slide"]',
         ) &&
@@ -880,16 +888,16 @@
     const existingSection = existingContent?.closest(
       ".subject-section--stroke-order",
     );
-    const subject = getQuizKanjiSubject();
-    const subjectKey = subject?.key || null;
+    const target = getQuizInfoKanjiTarget();
+    const targetKey = target?.key || null;
 
-    if (subjectKey !== previousQuizSubjectKey) {
-      previousQuizSubjectKey = subjectKey;
-      failedQuizSubjectKey = null;
+    if (targetKey !== previousQuizInfoKey) {
+      previousQuizInfoKey = targetKey;
+      failedQuizInfoKey = null;
     }
 
     const revealed = Boolean(
-      subject &&
+      target &&
       document
         .querySelector(".quiz-input__input-container")
         ?.hasAttribute("correct"),
@@ -900,43 +908,41 @@
       return;
     }
 
-    if (existingContent?.dataset.quizSubjectKey === subject.key) {
+    const { meaningSection } = target;
+
+    if (existingContent?.dataset.quizInfoKey === target.key) {
       return;
     }
     existingSection?.remove();
 
-    const meaningSection = getQuizMeaningSection();
-    if (
-      !meaningSection ||
-      isQuizRunning ||
-      failedQuizSubjectKey === subject.key
-    ) {
+    if (isQuizRunning || failedQuizInfoKey === target.key) {
       return;
     }
 
     isQuizRunning = true;
     try {
-      const filename = kanjiToKanjiVGFilename(subject.kanji);
+      const filename = kanjiToKanjiVGFilename(target.kanji);
       const svgUrl = `https://raw.githubusercontent.com/KanjiVG/kanjivg/master/kanji/${filename}`;
       let svgText;
 
       try {
         svgText = await fetchText(svgUrl);
       } catch (error) {
-        failedQuizSubjectKey = subject.key;
+        failedQuizInfoKey = target.key;
         console.warn(`[${NAME}] Could not fetch SVG:`, error);
         return;
       }
 
-      const currentSubject = getQuizKanjiSubject();
+      const currentTarget = getQuizInfoKanjiTarget();
       const stillRevealed = document
         .querySelector(".quiz-input__input-container")
         ?.hasAttribute("correct");
 
       if (
         !stillRevealed ||
-        currentSubject?.key !== subject.key ||
+        currentTarget?.key !== target.key ||
         !meaningSection.isConnected ||
+        currentTarget.meaningSection !== meaningSection ||
         document.getElementById(CONTENT_ID)
       ) {
         return;
@@ -945,14 +951,14 @@
       const doc = new DOMParser().parseFromString(svgText, "image/svg+xml");
       const svg = doc.querySelector("svg");
       if (!svg) {
-        failedQuizSubjectKey = subject.key;
+        failedQuizInfoKey = target.key;
         console.warn(`[${NAME}] Response did not contain an SVG`);
         return;
       }
 
       sanitizeSvg(svg);
       injectStyles();
-      insertStrokeOrderQuizSection(svg, subject);
+      insertStrokeOrderQuizSection(svg, target);
     } finally {
       isQuizRunning = false;
       setTimeout(run, 0);
