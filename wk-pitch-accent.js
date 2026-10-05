@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WaniKani Pitch Accent
 // @namespace    wk-pitch-accent
-// @version      0.9.2
+// @version      0.9.3
 // @author       Federico G. Schwindt <fgsch@lodoss.net>
 // @description  Adds OJAD pitch-accent diagrams to WaniKani vocabulary pages, lessons, and quizzes.
 // @license      MIT
@@ -116,10 +116,9 @@
     const header = document.querySelector(
       ".subject-character--vocabulary, .subject-character--kana-vocabulary",
     );
-    const readings = collectReadings(
-      document.querySelector(".subject-section--reading"),
-      [header?.getAttribute("title")],
-    );
+    const readings = collectReadings(getSubjectReadingContent(), [
+      header?.getAttribute("title"),
+    ]);
 
     if (!characters) {
       if (!quiet) {
@@ -779,9 +778,9 @@
       });
   }
 
-  function getSubjectReadingContent() {
-    return document.querySelector(
-      ".subject-section--reading > .subject-section__content",
+  function getSubjectReadingContent(root = document) {
+    return root?.querySelector(
+      '.subject-section[data-name="reading"] > .subject-section__content, .subject-section--reading > .subject-section__content',
     );
   }
 
@@ -829,20 +828,18 @@
 
     const subject = getQuizVocabulary();
     const input = document.querySelector(".quiz-input__input-container");
-    const frame = document.querySelector(
-      "turbo-frame#subject-info, turbo-frame.subject-info",
+    const itemInfo = document.querySelector(
+      "#item-info, turbo-frame#subject-info, turbo-frame.subject-info",
     );
     const revealed = Boolean(subject && input?.hasAttribute("correct"));
 
     if (!revealed) {
       console.debug(`[${NAME}] Quiz not revealed yet, restoring`);
-      restorePitchContent(frame);
+      restorePitchContent(itemInfo);
       return;
     }
 
-    const readingContent = frame?.querySelector(
-      ".subject-section--reading > .subject-section__content",
-    );
+    const readingContent = getSubjectReadingContent(itemInfo);
     if (
       !readingContent ||
       !findReadingRow(readingContent) ||

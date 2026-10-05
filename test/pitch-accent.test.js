@@ -272,6 +272,86 @@ test("pitch accent inserts an exact OJAD result inside Reading", async () => {
   );
 });
 
+test("pitch accent renders every reading on data-named vocabulary sections", async () => {
+  const dom = createDom(
+    `
+      <header><span class="subject-character subject-character--vocabulary" title="かど">角</span></header>
+      <section class="subject-section" data-name="meaning">
+        <section class="subject-section__content">Corner, angle</section>
+      </section>
+      <section class="subject-section" data-name="reading">
+        <a class="wk-nav__anchor" id="reading"></a>
+        <h2 class="subject-section__title">Reading</h2>
+        <section class="subject-section__content">
+          <section class="subject-subsection" data-name="vocabularyReading">
+            <div class="subject-subsection__content" data-content>
+              <div class="subject-readings-with-audio">
+                <div class="subject-readings-with-audio__item">
+                  <div class="reading-with-audio">
+                    <div class="reading-with-audio__reading" lang="ja">かど</div>
+                    <button class="reading-with-audio__icons">Play かど</button>
+                  </div>
+                </div>
+                <div class="subject-readings-with-audio__item">
+                  <div class="reading-with-audio">
+                    <div class="reading-with-audio__reading" lang="ja">かく</div>
+                    <button class="reading-with-audio__icons">Play かく</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </section>
+      </section>
+    `,
+    "https://www.wanikani.com/vocabulary/%E8%A7%92",
+  );
+  const requests = [];
+  const audio = [...dom.window.document.querySelectorAll("button")];
+  await loadUserscript(dom, "wk-pitch-accent.js", {
+    GM: {
+      xmlHttpRequest({ url, onload }) {
+        const reading = decodeURIComponent(url.split("word:")[1]);
+        requests.push(reading);
+        onload({
+          status: 200,
+          responseText: ojadResultsHtml([
+            {
+              headword: "角",
+              moras: [{ text: "か", drop: true }, { text: reading[1] }],
+            },
+          ]),
+        });
+      },
+    },
+  });
+  const readingSection = dom.window.document.querySelector(
+    '[data-name="reading"]',
+  );
+  await waitFor(() => {
+    assert.equal(
+      readingSection.querySelectorAll(".wk-pitch-accent-charts svg").length,
+      2,
+    );
+  });
+  assert.deepEqual(requests, ["かど", "かく"]);
+  audio.forEach((button, index) => {
+    assert.equal(button.isConnected, true);
+    assert.equal(
+      button.previousElementSibling.dataset.reading,
+      ["かど", "かく"][index],
+    );
+  });
+  assert.equal(
+    readingSection.querySelector(".reading-with-audio__reading"),
+    null,
+  );
+  assert.equal(
+    dom.window.document.querySelector('[data-name="meaning"] .wk-pitch-accent'),
+    null,
+  );
+});
+
 test("pitch accent queries each distinct reading", async () => {
   const dom = createDom(
     `
@@ -1005,6 +1085,106 @@ test("pitch accent waits for a revealed quiz answer and Reading item info", asyn
     frame.querySelector(".reading-with-audio__reading"),
     originalQuizReading,
   );
+});
+
+test("pitch accent handles client-rendered review Item Info and accepted readings", async () => {
+  const dom = createDom(
+    `
+      ${quizInputHtml({ input: true })}
+      <div id="item-info" class="item-info" data-controller="subject-info"></div>
+    `,
+    "https://www.wanikani.com/subjects/review",
+  );
+  const requests = [];
+  const ojadHtml = ojadResultsHtml([
+    {
+      headword: "角",
+      moras: [{ text: "か", drop: true }, { text: "ど" }],
+    },
+    {
+      headword: "角",
+      moras: [{ text: "か", drop: true }, { text: "く" }],
+    },
+  ]);
+  await loadUserscript(dom, "wk-pitch-accent.js", {
+    ...stimulusGlobals(() => ({
+      currentSubject: {
+        type: "Vocabulary",
+        characters: "角",
+        readings: [
+          { text: "かど", kind: "primary" },
+          { text: "かく", kind: "alternative" },
+          { text: "つの", kind: "warned" },
+        ],
+      },
+    })),
+    GM: {
+      xmlHttpRequest({ url, onload }) {
+        requests.push(decodeURIComponent(url));
+        onload({ status: 200, responseText: ojadHtml });
+      },
+    },
+  });
+  const input = dom.window.document.querySelector(
+    ".quiz-input__input-container",
+  );
+  const info = dom.window.document.querySelector("#item-info");
+  assert.deepEqual(requests, []);
+
+  input.setAttribute("correct", "false");
+  await flushMutationObservers();
+  assert.deepEqual(requests, []);
+
+  // Current review pages populate these sections from client-side templates.
+  info.innerHTML = `
+    <section class="subject-section subject-section--collapsible" data-name="reading">
+      <section class="subject-section__content" id="section-reading" hidden>
+        <section class="subject-subsection" data-name="vocabularyReading">
+          <div class="subject-subsection__content" data-content>
+            <div class="subject-readings-with-audio">
+              ${["かど", "かく"]
+                .map(
+                  (reading) => `
+                <div class="subject-readings-with-audio__item">
+                  <div class="reading-with-audio">
+                    <div class="reading-with-audio__reading" lang="ja" data-reading-text>${reading}</div>
+                    <button class="reading-with-audio__icons">Play ${reading}</button>
+                  </div>
+                </div>
+              `,
+                )
+                .join("")}
+            </div>
+          </div>
+        </section>
+      </section>
+    </section>
+  `;
+  const originals = [...info.querySelectorAll(".reading-with-audio__reading")];
+  const audio = [...info.querySelectorAll("button")];
+  await waitFor(() => {
+    assert.equal(
+      info.querySelectorAll(".wk-pitch-accent-charts svg").length,
+      2,
+    );
+  });
+  assert.deepEqual(
+    [...info.querySelectorAll(".wk-pitch-accent-charts")].map(
+      (chart) => chart.dataset.reading,
+    ),
+    ["かど", "かく"],
+  );
+  assert.deepEqual(
+    requests.map((url) => url.split("word:")[1]),
+    ["かど", "かく"],
+  );
+  assert.ok(audio.every((button) => button.isConnected));
+
+  input.removeAttribute("correct");
+  await waitFor(() => {
+    assert.equal(info.querySelector(".wk-pitch-accent"), null);
+    assert.ok(originals.every((reading) => reading.isConnected));
+  });
 });
 
 test("pitch accent supports recent mistakes without a last-items menu", async () => {
