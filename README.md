@@ -37,10 +37,6 @@ Install:
 
 Adds compact pitch-pattern diagrams from [OJAD](https://www.gavo.t.u-tokyo.ac.jp/ojad/eng/pages/home) to Reading content on vocabulary subject pages, vocabulary and kanji lessons, and Item Info during reviews and extra study, including recent-mistakes quizzes. Japanese terms and readings are sent to this third-party service to retrieve pitch-accent data. Quiz diagrams remain hidden until the current answer has been submitted.
 
-Review support includes both client-rendered Item Info and Turbo-frame layouts. After submitting an answer, open Item Info and expand Reading to see the diagrams.
-
-Each distinct reading is looked up separately, with exact spelling and reading checks to exclude unrelated homophones. Vocabulary pages collect all readings from the Reading section, including alternatives not shown in the page header. Both current `data-name="reading"` sections and older class-based layouts are supported. When reading metadata is absent, the subject spelling is queried instead.
-
 ![Pitch-accent diagrams for そのほか and そのた alongside their audio controls](docs/screenshots/pitch-accent.png)
 
 Install:
