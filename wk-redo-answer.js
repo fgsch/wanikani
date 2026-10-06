@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         WaniKani Redo Answer
 // @namespace    wk-redo-answer
-// @version      0.7.0
+// @version      0.7.1
 // @author       Federico G. Schwindt <fgsch@lodoss.net>
-// @description  Adds a Redo button to WaniKani review and extra study quizzes.
+// @description  Adds a Redo button to WaniKani standard reviews.
 // @license      MIT
 // @homepageURL  https://github.com/fgsch/wanikani
 // @updateURL    https://raw.githubusercontent.com/fgsch/wanikani/main/wk-redo-answer.js
@@ -24,10 +24,8 @@
 
   let pendingAnswerTransaction = null;
 
-  function isQuizPage() {
-    return /^\/subjects\/(?:review|extra_study)(?:\/|$)/.test(
-      location.pathname,
-    );
+  function isReviewPage() {
+    return /^\/subjects\/review(?:\/|$)/.test(location.pathname);
   }
 
   function getRedoButton() {
@@ -41,54 +39,37 @@
     );
   }
 
-  function pendingAnswerEventDetail(controller, quizQueue, answer, results) {
-    const subject = quizQueue.currentItem ?? controller.currentSubject;
-    const questionType =
-      quizQueue.questionType ?? controller.currentQuestionType;
+  function pendingAnswerEventDetail(queueController, answer, results) {
+    const queue = queueController.quizQueue;
+    const subject = queue.currentItem;
+    const questionType = queue.questionType;
 
     if (!subject || !questionType) {
       return null;
     }
 
-    let stats;
-
-    try {
-      stats = JSON.parse(JSON.stringify(quizQueue.stats?.get?.(subject)));
-    } catch {
-      stats = null;
+    const subjectWithStats = JSON.parse(
+      JSON.stringify({ subject, stats: queue.stats.get(subject) }),
+    );
+    const stats = subjectWithStats.stats;
+    const passed = results.action === "pass";
+    stats[questionType].complete = passed;
+    if (!passed) {
+      stats[questionType].incorrect += 1;
     }
 
-    stats ??= {
-      meaning: { complete: false, incorrect: 0 },
-      reading: { complete: false, incorrect: 0 },
-    };
-
-    stats[questionType] ??= { complete: false, incorrect: 0 };
-    stats[questionType].complete = results.action === "pass";
-
-    if (results.action === "fail") {
-      stats[questionType].incorrect = (stats[questionType].incorrect ?? 0) + 1;
-    }
+    const complete = stats.meaning.complete && stats.reading.complete;
+    // Native updateSRS calculates feedback without mutating the queue.
+    const srs = complete ? queue.srsManager.updateSRS(subjectWithStats) : {};
 
     return {
-      subjectWithStats: { subject, stats },
+      subjectWithStats,
       questionType,
       answer,
       results,
+      complete,
+      srs,
     };
-  }
-
-  function dispatchPendingAnswerEvent(controller, quizQueue, answer, results) {
-    const detail = pendingAnswerEventDetail(
-      controller,
-      quizQueue,
-      answer,
-      results,
-    );
-
-    if (detail) {
-      window.dispatchEvent(new CustomEvent("didAnswerQuestion", { detail }));
-    }
   }
 
   function withoutDidAnswerQuestion(callback) {
@@ -113,55 +94,123 @@
       return null;
     }
 
-    let quizQueue;
+    let queueController;
 
     try {
-      quizQueue = controller.quizQueueOutlet;
+      queueController = controller.quizQueueOutlet;
     } catch {
       return null;
     }
 
     if (
-      !quizQueue ||
-      typeof quizQueue.submitAnswer !== "function" ||
-      typeof quizQueue.nextItem !== "function"
+      !queueController ||
+      typeof queueController.submitAnswer !== "function" ||
+      typeof queueController.nextItem !== "function" ||
+      typeof queueController.quizQueue?.stats?.get !== "function" ||
+      typeof queueController.quizQueue?.srsManager?.updateSRS !== "function"
     ) {
       return null;
     }
 
-    if (pendingAnswerTransaction?.quizQueue === quizQueue) {
-      pendingAnswerTransaction.controller = controller;
+    if (pendingAnswerTransaction?.queueController === queueController) {
       return pendingAnswerTransaction;
     }
 
     pendingAnswerTransaction?.uninstall();
 
-    const submitAnswer = quizQueue.submitAnswer;
-    const nextItem = quizQueue.nextItem;
+    const submitAnswer = queueController.submitAnswer;
+    const nextItem = queueController.nextItem;
+    const databaseManager = window.dbManager;
+    const logAnswer = databaseManager?.logAnswer;
+    let wrappedLogAnswer = null;
     let pendingAnswer = null;
     let transaction = null;
 
+    if (
+      typeof logAnswer === "function" &&
+      typeof databaseManager.createTransaction === "function"
+    ) {
+      wrappedLogAnswer = function (item) {
+        const answer = pendingAnswer;
+        if (
+          !isReviewPage() ||
+          !answer ||
+          item.id !== queueController.quizQueue.currentItem.id ||
+          item.questionType !== queueController.quizQueue.questionType ||
+          item.answer !== answer.answer
+        ) {
+          return logAnswer.call(this, item);
+        }
+
+        // Capture the exact IndexedDB key; matching answer text can erase retries.
+        answer.historyLogWrite = this.createTransaction(
+          {
+            storeName: "answer-log",
+            mode: "readwrite",
+            resolveOnTransactionComplete: true,
+          },
+          ({ store }) => {
+            const request = store.put(item);
+            request.onsuccess = () => {
+              answer.historyLogKey = request.result;
+            };
+          },
+        );
+        return answer.historyLogWrite;
+      };
+      databaseManager.logAnswer = wrappedLogAnswer;
+    }
+
     const wrappedSubmitAnswer = (answer, results) => {
-      pendingAnswer = { answer, results };
-      dispatchPendingAnswerEvent(
-        transaction.controller,
-        quizQueue,
-        answer,
-        results,
-      );
+      if (!isReviewPage()) {
+        return submitAnswer.call(queueController, answer, results);
+      }
+      const detail = pendingAnswerEventDetail(queueController, answer, results);
+      if (!detail) {
+        return submitAnswer.call(queueController, answer, results);
+      }
+      pendingAnswer = { answer, results, complete: detail.complete };
+      window.dispatchEvent(new CustomEvent("didAnswerQuestion", { detail }));
     };
 
     const wrappedNextItem = (questionType) => {
+      if (!isReviewPage()) {
+        return nextItem.call(queueController, questionType);
+      }
       transaction.flush();
-      return nextItem.call(quizQueue, questionType);
+      return nextItem.call(queueController, questionType);
     };
 
     transaction = {
-      controller,
-      quizQueue,
+      queueController,
       discard() {
         const discardedAnswer = pendingAnswer;
         pendingAnswer = null;
+        if (discardedAnswer?.historyLogWrite) {
+          discardedAnswer.historyLogWrite
+            .then(() =>
+              databaseManager.createTransaction(
+                {
+                  storeName: "answer-log",
+                  mode: "readwrite",
+                  resolveOnTransactionComplete: true,
+                },
+                ({ store }) => store.delete(discardedAnswer.historyLogKey),
+              ),
+            )
+            .then(() =>
+              window.Stimulus?.getControllerForElementAndIdentifier?.(
+                document.querySelector('[data-controller~="last-answers"]'),
+                "last-answers",
+              )?.renderItems(),
+            )
+            .catch((error) => {
+              console.error(
+                `[${NAME}] Redo could not restore Last Answers:`,
+                error,
+              );
+            });
+        }
         return discardedAnswer;
       },
       flush() {
@@ -171,7 +220,7 @@
 
         const { answer, results } = pendingAnswer;
         withoutDidAnswerQuestion(() => {
-          submitAnswer.call(quizQueue, answer, results);
+          submitAnswer.call(queueController, answer, results);
         });
         pendingAnswer = null;
       },
@@ -182,26 +231,29 @@
         try {
           transaction.flush();
         } finally {
-          if (quizQueue.submitAnswer === wrappedSubmitAnswer) {
-            quizQueue.submitAnswer = submitAnswer;
+          if (queueController.submitAnswer === wrappedSubmitAnswer) {
+            queueController.submitAnswer = submitAnswer;
           }
 
-          if (quizQueue.nextItem === wrappedNextItem) {
-            quizQueue.nextItem = nextItem;
+          if (queueController.nextItem === wrappedNextItem) {
+            queueController.nextItem = nextItem;
+          }
+          if (databaseManager?.logAnswer === wrappedLogAnswer) {
+            databaseManager.logAnswer = logAnswer;
           }
         }
       },
     };
 
-    quizQueue.submitAnswer = wrappedSubmitAnswer;
-    quizQueue.nextItem = wrappedNextItem;
+    queueController.submitAnswer = wrappedSubmitAnswer;
+    queueController.nextItem = wrappedNextItem;
 
     pendingAnswerTransaction = transaction;
 
     return transaction;
   }
 
-  function undoQuizStatistics(results) {
+  function undoQuizStatistics({ results, complete }) {
     const statisticsElement = document.querySelector(
       '[data-controller~="quiz-statistics"]',
     );
@@ -229,6 +281,13 @@
         0,
         statisticsController.incorrectCount - 1,
       );
+    }
+
+    if (complete) {
+      statisticsController.completedCount -= 1;
+      statisticsController.remainingCount += 1;
+      statisticsController.completeCountTarget.innerText = `${statisticsController.completedCount}`;
+      statisticsController.remainingCountTarget.innerText = `${statisticsController.remainingCount}`;
     }
 
     const percentCorrect =
@@ -265,14 +324,32 @@
     redoButton.setAttribute("aria-disabled", String(!canRedo));
   }
 
-  function resetItemInfo() {
-    document
-      .querySelector(".additional-content__item--item-info")
-      ?.classList.add(DISABLED_CLASS);
+  function resetAnswerFeedback() {
+    const itemInfoToggle = document.querySelector(
+      ".additional-content__item--item-info",
+    );
+    const additionalContentController =
+      window.Stimulus?.getControllerForElementAndIdentifier?.(
+        itemInfoToggle?.closest('[data-controller~="additional-content"]'),
+        "additional-content",
+      );
+    if (additionalContentController?.currentContainer?.id === "item-info") {
+      additionalContentController.close();
+    }
+    itemInfoToggle?.classList.add(DISABLED_CLASS);
 
-    document
-      .querySelector(".additional-content__item--item-info")
-      ?.classList.remove("additional-content__item--active");
+    window.Stimulus?.getControllerForElementAndIdentifier?.(
+      document.querySelector('[data-controller~="quiz-audio"]'),
+      "quiz-audio",
+    )?.clearSources();
+    for (const element of document.querySelectorAll(
+      '#item-info [data-controller~="audio-player"]',
+    )) {
+      window.Stimulus?.getControllerForElementAndIdentifier?.(
+        element,
+        "audio-player",
+      )?.stop();
+    }
 
     const answerException = document.querySelector(".answer-exception");
     if (answerException) {
@@ -280,16 +357,18 @@
       answerException.textContent = "";
     }
 
-    const subjectInfoFrame = document.querySelector(
-      "turbo-frame#subject-info, turbo-frame.subject-info",
+    const srsContainer = document.querySelector(
+      '[data-quiz-header-target~="srsContainer"]',
     );
-
-    if (subjectInfoFrame) {
-      subjectInfoFrame.innerHTML = "";
+    if (srsContainer) {
+      srsContainer.dataset.hidden = "true";
     }
   }
 
   function redoAnswer() {
+    if (!isReviewPage()) {
+      return;
+    }
     const controller = getQuizInputController();
     if (!controller) {
       return;
@@ -336,11 +415,11 @@
 
     const discardedAnswer = transaction?.discard();
     if (discardedAnswer) {
-      undoQuizStatistics(discardedAnswer.results);
+      undoQuizStatistics(discardedAnswer);
     }
 
     requestAnimationFrame(() => {
-      resetItemInfo();
+      resetAnswerFeedback();
 
       const input = document.querySelector("#user-response");
       if (!input) {
@@ -418,7 +497,7 @@
   }
 
   function injectRedoButton() {
-    if (!isQuizPage()) {
+    if (!isReviewPage()) {
       return;
     }
     if (getRedoButton()) {
@@ -439,7 +518,15 @@
   }
 
   function run() {
-    if (!isQuizPage()) {
+    if (!isReviewPage()) {
+      try {
+        pendingAnswerTransaction?.uninstall();
+        pendingAnswerTransaction = null;
+      } finally {
+        getRedoButton()?.closest("li")?.remove();
+        document.querySelector(`.${MENU_CLASS}`)?.classList.remove(MENU_CLASS);
+        document.getElementById(STYLE_ID)?.remove();
+      }
       return;
     }
 
@@ -478,19 +565,17 @@
 
     history.pushState = function (...args) {
       const result = originalPushState.apply(this, args);
-      setTimeout(checkPath, 0);
+      checkPath();
       return result;
     };
 
     history.replaceState = function (...args) {
       const result = originalReplaceState.apply(this, args);
-      setTimeout(checkPath, 0);
+      checkPath();
       return result;
     };
 
-    window.addEventListener("popstate", () => {
-      setTimeout(checkPath, 0);
-    });
+    window.addEventListener("popstate", checkPath);
 
     window.addEventListener("pagehide", () => {
       pendingAnswerTransaction?.flush();

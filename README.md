@@ -15,7 +15,7 @@ Install:
 
 ### WaniKani Redo Answer
 
-Adds a **Redo** control to WaniKani review and extra study quizzes so you can reopen a submitted answer and replace it before advancing.
+Adds a **Redo** control to WaniKani so you can reopen a submitted answer and replace it before advancing.
 
 ![A submitted quiz answer with the Redo control available](docs/screenshots/redo-answer.png)
 
@@ -33,7 +33,7 @@ Install:
 
 ### WaniKani Pitch Accent
 
-Adds compact pitch-pattern diagrams from [OJAD](https://www.gavo.t.u-tokyo.ac.jp/ojad/eng/pages/home) to Reading content on vocabulary subject pages, vocabulary and kanji lessons, and Item Info during reviews and extra study, including recent-mistakes quizzes. Japanese terms and readings are sent to this third-party service to retrieve pitch-accent data. Quiz diagrams remain hidden until the current answer has been submitted.
+Adds compact pitch-pattern diagrams from [OJAD](https://www.gavo.t.u-tokyo.ac.jp/ojad/eng/pages/home) to WaniKani reading information. Japanese terms and readings are sent to this third-party service to retrieve pitch-accent data.
 
 ![Pitch-accent diagrams for そのほか and そのた alongside their audio controls](docs/screenshots/pitch-accent.png)
 
