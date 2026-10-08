@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WaniKani Pitch Accent
 // @namespace    wk-pitch-accent
-// @version      0.9.3
+// @version      0.9.4
 // @author       Federico G. Schwindt <fgsch@lodoss.net>
 // @description  Adds OJAD pitch-accent diagrams to WaniKani vocabulary pages, lessons, and quizzes.
 // @license      MIT
@@ -40,6 +40,7 @@
     return (
       /^\/subjects\/(?:review|extra_study)(?:\/|$)/.test(location.pathname) ||
       /^\/recent-mistakes\/[^/]+\/quiz\/?$/.test(location.pathname) ||
+      /^\/subject-lessons\/[\d-]+\/quiz\/?$/.test(location.pathname) ||
       Boolean(
         document.querySelector(".quiz-input") &&
         document.querySelector(".additional-content__item--last-items"),
@@ -185,47 +186,73 @@
     );
   }
 
-  function getQuizVocabulary() {
-    const subject = getQuizController()?.currentSubject;
+  function getQuizInfoVocabularyTarget(itemInfo) {
+    itemInfo = itemInfo?.querySelector("#item-info") || itemInfo;
+    const readingContent = getSubjectReadingContent(itemInfo);
+    const readingRow = readingContent && findReadingRow(readingContent);
+    if (!readingRow) {
+      return null;
+    }
+
+    // Native Item Info adds a subject header only when browsing another item.
+    const header = itemInfo.querySelector(":scope > .item-info__header");
+    let subject;
+    if (header) {
+      const character = header.querySelector(
+        "[data-subject-character-item-value]",
+      );
+      if (!character) {
+        return null;
+      }
+      subject = JSON.parse(character.dataset.subjectCharacterItemValue);
+    } else {
+      subject = getQuizController()?.currentSubject;
+    }
     if (!subject) {
-      console.debug(`[${NAME}] No quiz controller/subject found`);
       return null;
     }
 
     const type = normalizeJapanese(
-      subject.object || subject.type || subject.subject_category,
+      subject.subjectCategory ||
+        subject.object ||
+        subject.type ||
+        subject.subject_category,
     )
       .toLowerCase()
       .replace(/[_-]/g, "");
-
     if (type !== "vocabulary" && type !== "kanavocabulary") {
-      console.debug(`[${NAME}] Quiz subject is not vocabulary:`, type);
       return null;
     }
 
     const characters = normalizeJapanese(subject.characters);
-    const readings = (subject.readings || [])
-      .filter((reading) => {
-        const accepted =
-          reading.acceptedAnswer ?? reading.accepted_answer ?? reading.primary;
-        if (accepted !== undefined) {
-          return accepted;
-        }
-
-        const kind = normalizeJapanese(reading.kind).toLowerCase();
-        return !kind || kind === "primary" || kind === "alternative";
-      })
-      .map((reading) => normalizeJapanese(reading.reading || reading.text))
-      .filter(Boolean);
-
     if (!characters) {
-      console.debug(`[${NAME}] No characters found for quiz subject`);
       return null;
     }
-    console.debug(`[${NAME}] Quiz vocabulary:`, { characters, readings });
-    return {
+    const readings = header
+      ? collectReadings(readingRow)
+      : (subject.readings || [])
+          .filter((reading) => {
+            const accepted =
+              reading.acceptedAnswer ??
+              reading.accepted_answer ??
+              reading.primary;
+            if (accepted !== undefined) {
+              return accepted;
+            }
+
+            const kind = normalizeJapanese(reading.kind).toLowerCase();
+            return !kind || kind === "primary" || kind === "alternative";
+          })
+          .map((reading) => normalizeJapanese(reading.reading || reading.text))
+          .filter(Boolean);
+    const vocabulary = {
       characters,
       readings: readings.length ? readings : [characters],
+    };
+    return {
+      subject: vocabulary,
+      key: `${type}:${subject.itemId ?? subject.id ?? characters}:${vocabularyKey(vocabulary)}`,
+      readingContent,
     };
   }
 
@@ -826,63 +853,52 @@
       return;
     }
 
-    const subject = getQuizVocabulary();
     const input = document.querySelector(".quiz-input__input-container");
     const itemInfo = document.querySelector(
       "#item-info, turbo-frame#subject-info, turbo-frame.subject-info",
     );
-    const revealed = Boolean(subject && input?.hasAttribute("correct"));
+    const target = getQuizInfoVocabularyTarget(itemInfo);
+    const revealed = Boolean(target && input?.hasAttribute("correct"));
+    const existingContent = document.getElementById(CONTENT_ID);
 
-    if (!revealed) {
-      console.debug(`[${NAME}] Quiz not revealed yet, restoring`);
+    if (!revealed || existingContent?.dataset.quizInfoKey !== target.key) {
       restorePitchContent(itemInfo);
+    }
+    if (!revealed) {
       return;
     }
 
-    const readingContent = getSubjectReadingContent(itemInfo);
-    if (
-      !readingContent ||
-      !findReadingRow(readingContent) ||
-      document.getElementById(CONTENT_ID) ||
-      isRunning
-    ) {
-      console.debug(`[${NAME}] Quiz not ready for insertion:`, {
-        hasReadingContent: Boolean(readingContent),
-        hasReadingRow: Boolean(
-          readingContent && findReadingRow(readingContent),
-        ),
-        hasContent: Boolean(document.getElementById(CONTENT_ID)),
-        isRunning,
-      });
+    const { readingContent } = target;
+    if (document.getElementById(CONTENT_ID) || isRunning) {
       return;
     }
 
     isRunning = true;
     try {
-      const content = await loadPitchContent(subject);
-      const currentSubject = getQuizVocabulary();
+      const content = await loadPitchContent(target.subject);
+      const currentTarget = getQuizInfoVocabularyTarget(
+        document.querySelector(
+          "#item-info, turbo-frame#subject-info, turbo-frame.subject-info",
+        ),
+      );
       const stillRevealed = document
         .querySelector(".quiz-input__input-container")
         ?.hasAttribute("correct");
 
       if (
         !stillRevealed ||
-        vocabularyKey(currentSubject) !== vocabularyKey(subject) ||
+        currentTarget?.key !== target.key ||
         !readingContent.isConnected ||
+        currentTarget.readingContent !== readingContent ||
         document.getElementById(CONTENT_ID)
       ) {
-        console.debug(`[${NAME}] Quiz state changed during fetch, aborting:`, {
-          stillRevealed,
-          subjectChanged:
-            vocabularyKey(currentSubject) !== vocabularyKey(subject),
-          readingConnected: readingContent.isConnected,
-          hasContent: Boolean(document.getElementById(CONTENT_ID)),
-        });
+        console.debug(`[${NAME}] Quiz state changed during fetch, aborting`);
         return;
       }
 
       injectStyles();
       insertPitchAroundReading(readingContent, content);
+      document.getElementById(CONTENT_ID).dataset.quizInfoKey = target.key;
       console.debug(`[${NAME}] Quiz inserted successfully`);
     } finally {
       isRunning = false;

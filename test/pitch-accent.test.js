@@ -1087,6 +1087,117 @@ test("pitch accent waits for a revealed quiz answer and Reading item info", asyn
   );
 });
 
+test("pitch accent gates lesson-quiz charts and follows vocabulary and kana Item Info", async () => {
+  const readingInfo = (reading, subject) => `
+    ${subject ? `<header class="item-info__header"><a data-subject-character-item-value='${JSON.stringify(subject)}'></a></header>` : ""}
+    <section class="subject-section" data-name="reading">
+      <section class="subject-section__content">
+        <section class="subject-subsection" data-name="vocabularyReading">
+          <div class="reading-with-audio">
+            <div class="reading-with-audio__reading" data-reading-text>${reading}</div>
+            <button class="reading-with-audio__icons">Play audio</button>
+          </div>
+        </section>
+      </section>
+    </section>
+  `;
+  const dom = createDom(
+    `${quizInputHtml()}<div id="item-info">${readingInfo("たべる")}</div>`,
+    "https://www.wanikani.com/subject-lessons/-1234567890123456789/quiz",
+  );
+  const controller = {
+    currentSubject: {
+      id: 1,
+      type: "Vocabulary",
+      characters: "食べる",
+      readings: [{ text: "たべる", kind: "primary" }],
+    },
+  };
+  const response = ojadResultsHtml([
+    {
+      headword: "食べる",
+      moras: [{ text: "た" }, { text: "べ", drop: true }, { text: "る" }],
+    },
+    { headword: "とか", moras: [{ text: "と" }, { text: "か", high: true }] },
+  ]);
+  const requests = [];
+  await loadUserscript(dom, "wk-pitch-accent.js", {
+    ...stimulusGlobals(() => controller),
+    GM: {
+      xmlHttpRequest(request) {
+        requests.push(request.url);
+        request.onload({ status: 200, responseText: response });
+      },
+    },
+  });
+  const info = dom.window.document.querySelector("#item-info");
+  const input = dom.window.document.querySelector(
+    ".quiz-input__input-container",
+  );
+  const audio = info.querySelector("button");
+  await flushMutationObservers();
+  assert.equal(info.querySelector(".wk-pitch-accent"), null);
+  assert.deepEqual(requests, []);
+
+  input.setAttribute("correct", "false");
+  await waitFor(() => {
+    assert.match(
+      info
+        .querySelector(".wk-pitch-accent-charts svg")
+        ?.getAttribute("aria-label") || "",
+      /たべる/,
+    );
+  });
+  assert.equal(audio.isConnected, true);
+
+  info.innerHTML = readingInfo("にち", {
+    itemId: 2,
+    subjectCategory: "Kanji",
+    characters: "日",
+  });
+  await flushMutationObservers();
+  assert.equal(info.querySelector(".wk-pitch-accent"), null);
+  assert.equal(info.querySelector("[data-reading-text]").textContent, "にち");
+
+  const kana = {
+    itemId: 3,
+    subjectCategory: "KanaVocabulary",
+    characters: "とか",
+  };
+  info.innerHTML = readingInfo("とか", kana);
+  const kanaReading = info.querySelector("[data-reading-text]");
+  await waitFor(() => {
+    assert.match(
+      info
+        .querySelector(".wk-pitch-accent-charts svg")
+        ?.getAttribute("aria-label") || "",
+      /とか/,
+    );
+  });
+  input.removeAttribute("correct");
+  await waitFor(() => {
+    assert.equal(info.querySelector(".wk-pitch-accent"), null);
+    assert.equal(kanaReading.isConnected, true);
+  });
+
+  controller.currentSubject = {
+    ...kana,
+    readings: [{ text: "とか", kind: "primary" }],
+  };
+  info.innerHTML = readingInfo("とか");
+  await flushMutationObservers();
+  assert.equal(info.querySelector(".wk-pitch-accent"), null);
+  input.setAttribute("correct", "true");
+  await waitFor(() => {
+    assert.match(
+      info
+        .querySelector(".wk-pitch-accent-charts svg")
+        ?.getAttribute("aria-label") || "",
+      /とか/,
+    );
+  });
+});
+
 test("pitch accent handles client-rendered review Item Info and accepted readings", async () => {
   const dom = createDom(
     `
@@ -1184,6 +1295,262 @@ test("pitch accent handles client-rendered review Item Info and accepted reading
   await waitFor(() => {
     assert.equal(info.querySelector(".wk-pitch-accent"), null);
     assert.ok(originals.every((reading) => reading.isConnected));
+  });
+});
+
+test("pitch accent follows browsed vocabulary and restores the current quiz reading", async () => {
+  const readingInfo = (reading, subject) => `
+    ${
+      subject
+        ? `<header class="item-info__header">
+            <a data-subject-character-item-value='${JSON.stringify(subject)}'></a>
+          </header>`
+        : ""
+    }
+    <section class="subject-section" data-name="reading">
+      <section class="subject-section__content">
+        <div class="reading-with-audio">
+          <span class="reading-with-audio__reading" data-reading-text>${reading}</span>
+          <button>Play audio</button>
+        </div>
+      </section>
+    </section>
+  `;
+  const dom = createDom(
+    `${quizInputHtml({ correct: "true" })}
+     <turbo-frame id="subject-info">
+       <div id="item-info">${readingInfo("さんかく")}</div>
+     </turbo-frame>`,
+    "https://www.wanikani.com/subjects/extra_study",
+  );
+  const info = dom.window.document.querySelector("#item-info");
+  const ojadHtml = ojadResultsHtml([
+    {
+      headword: "三角",
+      moras: [
+        { text: "さ", drop: true },
+        { text: "ん" },
+        { text: "か" },
+        { text: "く" },
+      ],
+    },
+    {
+      headword: "四角",
+      moras: [
+        { text: "し" },
+        { text: "か", high: true },
+        { text: "く", high: true },
+      ],
+    },
+  ]);
+  await loadUserscript(dom, "wk-pitch-accent.js", {
+    ...stimulusGlobals(() => ({
+      currentSubject: {
+        id: 2836,
+        type: "Vocabulary",
+        characters: "三角",
+        readings: [{ text: "さんかく", kind: "primary" }],
+      },
+    })),
+    GM: {
+      xmlHttpRequest({ onload }) {
+        onload({ status: 200, responseText: ojadHtml });
+      },
+    },
+  });
+  await waitFor(() => {
+    assert.equal(
+      info.querySelector(".wk-pitch-accent-charts")?.dataset.reading,
+      "さんかく",
+    );
+  });
+
+  info.innerHTML = readingInfo("しかく", {
+    itemId: 2837,
+    characters: "四角",
+    subjectCategory: "Vocabulary",
+  });
+  const browsedReading = info.querySelector("[data-reading-text]");
+  const audio = info.querySelector("button");
+  await waitFor(() => {
+    assert.equal(
+      info.querySelector(".wk-pitch-accent-charts")?.dataset.reading,
+      "しかく",
+    );
+  });
+  assert.equal(browsedReading.isConnected, false);
+  assert.equal(audio.isConnected, true);
+  assert.equal(info.textContent.includes("さんかく"), false);
+
+  info.innerHTML = `
+    <header class="item-info__header">
+      <a data-subject-character-item-value='{"itemId":592,"characters":"角","subjectCategory":"Kanji"}'></a>
+    </header>
+    <section class="subject-section" data-name="reading">
+      <section class="subject-section__content">
+        <div data-kanji-reading>かく</div>
+      </section>
+    </section>
+  `;
+  await flushMutationObservers();
+  assert.equal(info.querySelector(".wk-pitch-accent"), null);
+  assert.equal(info.querySelector("[data-kanji-reading]").textContent, "かく");
+
+  info.innerHTML = readingInfo("さんかく");
+  await waitFor(() => {
+    assert.equal(
+      info.querySelector(".wk-pitch-accent-charts")?.dataset.reading,
+      "さんかく",
+    );
+  });
+});
+
+test("pitch accent reads browsed vocabulary when the active quiz subject is kanji", async () => {
+  const dom = createDom(
+    `${quizInputHtml({ correct: "false" })}
+     <div id="item-info">
+       <header class="item-info__header">
+         <a data-subject-character-item-value='{"itemId":2835,"characters":"角","subjectCategory":"Vocabulary"}'></a>
+       </header>
+       <section class="subject-section" data-name="reading">
+         <section class="subject-section__content">
+           <div class="subject-readings-with-audio">
+             ${["かど", "かく"]
+               .map(
+                 (reading) => `
+               <div class="reading-with-audio">
+                 <span class="reading-with-audio__reading" data-reading-text>${reading}</span>
+                 <button>Play ${reading}</button>
+               </div>
+             `,
+               )
+               .join("")}
+           </div>
+         </section>
+       </section>
+     </div>`,
+    "https://www.wanikani.com/subjects/review",
+  );
+  const info = dom.window.document.querySelector("#item-info");
+  await loadUserscript(dom, "wk-pitch-accent.js", {
+    ...stimulusGlobals(() => ({
+      currentSubject: { id: 592, type: "Kanji", characters: "角" },
+    })),
+    GM: {
+      xmlHttpRequest({ onload }) {
+        onload({
+          status: 200,
+          responseText: ojadResultsHtml([
+            {
+              headword: "角",
+              moras: [{ text: "か", drop: true }, { text: "ど" }],
+            },
+            {
+              headword: "角",
+              moras: [{ text: "か", drop: true }, { text: "く" }],
+            },
+          ]),
+        });
+      },
+    },
+  });
+  await waitFor(() => {
+    assert.deepEqual(
+      [...info.querySelectorAll(".wk-pitch-accent-charts")].map(
+        (chart) => chart.dataset.reading,
+      ),
+      ["かど", "かく"],
+    );
+  });
+  dom.window.document
+    .querySelector(".quiz-input__input-container")
+    .removeAttribute("correct");
+  await waitFor(() => {
+    assert.equal(info.querySelector(".wk-pitch-accent"), null);
+    assert.deepEqual(
+      [...info.querySelectorAll("[data-reading-text]")].map(
+        (el) => el.textContent,
+      ),
+      ["かど", "かく"],
+    );
+  });
+});
+
+test("pitch accent rejects a delayed quiz lookup when the displayed subject changes in place", async () => {
+  const dom = createDom(
+    `${quizInputHtml({ correct: "true" })}
+     <div id="item-info">
+       <section class="subject-section" data-name="reading">
+         <section class="subject-section__content">
+           <div class="reading-with-audio">
+             <span class="reading-with-audio__reading" data-reading-text>さんかく</span>
+           </div>
+         </section>
+       </section>
+     </div>`,
+    "https://www.wanikani.com/subjects/extra_study",
+  );
+  const requests = [];
+  const info = dom.window.document.querySelector("#item-info");
+  const reading = info.querySelector("[data-reading-text]");
+  await loadUserscript(dom, "wk-pitch-accent.js", {
+    ...stimulusGlobals(() => ({
+      currentSubject: {
+        id: 2836,
+        type: "Vocabulary",
+        characters: "三角",
+        readings: [{ text: "さんかく", kind: "primary" }],
+      },
+    })),
+    ...capturedRequests(requests),
+  });
+  assert.equal(requests.length, 1);
+
+  reading.textContent = "しかく";
+  info.insertAdjacentHTML(
+    "afterbegin",
+    `
+    <header class="item-info__header">
+      <a data-subject-character-item-value='{"itemId":2837,"characters":"四角","subjectCategory":"Vocabulary"}'></a>
+    </header>
+  `,
+  );
+  const responseText = ojadResultsHtml([
+    {
+      headword: "三角",
+      moras: [
+        { text: "さ", drop: true },
+        { text: "ん" },
+        { text: "か" },
+        { text: "く" },
+      ],
+    },
+    {
+      headword: "四角",
+      moras: [
+        { text: "し" },
+        { text: "か", high: true },
+        { text: "く", high: true },
+      ],
+    },
+  ]);
+  requests[0].onload({ status: 200, responseText });
+  await waitFor(() => {
+    assert.equal(
+      decodeURIComponent(requests[1]?.url || "").split("word:")[1],
+      "しかく",
+    );
+  });
+  assert.equal(info.querySelector(".wk-pitch-accent"), null);
+  assert.equal(reading.isConnected, true);
+  assert.equal(reading.textContent, "しかく");
+
+  requests[1].onload({ status: 200, responseText });
+  await waitFor(() => {
+    assert.equal(
+      info.querySelector(".wk-pitch-accent-charts")?.dataset.reading,
+      "しかく",
+    );
   });
 });
 
