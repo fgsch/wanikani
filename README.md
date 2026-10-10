@@ -8,7 +8,7 @@ Small userscripts for improving WaniKani.
 
 Applies the [Catppuccin Mocha](https://github.com/catppuccin/catppuccin) palette across WaniKani with coordinated colors and readable contrast. It follows the system color scheme by default; use the control in the lower-left corner to cycle through **System**, **Dark**, and **Light** modes.
 
-![The 食べる vocabulary page in Light mode on the left and Catppuccin Mocha on the right](docs/screenshots/catppuccin-mocha.png)
+![The 青い vocabulary page in Light mode on the left and Catppuccin Mocha on the right](docs/screenshots/catppuccin-mocha.png)
 
 Install:
 <https://raw.githubusercontent.com/fgsch/wanikani/main/wk-catppuccin-mocha.js>
@@ -17,7 +17,7 @@ Install:
 
 Adds a **Redo** control to WaniKani so you can reopen a submitted answer and replace it before advancing.
 
-![A submitted quiz answer with the Redo control available](docs/screenshots/redo-answer.png)
+![A submitted 同日 reading review in Light mode with the enabled Redo control](docs/screenshots/redo-answer.png)
 
 Install:
 <https://raw.githubusercontent.com/fgsch/wanikani/main/wk-redo-answer.js>
