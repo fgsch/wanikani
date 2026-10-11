@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         WaniKani Catppuccin Mocha
 // @namespace    wk-catppuccin-mocha
-// @version      0.6.2
+// @version      0.6.3
 // @author       Federico G. Schwindt <fgsch@lodoss.net>
 // @description  Applies the Catppuccin Mocha palette to WaniKani with system and manual modes.
 // @license      MIT
@@ -78,19 +78,10 @@
 
       --color-radical: var(--ctp-mocha-blue-bold);
       --color-radical-dark: color-mix(in srgb, var(--ctp-mocha-blue) 35%, var(--ctp-mocha-crust));
-      --color-radical-highlight: var(--ctp-mocha-sky);
-      --color-radical-lowlight: var(--color-radical-dark);
-      --color-radical-gradient: linear-gradient(to bottom, var(--color-radical), var(--color-radical-dark));
       --color-kanji: var(--ctp-mocha-pink-bold);
       --color-kanji-dark: color-mix(in srgb, var(--ctp-mocha-pink) 35%, var(--ctp-mocha-crust));
-      --color-kanji-highlight: var(--ctp-mocha-rosewater);
-      --color-kanji-lowlight: var(--color-kanji-dark);
-      --color-kanji-gradient: linear-gradient(to bottom, var(--color-kanji), var(--color-kanji-dark));
       --color-vocabulary: var(--ctp-mocha-mauve-bold);
       --color-vocabulary-dark: color-mix(in srgb, var(--ctp-mocha-mauve) 35%, var(--ctp-mocha-crust));
-      --color-vocabulary-highlight: var(--ctp-mocha-lavender);
-      --color-vocabulary-lowlight: var(--color-vocabulary-dark);
-      --color-vocabulary-gradient: linear-gradient(to bottom, var(--color-vocabulary), var(--color-vocabulary-dark));
       --color-blue: var(--color-radical);
       --color-blue-dark: var(--color-radical-dark);
       --color-blue-light: color-mix(in srgb, var(--ctp-mocha-blue) 30%, var(--wk-dark-surface-raised));
@@ -117,9 +108,6 @@
       --color-focus: var(--ctp-mocha-lavender);
       --color-title-underline: var(--wk-dark-border);
       --color-link: var(--ctp-mocha-blue);
-      --color-link-hover: var(--ctp-mocha-sky);
-      --color-link-active: var(--ctp-mocha-sky);
-      --color-text-shadow-light: transparent;
       --color-input-text: var(--wk-dark-text);
       --color-input-background: var(--wk-dark-surface);
       --color-input-border: var(--wk-dark-border);
@@ -129,10 +117,10 @@
       --color-quiz-correct-text-color: var(--wk-dark-text);
       --color-quiz-srs-correct-background: var(--wk-dark-progress);
       --color-quiz-srs-correct-text-color: var(--ctp-mocha-base);
-      --color-quiz-srs-correct-text-shadow: none;
       --color-quiz-incorrect-background: color-mix(in srgb, var(--ctp-mocha-red) 18%, var(--wk-dark-surface));
       --color-quiz-incorrect-text-color: var(--wk-dark-text);
-      --color-quiz-incorrect-text-shadow: transparent;
+      --colorQuizExceptionBackground: var(--wk-dark-surface-raised);
+      --colorQuizExceptionText: var(--wk-dark-text);
       --color-hint-background: var(--wk-dark-surface-raised);
       --color-code-background: var(--wk-dark-surface-raised);
       --color-code-border: var(--wk-dark-border);
@@ -140,18 +128,21 @@
       --color-alert-system-background: var(--ctp-mocha-pink);
       --color-alert-system-button-edge: var(--ctp-mocha-crust);
       --color-alert-system-text: var(--ctp-mocha-crust);
-      --color-alert-system-text-shadow: none;
 
       --color-page-header-title: var(--wk-dark-text);
       --color-page-header-subtitle: var(--wk-dark-text-muted);
       --color-page-header-description: var(--wk-dark-text-muted);
       --color-page-nav-header-icon: var(--wk-dark-text-muted);
       --color-section-header-border: var(--wk-dark-border);
+      --color-section-subtitle: var(--wk-dark-text-muted);
       --color-setting-divider: var(--wk-dark-border);
       --color-authentication-footer-divider: var(--wk-dark-border);
       --color-subject-slide-navigation-background: var(--ctp-mocha-crust);
       --color-subject-slide-navigation-text: var(--wk-dark-text);
       --color-subject-slide-navigation-button-hover: var(--wk-dark-surface-hover);
+      --colorSlideBackground: var(--wk-dark-surface);
+      --colorSlideBorder: var(--wk-dark-border);
+      --colorSlideShadow: color-mix(in srgb, var(--ctp-mocha-crust) 50%, transparent);
 
       --color-global-header-background: var(--wk-dark-surface);
       --color-global-header-border: var(--wk-dark-border);
@@ -224,8 +215,6 @@
       --color-count-bubble-border: var(--wk-dark-border);
       --color-count-bubble-divider: var(--wk-dark-border);
       --color-count-bubble-text: var(--wk-dark-text);
-      --color-count_bubble-background: var(--wk-dark-surface-raised);
-      --color-count_bubble-text: var(--wk-dark-text);
       --color-progress-chart-bar-background: var(--wk-dark-border);
       --color-progress-chart-bar: var(--wk-dark-progress);
       --color-progress-chart-metric-text: var(--wk-dark-text-muted);
@@ -284,7 +273,6 @@
       --color-subscription-plan-divider: var(--wk-dark-border);
       --color-lesson-picker-footer-background: color-mix(in srgb, var(--ctp-mocha-mantle) 92%, transparent);
       --color-lesson-picker-footer-border: 1px solid var(--wk-dark-border);
-      --color-recent-mistakes-intro-divider: var(--wk-dark-border);
     }
 
     html[data-wk-mocha-active],
@@ -666,32 +654,18 @@
       background-image: none;
     }
 
-    html[data-wk-mocha-active] .subject-slide {
-      background-color: var(--wk-dark-surface);
-      border-color: var(--wk-dark-border);
-      box-shadow: 2px 2px 4px color-mix(in srgb, var(--ctp-mocha-crust) 50%, transparent);
-    }
-
     html[data-wk-mocha-active] .subject-info {
       background-color: var(--wk-dark-surface);
     }
 
-    html[data-wk-mocha-active] .subject-subsection__subtitle {
-      color: var(--wk-dark-text-muted) !important;
-    }
-
-    html[data-wk-mocha-active] .subject-slides__navigation-link[aria-selected="true"]::after {
-      border-bottom-color: var(--wk-dark-border);
-    }
-
-    html[data-wk-mocha-active] .todays-lessons-widget:not(.todays-lessons-widget--complete),
-    html[data-wk-mocha-active] .reviews-widget:not(.reviews-widget--complete) {
+    html[data-wk-mocha-active] .todays-lessons-widget.theme--neon:not(.todays-lessons-widget--complete),
+    html[data-wk-mocha-active] .reviews-widget.theme--neon:not(.reviews-widget--complete) {
       --color-widget-primary-text: var(--ctp-mocha-base);
       --color-widget-secondary-text: var(--ctp-mocha-base);
     }
 
-    html[data-wk-mocha-active] .todays-lessons-widget:not(.todays-lessons-widget--complete) .count-bubble,
-    html[data-wk-mocha-active] .reviews-widget:not(.reviews-widget--complete) .count-bubble {
+    html[data-wk-mocha-active] .todays-lessons-widget.theme--neon:not(.todays-lessons-widget--complete) .count-bubble,
+    html[data-wk-mocha-active] .reviews-widget.theme--neon:not(.reviews-widget--complete) .count-bubble {
       color: var(--ctp-mocha-base);
     }
 
@@ -750,16 +724,16 @@
       color: var(--wk-dark-text);
     }
 
-    html[data-wk-mocha-active] .quiz-input__input-container[correct] .quiz-input__input {
-      border-color: transparent;
-    }
-
     html[data-wk-mocha-active] .quiz-input__input-container[correct]:not([correct="false"]) .quiz-input__input {
       border-color: #a6e3a1;
     }
 
     html[data-wk-mocha-active] .quiz-input__input-container[correct="false"] .quiz-input__input {
       border-color: #f38ba8;
+    }
+
+    html[data-wk-mocha-active] .answer-exception {
+      box-shadow: none;
     }
 
     html[data-wk-mocha-active] .additional-content__item {

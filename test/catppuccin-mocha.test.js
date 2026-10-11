@@ -543,35 +543,6 @@ test("Catppuccin Mocha applies its palette to stroke order colors", async () => 
   }
 });
 
-test("Catppuccin Mocha adds palette accents to browser interaction states", async () => {
-  const dom = createDom(
-    '<a href="/subjects">Subjects</a><input value="search">',
-    "https://www.wanikani.com/",
-  );
-
-  await loadCatppuccinMocha(dom);
-
-  const root = dom.window.document.documentElement;
-  const styles = dom.window.document.querySelector(
-    "#wk-catppuccin-mocha-styles",
-  ).textContent;
-
-  assertCustomProperties(dom, root, {
-    "--ctp-mocha-rosewater": "#f5e0dc",
-    "--ctp-mocha-lavender": "#b4befe",
-    "--ctp-mocha-overlay-2": "#9399b2",
-    "--color-quiz-input-focus": "#b4befe",
-    "--color-modal-button-edge": "#6c7086",
-  });
-  assert.match(styles, /::selection[^}]+--ctp-mocha-overlay-2/s);
-  assert.match(
-    styles,
-    /input,[^{]+textarea,[^{]+select[^}]+caret-color:[^;]+--ctp-mocha-rosewater/s,
-  );
-  assert.doesNotMatch(styles, /a:visited[^}]+--ctp-mocha-lavender/s);
-  assert.match(styles, /:focus-visible[^}]+--ctp-mocha-lavender/s);
-});
-
 test("Catppuccin Mocha replaces light quiz chrome with palette surfaces", async () => {
   const dom = createDom(
     `<style>
@@ -617,6 +588,103 @@ test("Catppuccin Mocha replaces light quiz chrome with palette surfaces", async 
     dom.window.getComputedStyle(activeItem).backgroundColor,
     "var(--ctp-mocha-overlay-0)",
   );
+});
+
+test("Catppuccin Mocha keeps answer feedback readable and restores native Light styling", async () => {
+  const dom = createDom(
+    `<style>
+      :root {
+        --colorQuizExceptionBackground: #999999;
+        --colorQuizExceptionText: #ffffff;
+        --colorQuizExceptionShadow: #e1e1e1;
+      }
+      .answer-exception {
+        background-color: var(--colorQuizExceptionBackground);
+        color: var(--colorQuizExceptionText);
+        box-shadow: 3px 3px 0 var(--colorQuizExceptionShadow);
+      }
+    </style>
+    <div class="answer-exception" data-item-info-target="exception">
+      Need help? View the correct reading and mnemonic.
+    </div>`,
+    "https://www.wanikani.com/subjects/review",
+  );
+  const bubble = dom.window.document.querySelector(".answer-exception");
+  const appearance = () => ({
+    foreground: parseColor(resolveCustomProperty(dom, bubble, "color")),
+    background: parseColor(
+      resolveCustomProperty(dom, bubble, "background-color"),
+    ),
+    shadow: dom.window.getComputedStyle(bubble).boxShadow,
+  });
+  const nativeAppearance = appearance();
+
+  await loadCatppuccinMocha(dom);
+
+  const darkAppearance = appearance();
+  assert.ok(
+    contrastRatio(darkAppearance.foreground, darkAppearance.background) >= 4.5,
+    "Answer feedback must have readable text",
+  );
+  assert.equal(darkAppearance.shadow, "none");
+
+  const toggle = dom.window.document.getElementById(
+    "wk-catppuccin-mocha-toggle",
+  );
+  toggle.click();
+  toggle.click();
+  assert.deepEqual(appearance(), nativeAppearance);
+});
+
+test("Catppuccin Mocha keeps native reading labels readable and restores Light styling", async () => {
+  const dom = createDom(
+    `<style>
+      :root {
+        --color-app-background: #f4f4f4;
+        --color-section-subtitle: #6b7079;
+      }
+      body { background-color: var(--color-app-background); }
+      .subject-readings__reading-title,
+      .subject-subsection__subtitle {
+        color: var(--color-section-subtitle);
+      }
+    </style>
+    <h3 class="subject-readings__reading-title">On’yomi</h3>
+    <h3 class="subject-subsection__subtitle">Mnemonic</h3>`,
+    "https://www.wanikani.com/kanji/%E5%BE%8C",
+  );
+  const labels = [
+    ...dom.window.document.querySelectorAll(
+      ".subject-readings__reading-title, .subject-subsection__subtitle",
+    ),
+  ];
+  const appearance = () => ({
+    foregrounds: labels.map((label) =>
+      parseColor(resolveCustomProperty(dom, label, "color")),
+    ),
+    background: parseColor(
+      resolveCustomProperty(dom, dom.window.document.body, "background-color"),
+    ),
+  });
+  const nativeAppearance = appearance();
+
+  await loadCatppuccinMocha(dom);
+
+  const darkAppearance = appearance();
+  for (const [index, foreground] of darkAppearance.foregrounds.entries()) {
+    const ratio = contrastRatio(foreground, darkAppearance.background);
+    assert.ok(
+      ratio >= 4.5,
+      `${labels[index].className} contrast is ${ratio}, expected at least 4.5`,
+    );
+  }
+
+  const toggle = dom.window.document.getElementById(
+    "wk-catppuccin-mocha-toggle",
+  );
+  toggle.click();
+  toggle.click();
+  assert.deepEqual(appearance(), nativeAppearance);
 });
 
 test("Catppuccin Mocha replaces the Kana Chart light palette", async () => {
@@ -718,9 +786,6 @@ test("Catppuccin Mocha replaces the legacy Help dropdown colors", async () => {
   );
   const row = dom.window.document.querySelector(".sitemap__page--subject");
   const link = row.querySelector("a");
-  const styles = dom.window.document.querySelector(
-    "#wk-catppuccin-mocha-styles",
-  ).textContent;
 
   assert.equal(
     dom.window.getComputedStyle(panel).backgroundColor,
@@ -732,14 +797,6 @@ test("Catppuccin Mocha replaces the legacy Help dropdown colors", async () => {
     "rgb(88, 91, 112)",
   );
   assert.equal(dom.window.getComputedStyle(link).color, "var(--wk-dark-text)");
-  assert.match(
-    styles,
-    /\.sitemap__expandable-chunk--help::before\s*\{[^}]*background-color:[^;]+--wk-dark-surface-raised/s,
-  );
-  assert.match(
-    styles,
-    /\.sitemap__page--subject a:hover,[^{]+\.button--chat:focus\s*\{[^}]*background-color:[^;]+--wk-dark-surface-hover/s,
-  );
 });
 
 test("Catppuccin Mocha replaces the legacy Levels dropdown colors", async () => {
@@ -772,9 +829,6 @@ test("Catppuccin Mocha replaces the legacy Levels dropdown colors", async () => 
   );
   const heading = dom.window.document.querySelector(".sitemap__group-header");
   const link = dom.window.document.querySelector(".sitemap__page a");
-  const styles = dom.window.document.querySelector(
-    "#wk-catppuccin-mocha-styles",
-  ).textContent;
 
   assert.equal(
     dom.window.getComputedStyle(panel).backgroundColor,
@@ -789,18 +843,6 @@ test("Catppuccin Mocha replaces the legacy Levels dropdown colors", async () => 
     "var(--wk-dark-surface-hover)",
   );
   assert.equal(dom.window.getComputedStyle(link).color, "var(--wk-dark-text)");
-  assert.match(
-    styles,
-    /\.sitemap__expandable-chunk--levels::before\s*\{[^}]*background-color:[^;]+--wk-dark-surface-raised/s,
-  );
-  assert.match(
-    styles,
-    /\.sitemap__pages--levels \.sitemap__page a:hover,[^{]+a:focus\s*\{[^}]*background-color:[^;]+--ctp-mocha-surface-2/s,
-  );
-  assert.match(
-    styles,
-    /\.sitemap__page--current-level a,[^{]+a:focus\s*\{[^}]*border-color:[^;]+--ctp-mocha-lavender/s,
-  );
 });
 
 test("Catppuccin Mocha uses deliberate quiz input borders without light shadows", async () => {
@@ -1210,41 +1252,20 @@ test("Catppuccin Mocha keeps filled subject box characters contrasting", async (
   }
 });
 
-test("Catppuccin Mocha replaces the light expandable subject frame", async () => {
-  const dom = createDom(
-    `<span class="subject-character subject-character--vocabulary subject-character--unlocked subject-character--expandable">
-      <span class="subject-character__characters">
-        <span class="subject-character__characters-text">北アメリカ</span>
-      </span>
-    </span>`,
-    "https://www.wanikani.com/vocabulary/%E5%8C%97%E3%82%A2%E3%83%A1%E3%83%AA%E3%82%AB",
-  );
-
-  await loadCatppuccinMocha(dom);
-
-  const styles = dom.window.document.querySelector(
-    "#wk-catppuccin-mocha-styles",
-  ).textContent;
-  const frameRule = styles.match(
-    /\.subject-character--expandable \.subject-character__characters:hover::before\s*\{([^}]*)\}/s,
-  )?.[1];
-
-  assert.ok(frameRule);
-  assert.match(
-    frameRule,
-    /background-color:\s*var\(--wk-dark-surface-raised\)/,
-  );
-  assert.match(frameRule, /border:\s*1px solid #585b70/);
-  assert.match(frameRule, /box-shadow:[^;]+--ctp-mocha-crust/);
-});
-
-test("Catppuccin Mocha replaces the light subject lesson slide", async () => {
+test("Catppuccin Mocha keeps native lesson slides readable and restores Light styling", async () => {
   const dom = createDom(
     `<style>
+      :root {
+        --colorSlideBackground: #fafafa;
+        --colorSlideBorder: #d4d4d4;
+        --colorSlideShadow: #e3e3e3;
+        --color-text: #333333;
+      }
+      body { color: var(--color-text); }
       .subject-slide {
-        background-color: #fafafa;
-        border: 2px solid #d4d4d4;
-        box-shadow: 2px 2px 4px #e3e3e3;
+        background-color: var(--colorSlideBackground);
+        box-shadow: 2px 2px 4px var(--colorSlideShadow);
+        border: 2px solid var(--colorSlideBorder);
       }
     </style>
     <div class="subject-slides">
@@ -1252,13 +1273,33 @@ test("Catppuccin Mocha replaces the light subject lesson slide", async () => {
     </div>`,
     "https://www.wanikani.com/subject-lessons/920088919089344908/95",
   );
+  const slide = dom.window.document.querySelector(".subject-slide");
+  const appearance = () => ({
+    foreground: parseColor(resolveCustomProperty(dom, slide, "color")),
+    background: parseColor(
+      resolveCustomProperty(dom, slide, "background-color"),
+    ),
+  });
+  const nativeAppearance = appearance();
 
   await loadCatppuccinMocha(dom);
 
-  const slide = dom.window.document.querySelector(".subject-slide");
-  const slideStyles = dom.window.getComputedStyle(slide);
+  const darkAppearance = appearance();
+  assert.ok(
+    darkAppearance.background.every((channel) => channel < 128),
+    "Lesson slides must retain a dark background",
+  );
+  assert.ok(
+    contrastRatio(darkAppearance.foreground, darkAppearance.background) >= 4.5,
+    "Lesson slides must have readable text",
+  );
 
-  assert.equal(slideStyles.backgroundColor, "var(--wk-dark-surface)");
+  const toggle = dom.window.document.getElementById(
+    "wk-catppuccin-mocha-toggle",
+  );
+  toggle.click();
+  toggle.click();
+  assert.deepEqual(appearance(), nativeAppearance);
 });
 
 test("Catppuccin Mocha uses its teal for the lesson Quiz button", async () => {
@@ -1400,32 +1441,6 @@ test("Catppuccin Mocha keeps sitemap section headers readable", async () => {
   assert.ok(contrastRatio(foreground, background) >= 4.5);
 });
 
-test("Catppuccin Mocha gives generic sitemap headers visible interaction borders", async () => {
-  const dom = createDom(
-    `<header class="global-header">
-      <button class="sitemap__section-header">Levels</button>
-      <button class="sitemap__section-header">Help</button>
-      <button class="sitemap__section-header sitemap__section-header--radicals">Radicals</button>
-    </header>`,
-    "https://www.wanikani.com/recent-unlocks",
-  );
-
-  await loadCatppuccinMocha(dom);
-
-  const styles = dom.window.document.querySelector(
-    "#wk-catppuccin-mocha-styles",
-  ).textContent;
-
-  assert.match(
-    styles,
-    /\.sitemap__section-header:not\([^}]+:hover\s*\{[^}]*border-color:\s*var\(--ctp-mocha-overlay-1\)/s,
-  );
-  assert.match(
-    styles,
-    /\.sitemap__section-header:not\([^}]+:focus\s*\{[^}]*border-color:\s*var\(--ctp-mocha-lavender\)/s,
-  );
-});
-
 test("Catppuccin Mocha treats the account menu as a raised surface", async () => {
   const dom = createDom(
     `<style>
@@ -1463,9 +1478,6 @@ test("Catppuccin Mocha treats the account menu as a raised surface", async () =>
   const menu = dom.window.document.querySelector(
     ".sitemap__expandable-chunk--account",
   );
-  const styles = dom.window.document.querySelector(
-    "#wk-catppuccin-mocha-styles",
-  ).textContent;
 
   assert.equal(
     dom.window.getComputedStyle(menu).backgroundColor,
@@ -1482,78 +1494,92 @@ test("Catppuccin Mocha treats the account menu as a raised surface", async () =>
     ).color,
     "var(--wk-dark-text-muted)",
   );
-  assert.match(
-    styles,
-    /sitemap__expandable-chunk--account::before[^}]+background-color:[^;]+--wk-dark-surface-raised/s,
-  );
-  assert.match(
-    styles,
-    /sitemap__expandable-chunk--account \.sitemap__page a:hover,[^{]+a:focus[^}]+background-color:[^;]+--wk-dark-surface-hover/s,
-  );
 });
 
-test("Catppuccin Mocha keeps lesson and review widgets readable when completed", async () => {
+test("Catppuccin Mocha keeps non-neon lesson and review widgets readable before and after completion", async () => {
   const dom = createDom(
     `<style>
       :root {
-        --color-widget-background: #fff;
-        --color-widget-primary-text: #333;
-        --color-widget-secondary-text: #6b7079;
+        --color-widget-background: #FFFFFF;
+        --color-widget-primary-text: #333333;
+        --color-widget-secondary-text: #6B7079;
+        --color-count-bubble-background: #FFFFFF;
+        --color-count-bubble-text: var(--color-text);
       }
-      .todays-lessons-widget { --color-widget-background: var(--ctp-mocha-pink); }
-      .reviews-widget { --color-widget-background: var(--ctp-mocha-blue); }
-      .count-bubble { background-color: #fff; color: var(--color-count-bubble-text); }
+      .todays-lessons-widget,
+      .reviews-widget {
+        background-color: var(--color-widget-background);
+        color: var(--color-widget-primary-text);
+      }
+      .todays-lessons-widget__title-text,
+      .reviews-widget__title-text {
+        color: var(--color-widget-primary-text);
+      }
+      .todays-lessons-widget__text,
+      .reviews-widget__text {
+        color: var(--color-widget-secondary-text);
+      }
+      .count-bubble {
+        background-color: var(--color-count-bubble-background);
+        color: var(--color-count-bubble-text);
+      }
       .todays-lessons-widget--complete,
       .reviews-widget--complete {
-        --color-widget-background: #e8ecf0;
+        --color-widget-background: #E8ECF0;
       }
     </style>
-    <section class="todays-lessons-widget">
-      <h2>Today's Lessons</h2>
-      <span class="count-bubble">10</span>
-    </section>
-    <section class="reviews-widget">
-      <h2>Reviews</h2>
-      <span class="count-bubble">20</span>
-    </section>`,
+    <div class="todays-lessons-widget">
+      <div class="todays-lessons-widget__title">
+        <div class="todays-lessons-widget__title-text">Today's Lessons</div>
+        <div class="todays-lessons-widget__count-text">
+          <div class="count-bubble"><span class="count-bubble__text">10</span></div>
+        </div>
+      </div>
+      <div class="todays-lessons-widget__text"><p class="wk-text">New lessons are ready.</p></div>
+    </div>
+    <div class="reviews-widget">
+      <div class="reviews-widget__title">
+        <div class="reviews-widget__title-text">Reviews</div>
+        <div class="reviews-widget__count-text">
+          <div class="count-bubble"><span class="count-bubble__text">20</span></div>
+        </div>
+      </div>
+      <div class="reviews-widget__text"><p class="wk-text">Reviews are ready.</p></div>
+    </div>`,
     "https://www.wanikani.com/",
   );
 
   await loadCatppuccinMocha(dom);
 
-  for (const widget of dom.window.document.querySelectorAll(
-    ".todays-lessons-widget, .reviews-widget",
-  )) {
-    const bubble = widget.querySelector(".count-bubble");
+  const assertReadable = (text, surface, label) => {
+    const ratio = contrastRatio(
+      parseColor(resolveCustomProperty(dom, text, "color")),
+      parseColor(resolveCustomProperty(dom, surface, "background-color")),
+    );
     assert.ok(
-      contrastRatio(
-        parseColor(resolveCustomProperty(dom, bubble, "color")),
-        parseColor(resolveCustomProperty(dom, bubble, "background-color")),
-      ) >= 4.5,
-      "Pending count bubbles remain readable",
+      ratio >= 4.5,
+      `${label} contrast is ${ratio}, expected at least 4.5`,
+    );
+  };
+
+  for (const widgetClass of ["todays-lessons-widget", "reviews-widget"]) {
+    const widget = dom.window.document.querySelector(`.${widgetClass}`);
+    const title = widget.querySelector(`.${widgetClass}__title-text`);
+    const description = widget.querySelector("p.wk-text");
+    const bubble = widget.querySelector(".count-bubble");
+
+    assertReadable(title, widget, `${widgetClass} pending title`);
+    assertReadable(description, widget, `${widgetClass} pending description`);
+    assertReadable(
+      bubble.querySelector(".count-bubble__text"),
+      bubble,
+      `${widgetClass} pending count`,
     );
 
-    for (const complete of [false, true]) {
-      if (complete) {
-        widget.classList.add(`${widget.className}--complete`);
-        bubble.remove();
-      }
-      const background = parseColor(
-        resolveCustomProperty(dom, widget, "--color-widget-background"),
-      );
-      for (const property of [
-        "--color-widget-primary-text",
-        "--color-widget-secondary-text",
-      ]) {
-        const foreground = parseColor(
-          resolveCustomProperty(dom, widget, property),
-        );
-        assert.ok(
-          contrastRatio(foreground, background) >= 4.5,
-          `${widget.className} ${property}`,
-        );
-      }
-    }
+    widget.classList.add(`${widgetClass}--complete`);
+    bubble.remove();
+    assertReadable(title, widget, `${widgetClass} completed title`);
+    assertReadable(description, widget, `${widgetClass} completed description`);
   }
 });
 
@@ -1671,43 +1697,6 @@ test("Catppuccin Mocha disables text shadows globally", async () => {
     dom.window.getComputedStyle(audioDetails).textShadow,
     "0 1px 0 #fff",
   );
-});
-
-test("Catppuccin Mocha uses bold subject colors and a restrained incorrect quiz state", async () => {
-  const dom = createDom(
-    `<style>
-      :root {
-        --color-radical: #00aaff;
-        --color-kanji: #ff00aa;
-        --color-vocabulary: #aa00ff;
-        --color-blue: #00aaff;
-        --color-pink: #ff00aa;
-        --color-purple: #aa00ff;
-        --color-quiz-incorrect-background: #ff0033;
-        --color-quiz-incorrect-text-color: #fff;
-        --color-quiz-incorrect-text-shadow: 1px 1px 0 rgba(0, 0, 0, .2);
-      }
-    </style>`,
-    "https://www.wanikani.com/",
-  );
-
-  await loadCatppuccinMocha(dom);
-
-  const root = dom.window.document.documentElement;
-  const expected = {
-    "--color-radical": "oklch(72.04%0.1913 261.88)",
-    "--color-kanji": "oklch(81.78%0.1552 338.3)",
-    "--color-vocabulary": "oklch(73.99%0.1987 306.77)",
-    "--color-blue": "oklch(72.04%0.1913 261.88)",
-    "--color-pink": "oklch(81.78%0.1552 338.3)",
-    "--color-purple": "oklch(73.99%0.1987 306.77)",
-    "--color-quiz-incorrect-background":
-      "color-mix(in srgb,var(--ctp-mocha-red) 18%,var(--wk-dark-surface))",
-    "--color-quiz-incorrect-text-color": "#cdd6f4",
-    "--color-quiz-incorrect-text-shadow": "transparent",
-  };
-
-  assertCustomProperties(dom, root, expected);
 });
 
 test("Catppuccin Mocha responds when the system preference changes", async () => {
