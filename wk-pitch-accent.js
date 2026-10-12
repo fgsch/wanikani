@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         WaniKani Pitch Accent
 // @namespace    wk-pitch-accent
-// @version      0.9.4
+// @version      0.9.5
 // @author       Federico G. Schwindt <fgsch@lodoss.net>
-// @description  Adds OJAD pitch-accent diagrams to WaniKani vocabulary pages, lessons, and quizzes.
+// @description  Adds OJAD pitch-accent diagrams to WaniKani vocabulary and kana vocabulary in subject pages, lessons, and quizzes.
 // @license      MIT
 // @homepageURL  https://github.com/fgsch/wanikani
 // @updateURL    https://raw.githubusercontent.com/fgsch/wanikani/main/wk-pitch-accent.js
@@ -63,7 +63,7 @@
       isSubjectLessonPage() &&
       Boolean(
         document.querySelector(
-          ".character-header--kanji, .character-header--vocabulary, .character-header--kana-vocabulary",
+          ".character-header--vocabulary, .character-header--kana-vocabulary",
         ),
       )
     );
@@ -77,7 +77,6 @@
     const readings = new Set(
       initialReadings.map(normalizeJapanese).filter(Boolean),
     );
-
     root
       ?.querySelectorAll(
         ".reading-with-audio__reading, [data-reading], .wk-text[lang='ja']",
@@ -90,7 +89,6 @@
           readings.add(reading);
         }
       });
-
     return [...readings];
   }
 
@@ -149,7 +147,7 @@
     }
 
     const header = document.querySelector(
-      ".character-header--kanji, .character-header--vocabulary, .character-header--kana-vocabulary",
+      ".character-header--vocabulary, .character-header--kana-vocabulary",
     );
     const charactersElement = header?.querySelector(
       ".character-header__characters",

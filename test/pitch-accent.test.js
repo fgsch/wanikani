@@ -925,54 +925,46 @@ test("pitch accent inserts inside the vocabulary lesson Reading slide", async ()
   );
 });
 
-test("pitch accent replaces a kanji lesson reading", async () => {
+test("pitch accent leaves kanji lessons unchanged without OJAD lookups", async () => {
   const dom = createDom(
     `
       <div class="character-header character-header--kanji">
-        <div class="character-header__characters">村</div>
+        <div class="character-header__characters">地</div>
       </div>
       <div class="subject-slide" id="reading">
-        <section class="subject-section" title="Readings (kun’yomi)">
-          <section class="subject-section__content">
-            <p class="wk-text" lang="ja">むら</p>
-          </section>
-        </section>
+        <div class="subject-slide__content">
+          <div class="subject-slide__aside">
+            <section class="subject-section">
+              <section class="subject-section__content">
+                <p class="wk-text" lang="ja">ち、じ</p>
+              </section>
+            </section>
+          </div>
+          <div class="subject-slide__sections">
+            <section class="subject-section">
+              <section class="subject-section__content"><p class="wk-text">Reading mnemonic</p></section>
+            </section>
+          </div>
+        </div>
       </div>
     `,
-    "https://www.wanikani.com/subject-lessons/930252633918130599/554#reading",
+    "https://www.wanikani.com/subject-lessons/2088442377459203841/608#reading",
   );
-
-  await loadUserscript(dom, "wk-pitch-accent.js", {
-    GM: {
-      xmlHttpRequest({ onload }) {
-        onload({
-          status: 200,
-          responseText: ojadResultsHtml([
-            {
-              headword: "村",
-              moras: [{ text: "む", drop: true }, { text: "ら" }],
-            },
-          ]),
-        });
-      },
-    },
-  });
-
-  await waitFor(() => {
-    assert.equal(
-      dom.window.document.querySelector(
-        "#reading .wk-pitch-accent-charts svg text",
-      )?.textContent,
-      "む",
-    );
-  });
-
-  assert.equal(
-    dom.window.document.querySelector("#reading .wk-pitch-accent-charts")
-      ?.dataset.reading,
-    "むら",
+  const nativeReadings = dom.window.document.querySelector(
+    ".subject-slide__aside .wk-text",
   );
-  assert.ok(dom.window.document.querySelector("#reading #wk-pitch-accent"));
+  const requests = [];
+
+  await loadUserscript(dom, "wk-pitch-accent.js", capturedRequests(requests));
+  dom.window.document
+    .querySelector(".subject-slide__sections")
+    .append(dom.window.document.createElement("p"));
+  await flushMutationObservers();
+
+  assert.equal(requests.length, 0);
+  assert.equal(dom.window.document.querySelector(".wk-pitch-accent"), null);
+  assert.equal(nativeReadings.isConnected, true);
+  assert.equal(nativeReadings.textContent, "ち、じ");
 });
 
 test("pitch accent waits for a revealed quiz answer and Reading item info", async () => {
